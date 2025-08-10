@@ -29,7 +29,7 @@ export const useAuthStore = defineStore('auth', () => {
       const config = useRuntimeConfig()
       
       // 只使用真實 API 登入
-      const response = await $fetch('/login', {
+      const response = await $fetch('/auth/login', {
         baseURL: config.public.apiBaseUrl || '/api',
         method: 'POST',
         body: {
@@ -69,7 +69,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const config = useRuntimeConfig()
       
-      const response = await $fetch('/register', {
+      const response = await $fetch('/auth/register', {
         baseURL: config.public.apiBaseUrl || '/api',
         method: 'POST',
         body: userData,

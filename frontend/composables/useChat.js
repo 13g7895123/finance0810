@@ -35,12 +35,12 @@ export const useChat = () => {
 
   // 模擬數據 - 當 API 不可用時使用
   const getMockData = (endpoint, options) => {
-    if (endpoint === '/chat/conversations') {
+    if (endpoint === '/chats') {
       return getMockConversations()
-    } else if (endpoint.startsWith('/chat/conversation/')) {
+    } else if (endpoint.startsWith('/chats/')) {
       const userId = endpoint.split('/').pop()
       return getMockMessages(userId)
-    } else if (endpoint === '/chat/unread-count') {
+    } else if (endpoint === '/chats/unread/count') {
       return { unread_count: 3 }
     }
     
@@ -151,7 +151,7 @@ export const useChat = () => {
   // 獲取對話列表
   const getConversations = async (page = 1) => {
     try {
-      return await apiCall('/chat/conversations', {
+      return await apiCall('/chats', {
         query: { page }
       })
     } catch (error) {
@@ -163,7 +163,7 @@ export const useChat = () => {
   // 獲取特定用戶的對話
   const getConversation = async (userId, page = 1) => {
     try {
-      return await apiCall(`/chat/conversation/${userId}`, {
+      return await apiCall(`/chats/${userId}`, {
         query: { page }
       })
     } catch (error) {
@@ -175,7 +175,7 @@ export const useChat = () => {
   // 回覆訊息
   const replyMessage = async (userId, message) => {
     try {
-      return await apiCall(`/chat/reply/${userId}`, {
+      return await apiCall(`/chats/${userId}/reply`, {
         method: 'POST',
         body: { message }
       })
@@ -201,7 +201,7 @@ export const useChat = () => {
   // 獲取未讀訊息數量
   const getUnreadCount = async () => {
     try {
-      return await apiCall('/chat/unread-count')
+      return await apiCall('/chats/unread/count')
     } catch (error) {
       console.error('Failed to fetch unread count:', error)
       return { unread_count: 3 }
