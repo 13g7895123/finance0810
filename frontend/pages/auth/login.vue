@@ -61,11 +61,23 @@
           <div class="space-y-2 text-xs text-blue-700">
             <div class="flex justify-between items-center p-2 bg-white rounded border border-gray-100">
               <div>
-                <div class="font-medium">經銷商/公司高層</div>
-                <div class="text-gray-500">dealer01 / dealer123</div>
+                <div class="font-medium">系統管理員</div>
+                <div class="text-gray-500">admin / password123</div>
               </div>
               <button 
-                @click="fillCredentials('dealer01', 'dealer123')"
+                @click="fillCredentials('admin', 'password123')"
+                class="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+              >
+                使用
+              </button>
+            </div>
+            <div class="flex justify-between items-center p-2 bg-white rounded border border-gray-100">
+              <div>
+                <div class="font-medium">經銷商/公司高層</div>
+                <div class="text-gray-500">executive / password123</div>
+              </div>
+              <button 
+                @click="fillCredentials('executive', 'password123')"
                 class="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
               >
                 使用
@@ -74,10 +86,10 @@
             <div class="flex justify-between items-center p-2 bg-white rounded border border-gray-100">
               <div>
                 <div class="font-medium">行政人員/主管</div>
-                <div class="text-gray-500">admin01 / admin123</div>
+                <div class="text-gray-500">manager / password123</div>
               </div>
               <button 
-                @click="fillCredentials('admin01', 'admin123')"
+                @click="fillCredentials('manager', 'password123')"
                 class="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
               >
                 使用
@@ -86,10 +98,10 @@
             <div class="flex justify-between items-center p-2 bg-white rounded border border-gray-100">
               <div>
                 <div class="font-medium">業務人員</div>
-                <div class="text-gray-500">sales01 / sales123</div>
+                <div class="text-gray-500">staff / password123</div>
               </div>
               <button 
-                @click="fillCredentials('sales01', 'sales123')"
+                @click="fillCredentials('staff', 'password123')"
                 class="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
               >
                 使用
@@ -173,7 +185,7 @@ const handleLogin = async () => {
     // 檢查登入結果
     if (result && result.success && result.user) {
       // 根據用戶角色重定向到適當頁面
-      if (result.user.role === authStore.roles.SALES_STAFF) {
+      if (result.user.role === authStore.roles.STAFF) {
         await navigateTo('/sales/customers')
       } else {
         await navigateTo('/dashboard/analytics')

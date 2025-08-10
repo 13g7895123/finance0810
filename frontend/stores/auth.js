@@ -4,9 +4,10 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = computed(() => !!user.value)
   
   // 權限檢查
-  const isDealer = computed(() => user.value?.role === roles.DEALER_EXECUTIVE)
-  const isAdmin = computed(() => user.value?.role === roles.ADMIN_MANAGER)
-  const isSales = computed(() => user.value?.role === roles.SALES_STAFF)
+  const isExecutive = computed(() => user.value?.role === roles.EXECUTIVE)
+  const isAdmin = computed(() => user.value?.role === roles.ADMIN)
+  const isManager = computed(() => user.value?.role === roles.MANAGER)
+  const isStaff = computed(() => user.value?.role === roles.STAFF)
   
   // 檢查特定權限
   const hasPermission = (permission) => {
@@ -14,11 +15,12 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value.permissions?.includes('all_access') || user.value.permissions?.includes(permission)
   }
   
-  // 權限角色定義
+  // 權限角色定義（與後端保持一致）
   const roles = {
-    DEALER_EXECUTIVE: 'dealer_executive', // 經銷商/公司高層
-    ADMIN_MANAGER: 'admin_manager', // 行政人員/主管
-    SALES_STAFF: 'sales_staff' // 業務人員
+    ADMIN: 'admin', // 系統管理員
+    EXECUTIVE: 'executive', // 經銷商/公司高層
+    MANAGER: 'manager', // 行政人員/主管
+    STAFF: 'staff' // 業務人員
   }
 
   // 移除模擬用戶數據，改為完全使用 API
@@ -30,7 +32,7 @@ export const useAuthStore = defineStore('auth', () => {
       
       // 使用統一的 API composable
       const { data: response, error } = await post('/auth/login', {
-        email: credentials.username,  // 支援 email 或 username
+        username: credentials.username,  // 後端期望 username 欄位
         password: credentials.password
       })
       
@@ -38,11 +40,12 @@ export const useAuthStore = defineStore('auth', () => {
         throw new Error(error.message || '登入失敗')
       }
       
-      if (response.success) {
-        // 設定用戶資料，確保包含 token
+      if (response.access_token && response.user) {
+        // 設定用戶資料，確保包含 token 和主要角色
         const userData = {
           ...response.user,
-          token: response.token
+          token: response.access_token,  // 後端回傳 access_token
+          role: response.user.roles?.[0] || null  // 取得主要角色（第一個角色）
         }
         
         user.value = userData
@@ -52,7 +55,7 @@ export const useAuthStore = defineStore('auth', () => {
         
         return { success: true, user: userData }
       } else {
-        throw new Error(response.message || '登入失敗')
+        throw new Error('登入回應格式錯誤')
       }
     } catch (error) {
       console.error('Login failed:', error)
@@ -119,8 +122,9 @@ export const useAuthStore = defineStore('auth', () => {
     user: readonly(user),
     isLoggedIn,
     isAdmin,
-    isDealer,
-    isSales,
+    isExecutive,
+    isManager,
+    isStaff,
     roles,
     
     // 方法
