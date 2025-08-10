@@ -1,24 +1,26 @@
 export const useChat = () => {
-  const config = useRuntimeConfig()
   const authStore = useAuthStore()
+  const { get, post } = useApi()
   
-  // API 基礎設定 - 優先使用真實API
+  // API 基礎呼叫 - 優先使用真實API，失敗時回退到模擬數據
   const apiCall = async (endpoint, options = {}) => {
     try {
-      const token = authStore.user?.token || 'mock-jwt-token'
+      if (!authStore.user?.token) {
+        throw new Error('Authentication required for chat functions')
+      }
       
-      const response = await $fetch(endpoint, {
-        baseURL: config.public.apiBaseUrl || '/api',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          ...options.headers
-        },
-        ...options
-      })
+      let result
+      if (options.method === 'POST') {
+        const { data, error } = await post(endpoint, options.body || {})
+        if (error) throw error
+        result = data
+      } else {
+        const { data, error } = await get(endpoint, options.query || {})
+        if (error) throw error
+        result = data
+      }
       
-      return response
+      return result
     } catch (error) {
       console.error('Chat API Error:', error.message || error)
       

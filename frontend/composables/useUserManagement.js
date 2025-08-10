@@ -1,86 +1,77 @@
 export const useUserManagement = () => {
-  const config = useRuntimeConfig()
   const authStore = useAuthStore()
+  const { get, post, put, del } = useApi()
   
-  // API 基礎設定 - 只使用真實API
-  const apiCall = async (endpoint, options = {}) => {
-    const token = authStore.user?.token
-    
-    if (!token) {
+  // 檢查認證狀態
+  const checkAuth = () => {
+    if (!authStore.user?.token) {
       throw new Error('Authentication required. Please login first.')
     }
-    
-    const response = await $fetch(endpoint, {
-      baseURL: config.public.apiBaseUrl || '/api',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        ...options.headers
-      },
-      ...options
-    })
-    
-    return response
   }
 
 
   // 獲取使用者列表
   const getUsers = async (params = {}) => {
-    const queryParams = new URLSearchParams()
-    if (params.search) queryParams.append('search', params.search)
-    if (params.role) queryParams.append('role', params.role)
-    if (params.status) queryParams.append('status', params.status)
-    if (params.page) queryParams.append('page', params.page)
-    
-    const endpoint = `/users${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-    return await apiCall(endpoint)
+    checkAuth()
+    const { data, error } = await get('/users', params)
+    if (error) throw error
+    return data
   }
 
   // 創建新使用者
   const createUser = async (userData) => {
-    return await apiCall('/users', {
-      method: 'POST',
-      body: userData
-    })
+    checkAuth()
+    const { data, error } = await post('/users', userData)
+    if (error) throw error
+    return data
   }
 
   // 更新使用者
   const updateUser = async (userId, userData) => {
-    return await apiCall(`/users/${userId}`, {
-      method: 'PUT',
-      body: userData
-    })
+    checkAuth()
+    const { data, error } = await put(`/users/${userId}`, userData)
+    if (error) throw error
+    return data
   }
 
   // 刪除使用者
   const deleteUser = async (userId) => {
-    return await apiCall(`/users/${userId}`, {
-      method: 'DELETE'
-    })
+    checkAuth()
+    const { data, error } = await del(`/users/${userId}`)
+    if (error) throw error
+    return data
   }
 
   // 指派角色
   const assignRole = async (userId, roleName) => {
-    return await apiCall(`/users/${userId}/roles`, {
-      method: 'POST',
-      body: { role: roleName }
-    })
+    checkAuth()
+    const { data, error } = await post(`/users/${userId}/roles`, { role: roleName })
+    if (error) throw error
+    return data
   }
 
   // 獲取可用角色
   const getRoles = async () => {
-    return await apiCall('/roles')
+    checkAuth()
+    const { data, error } = await get('/roles')
+    if (error) throw error
+    return data
   }
 
   // 獲取使用者統計
   const getUserStats = async () => {
-    return await apiCall('/users/stats/overview')
+    checkAuth()
+    const { data, error } = await get('/users/stats/overview')
+    if (error) throw error
+    return data
   }
 
   // 獲取特定使用者詳細資訊
   const getUser = async (userId) => {
-    return await apiCall(`/users/${userId}`)
+    checkAuth()
+    const { data, error } = await get(`/users/${userId}`)
+    if (error) throw error
+    return data
   }
 
   return {

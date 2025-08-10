@@ -26,21 +26,17 @@ export const useAuthStore = defineStore('auth', () => {
   // 登入功能
   const login = async (credentials) => {
     try {
-      const config = useRuntimeConfig()
+      const { post } = useApi()
       
-      // 只使用真實 API 登入
-      const response = await $fetch('/auth/login', {
-        baseURL: config.public.apiBaseUrl || '/api',
-        method: 'POST',
-        body: {
-          email: credentials.username,  // 支援 email 或 username
-          password: credentials.password
-        },
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
+      // 使用統一的 API composable
+      const { data: response, error } = await post('/auth/login', {
+        email: credentials.username,  // 支援 email 或 username
+        password: credentials.password
       })
+      
+      if (error) {
+        throw new Error(error.message || '登入失敗')
+      }
       
       if (response.success) {
         // 設定用戶資料，確保包含 token
@@ -60,29 +56,25 @@ export const useAuthStore = defineStore('auth', () => {
       }
     } catch (error) {
       console.error('Login failed:', error)
-      throw new Error(error.data?.message || error.message || '登入失敗，請檢查您的帳號密碼')
+      throw new Error(error.message || '登入失敗，請檢查您的帳號密碼')
     }
   }
 
   // 註冊功能
   const register = async (userData) => {
     try {
-      const config = useRuntimeConfig()
+      const { post } = useApi()
       
-      const response = await $fetch('/auth/register', {
-        baseURL: config.public.apiBaseUrl || '/api',
-        method: 'POST',
-        body: userData,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      })
+      const { data: response, error } = await post('/auth/register', userData)
+      
+      if (error) {
+        throw new Error(error.message || '註冊失敗，請稍後再試')
+      }
       
       return { success: true, message: response.message || '註冊成功，請使用您的帳號密碼登入' }
     } catch (error) {
       console.error('Registration failed:', error)
-      throw new Error(error.data?.message || error.message || '註冊失敗，請稍後再試')
+      throw new Error(error.message || '註冊失敗，請稍後再試')
     }
   }
 
