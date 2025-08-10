@@ -13,7 +13,7 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=development
-      - NUXT_PUBLIC_API_BASE=http://localhost:${BACKEND_PORT}/api
+      - NUXT_PUBLIC_API_BASE_URL=${NUXT_PUBLIC_API_BASE_URL}
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     networks:
       - crm-network

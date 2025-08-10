@@ -7,7 +7,7 @@ services:
     ports:
       - "${FRONTEND_PORT}:3000"
     environment:
-      - NUXT_API_BASE_URL=${NUXT_API_BASE_URL}
+      - NUXT_PUBLIC_API_BASE_URL=${NUXT_PUBLIC_API_BASE_URL}
       - NUXT_SECRET_KEY=${NUXT_SECRET_KEY}
     depends_on:
       - backend
