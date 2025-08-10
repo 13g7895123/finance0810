@@ -36,6 +36,17 @@ WORKDIR /var/www/html
 # Copy application code first
 COPY . .
 
+# 建立 Laravel 必要可寫目錄並設定權限
+# - 建立 bootstrap/cache 與 storage 下常用子目錄
+# - 將擁有者設為 www-data（PHP 預設使用者），避免執行期寫入受阻
+# - 權限 775：同群組可寫，避免過度開放
+RUN set -eux; \
+    mkdir -p bootstrap/cache \
+             storage/framework/{cache,data,sessions,views} \
+             storage/logs; \
+    chown -R www-data:www-data bootstrap storage; \
+    chmod -R 775 bootstrap storage
+
 # Install PHP dependencies  
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
