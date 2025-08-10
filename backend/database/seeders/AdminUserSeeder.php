@@ -21,12 +21,12 @@ class AdminUserSeeder extends Seeder
         sleep(1);
         
         // Create admin user
-        $admin = User::firstOrCreate(
+        $admin = User::updateOrCreate(
             ['email' => 'admin@finance-crm.com'],
             [
                 'name' => '系統管理員',
                 'username' => 'admin',
-                'password' => Hash::make('password123'),
+                'password' => Hash::make('admin123'),
                 'status' => 'active',
                 'password_changed_at' => now(),
             ]
@@ -150,7 +150,7 @@ class AdminUserSeeder extends Seeder
 
         $this->command->info('Default users created successfully!');
         $this->command->info('Login credentials:');
-        $this->command->info('Admin: admin@finance-crm.com / password123');
+        $this->command->info('Admin: admin@finance-crm.com / admin123');
         $this->command->info('Executive: executive@finance-crm.com / password123');
         $this->command->info('Manager: manager@finance-crm.com / password123');
         $this->command->info('Staff: staff@finance-crm.com / password123');

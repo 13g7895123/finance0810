@@ -14,8 +14,6 @@ export const useApi = () => {
    */
   const apiRequest = async (method, endpoint, data = null, options = {}) => {
     try {
-      const token = useCookie('auth-token')
-      
       const requestOptions = {
         method: method.toUpperCase(),
         baseURL,
@@ -24,12 +22,8 @@ export const useApi = () => {
           'Accept': 'application/json',
           ...options.headers
         },
+        credentials: 'include', // 允許發送 HTTP-Only Cookie
         ...options
-      }
-
-      // 添加認證Token
-      if (token.value) {
-        requestOptions.headers.Authorization = `Bearer ${token.value}`
       }
 
       // 添加請求資料
@@ -49,9 +43,13 @@ export const useApi = () => {
 
       // 處理認證錯誤
       if (error.status === 401) {
-        // Token過期，清除並重導向到登入頁
-        const token = useCookie('auth-token')
-        token.value = null
+        // Token過期，清除 sessionStorage 並重導向到登入頁
+        if (process.client) {
+          sessionStorage.removeItem('user-profile')
+          // 清除舊的 localStorage 資料（向後相容）
+          localStorage.removeItem('auth-token')
+          localStorage.removeItem('admin-template-user')
+        }
         await router.push('/auth/login')
       }
 

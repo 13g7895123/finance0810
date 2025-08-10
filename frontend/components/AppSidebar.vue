@@ -185,9 +185,10 @@ const filteredMenuItems = computed(() => {
 // 角色顯示名稱
 const getRoleDisplayName = (role) => {
   const roleMap = {
-    [authStore.roles.DEALER_EXECUTIVE]: '經銷商/公司高層',
-    [authStore.roles.ADMIN_MANAGER]: '行政人員/主管',
-    [authStore.roles.SALES_STAFF]: '業務人員'
+    'admin': '系統管理員',
+    'executive': '經銷商/公司高層',
+    'manager': '行政人員/主管',
+    'staff': '業務人員'
   }
   return roleMap[role] || role
 }

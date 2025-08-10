@@ -16,6 +16,11 @@ class User extends Authenticatable implements JWTSubject
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes, HasRoles;
 
     /**
+     * The guard name for Spatie permissions
+     */
+    protected $guard_name = 'web';
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>

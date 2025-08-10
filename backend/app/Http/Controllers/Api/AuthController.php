@@ -62,7 +62,20 @@ class AuthController extends Controller
         // Update last login
         $user->updateLastLogin($request->ip());
 
-        return $this->respondWithToken($token, $user);
+        // 設定 HTTP-Only Cookie
+        $cookie = cookie(
+            'auth-token',           // cookie 名稱
+            $token,                 // token 值
+            JWTAuth::factory()->getTTL(), // 過期時間（分鐘）
+            '/',                    // path
+            null,                   // domain
+            request()->secure(),    // secure (HTTPS)
+            true,                   // httpOnly
+            false,                  // raw
+            'Strict'                // sameSite
+        );
+
+        return $this->respondWithToken($token, $user)->withCookie($cookie);
     }
 
     /**
@@ -143,7 +156,10 @@ class AuthController extends Controller
     {
         JWTAuth::logout();
 
-        return response()->json(['message' => '登出成功']);
+        // 清除 HTTP-Only Cookie
+        $cookie = cookie()->forget('auth-token');
+
+        return response()->json(['message' => '登出成功'])->withCookie($cookie);
     }
 
     /**

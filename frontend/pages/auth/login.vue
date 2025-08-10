@@ -50,65 +50,7 @@
           </div>
         </div>
 
-        <!-- Error Message -->
-        <div v-if="error" class="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p class="text-sm text-red-700">{{ error }}</p>
-        </div>
-
-        <!-- Demo Accounts Info -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 class="text-sm font-medium text-blue-800 mb-3">測試帳號</h4>
-          <div class="space-y-2 text-xs text-blue-700">
-            <div class="flex justify-between items-center p-2 bg-white rounded border border-gray-100">
-              <div>
-                <div class="font-medium">系統管理員</div>
-                <div class="text-gray-500">admin / password123</div>
-              </div>
-              <button 
-                @click="fillCredentials('admin', 'password123')"
-                class="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-              >
-                使用
-              </button>
-            </div>
-            <div class="flex justify-between items-center p-2 bg-white rounded border border-gray-100">
-              <div>
-                <div class="font-medium">經銷商/公司高層</div>
-                <div class="text-gray-500">executive / password123</div>
-              </div>
-              <button 
-                @click="fillCredentials('executive', 'password123')"
-                class="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-              >
-                使用
-              </button>
-            </div>
-            <div class="flex justify-between items-center p-2 bg-white rounded border border-gray-100">
-              <div>
-                <div class="font-medium">行政人員/主管</div>
-                <div class="text-gray-500">manager / password123</div>
-              </div>
-              <button 
-                @click="fillCredentials('manager', 'password123')"
-                class="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-              >
-                使用
-              </button>
-            </div>
-            <div class="flex justify-between items-center p-2 bg-white rounded border border-gray-100">
-              <div>
-                <div class="font-medium">業務人員</div>
-                <div class="text-gray-500">staff / password123</div>
-              </div>
-              <button 
-                @click="fillCredentials('staff', 'password123')"
-                class="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-              >
-                使用
-              </button>
-            </div>
-          </div>
-        </div>
+        <!-- Error Message - Removed since we're using SweetAlert -->
 
         <!-- Submit Button -->
         <button
@@ -148,6 +90,7 @@ definePageMeta({
 
 // Removed i18n usage to prevent warnings
 // const { t } = useI18n()
+const { $swal } = useNuxtApp()
 const authStore = useAuthStore()
 
 // Static translations instead of i18n
@@ -173,45 +116,98 @@ const form = ref({
 })
 
 const loading = ref(false)
-const error = ref('')
 
 const handleLogin = async () => {
   try {
     loading.value = true
-    error.value = ''
+    console.log('開始登入流程...')
+    console.log('表單資料:', form.value)
+    
+    // 確保表單資料格式正確
+    if (!form.value.username || !form.value.password) {
+      throw new Error('請填寫完整的登入資訊')
+    }
     
     const result = await authStore.login(form.value)
+    console.log('Auth store login 結果:', result)
     
     // 檢查登入結果
     if (result && result.success && result.user) {
-      // 根據用戶角色重定向到適當頁面
-      if (result.user.role === authStore.roles.STAFF) {
-        await navigateTo('/sales/customers')
-      } else {
-        await navigateTo('/dashboard/analytics')
+      console.log('登入成功，用戶資料:', result.user)
+      console.log('用戶角色:', result.user.role)
+      
+      // 等待 auth store 狀態更新
+      await nextTick()
+      
+      // 檢查 auth store 狀態
+      console.log('Auth store isLoggedIn:', authStore.isLoggedIn)
+      console.log('Auth store user:', authStore.user)
+      
+      if (!authStore.isLoggedIn) {
+        console.log('等待認證狀態更新...')
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        if (!authStore.isLoggedIn) {
+          console.error('認證狀態更新失敗')
+          throw new Error('認證狀態更新失敗，請重新嘗試')
+        }
       }
+      
+      // 根據用戶角色決定重定向路徑
+      let redirectPath = '/dashboard/analytics' // 默認重定向路徑
+      
+      if (result.user.role === 'staff') {
+        redirectPath = '/sales/customers'
+      }
+      
+      console.log('準備重定向到:', redirectPath)
+      
+      // 多重重定向策略確保重定向成功
+      try {
+        console.log('嘗試使用 navigateTo 重定向')
+        await navigateTo(redirectPath)
+      } catch (navError) {
+        console.warn('navigateTo 失敗，嘗試 router.push:', navError)
+        try {
+          const router = useRouter()
+          await router.push(redirectPath)
+        } catch (routerError) {
+          console.warn('router.push 失敗，使用 window.location:', routerError)
+          window.location.href = redirectPath
+        }
+      }
+      
     } else {
+      console.error('登入回應異常:', result)
       throw new Error('登入失敗，請重試')
     }
   } catch (err) {
-    // 安全地處理錯誤消息
-    error.value = err && err.message ? err.message : '登入過程發生錯誤，請重試'
-    console.error('Login error:', err)
+    console.error('登入錯誤:', err)
+    
+    // 使用 SweetAlert 顯示錯誤消息
+    const errorMessage = err && err.message ? err.message : '登入過程發生錯誤，請重試'
+    
+    $swal.fire({
+      icon: 'error',
+      title: '系統提示',
+      text: errorMessage,
+      confirmButtonText: '確定',
+      confirmButtonColor: '#3B82F6'
+    })
   } finally {
     loading.value = false
   }
-}
-
-// 填入測試帳號
-const fillCredentials = (username, password) => {
-  form.value.username = username
-  form.value.password = password
 }
 
 // 如果已經登入，重定向到首頁
 onMounted(() => {
   if (authStore.isLoggedIn) {
     navigateTo('/')
+  }
+  
+  // SweetAlert 插件檢查（開發模式）
+  if (process.dev && !$swal) {
+    console.error('SweetAlert plugin not available')
   }
 })
 </script>
