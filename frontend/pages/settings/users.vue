@@ -1,29 +1,44 @@
 <template>
   <div class="space-y-6">
     <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
-      <div class="flex items-center justify-between mb-6">
+      <!-- Title -->
+      <div class="mb-6">
         <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
           {{ t('nav.user_management') }}
         </h2>
-        <div class="flex items-center space-x-4">
+      </div>
+
+      <!-- Action Bar -->
+      <div class="flex items-center justify-between mb-6">
+        <!-- Add User Button - Left Side -->
+        <button
+          @click="showAddModal = true"
+          class="inline-flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors duration-200"
+        >
+          <PlusIcon class="w-5 h-5 mr-2" />
+          {{ t('auth.add_user') }}
+        </button>
+
+        <!-- Search and Refresh - Right Side -->
+        <div class="flex items-center space-x-3">
           <!-- Search -->
           <div class="relative">
             <input
               v-model="searchQuery"
               type="text"
               :placeholder="t('common.search') + '...'"
-              class="w-64 px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              class="w-64 px-4 py-2 pl-10 border-2 border-gray-400 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
             <MagnifyingGlassIcon class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" />
           </div>
           
-          <!-- Add User Button -->
+          <!-- Refresh Button -->
           <button
-            @click="showAddModal = true"
-            class="inline-flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors duration-200"
+            @click="refreshUsers"
+            class="inline-flex items-center px-3 py-2 border-2 border-gray-400 dark:border-gray-500 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+            title="重新整理"
           >
-            <PlusIcon class="w-5 h-5 mr-2" />
-            {{ t('auth.add_user') }}
+            <ArrowPathIcon class="w-5 h-5" :class="{ 'animate-spin': refreshing }" />
           </button>
         </div>
       </div>
@@ -168,7 +183,7 @@
             <input
               v-model="addForm.name"
               type="text"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
           
@@ -180,7 +195,7 @@
             <input
               v-model="addForm.email"
               type="email"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
 
@@ -192,7 +207,7 @@
             <input
               v-model="addForm.password"
               type="password"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
 
@@ -203,7 +218,7 @@
             </label>
             <select
               v-model="addForm.role"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             >
               <option value="">選擇角色</option>
               <option v-for="role in roles" :key="role.id" :value="role.name">
@@ -247,7 +262,7 @@
             <input
               v-model="editForm.name"
               type="text"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
           
@@ -259,7 +274,7 @@
             <input
               v-model="editForm.email"
               type="email"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
 
@@ -270,7 +285,7 @@
             </label>
             <select
               v-model="editForm.role"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             >
               <option v-for="role in roles" :key="role.id" :value="role.name">
                 {{ role.display_name }}
@@ -304,7 +319,8 @@ import {
   MagnifyingGlassIcon,
   ShieldExclamationIcon,
   UsersIcon,
-  PlusIcon
+  PlusIcon,
+  ArrowPathIcon
 } from '@heroicons/vue/24/outline'
 
 definePageMeta({
@@ -321,6 +337,7 @@ const showAddModal = ref(false)
 const editForm = ref({})
 const addForm = ref({})
 const loading = ref(false)
+const refreshing = ref(false)
 const users = ref([])
 const roles = ref([])
 
@@ -464,6 +481,16 @@ const deleteUserConfirm = async (user) => {
       console.error('Failed to delete user:', error)
       alert('刪除用戶失敗，請重試')
     }
+  }
+}
+
+// Refresh users
+const refreshUsers = async () => {
+  try {
+    refreshing.value = true
+    await loadUsers()
+  } finally {
+    refreshing.value = false
   }
 }
 
