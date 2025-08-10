@@ -84,7 +84,7 @@ export const useAuthStore = defineStore('auth', () => {
       
       // 調用真實 API 登入
       const response = await $fetch('/login', {
-        baseURL: config.public.apiBase || 'http://localhost:9219/api',
+        baseURL: config.public.apiBaseUrl || '/api',
         method: 'POST',
         body: {
           email: credentials.username,  // 支援 email 或 username

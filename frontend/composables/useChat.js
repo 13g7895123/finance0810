@@ -8,7 +8,7 @@ export const useChat = () => {
       const token = authStore.user?.token || 'mock-jwt-token'
       
       const response = await $fetch(endpoint, {
-        baseURL: config.public.apiBase || 'http://localhost:8000/api',
+        baseURL: config.public.apiBaseUrl || '/api',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',

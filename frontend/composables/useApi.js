@@ -7,7 +7,7 @@ export const useApi = () => {
   const config = useRuntimeConfig()
   const router = useRouter()
   
-  const baseURL = config.public.apiBaseUrl || 'http://localhost:8000/api'
+  const baseURL = config.public.apiBaseUrl || '/api'
 
   /**
    * 通用API請求方法

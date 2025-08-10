@@ -11,7 +11,7 @@ export const useUserManagement = () => {
     }
     
     const response = await $fetch(endpoint, {
-      baseURL: config.public.apiBase || 'http://localhost:9219/api',
+      baseURL: config.public.apiBaseUrl || '/api',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/json',
