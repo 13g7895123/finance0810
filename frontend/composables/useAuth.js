@@ -24,14 +24,11 @@ export const useAuth = () => {
       return { success: false, error }
     }
 
-    // 儲存Token和用戶資訊
+    // 儲存Token和用戶資訊（僅會話期間）
     token.value = data.access_token
     user.value = data.user
     
-    // 儲存到localStorage作為備份
-    if (process.client) {
-      localStorage.setItem('finance_user', JSON.stringify(data.user))
-    }
+    // 不使用localStorage - 會話模式登入
 
     return { success: true, data }
   }
@@ -51,6 +48,7 @@ export const useAuth = () => {
     token.value = null
     user.value = null
     
+    // 清除任何可能的localStorage殘留
     if (process.client) {
       localStorage.removeItem('finance_user')
     }
@@ -71,9 +69,7 @@ export const useAuth = () => {
 
     user.value = data.user
     
-    if (process.client) {
-      localStorage.setItem('finance_user', JSON.stringify(data.user))
-    }
+    // 不使用localStorage儲存用戶資訊
 
     return { success: true, data: data.user }
   }

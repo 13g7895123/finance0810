@@ -51,10 +51,8 @@ export const useAuthStore = defineStore('auth', () => {
         
         user.value = userData
         
-        // 儲存到 localStorage
-        if (process.client) {
-          localStorage.setItem('admin-template-user', JSON.stringify(userData))
-        }
+        // 不儲存到 localStorage - 每次都需要重新登入
+        console.log('登入成功，會話模式啟動（不持久化）')
         
         return { success: true, user: userData }
       } else {
@@ -92,10 +90,12 @@ export const useAuthStore = defineStore('auth', () => {
   const logout = () => {
     user.value = null
     
-    // 清除 localStorage
+    // 確保清除任何可能的 localStorage 殘留
     if (process.client) {
       localStorage.removeItem('admin-template-user')
     }
+    
+    console.log('已登出，會話結束')
     
     // 重定向到登入頁面
     navigateTo('/auth/login')
@@ -106,26 +106,17 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = userData
   }
 
-  // 初始化用戶狀態 - 從 localStorage 恢復登入狀態
+  // 初始化用戶狀態 - 不自動恢復登入狀態，用戶每次都需要重新登入
   const initializeAuth = () => {
     if (process.client) {
+      // 清除任何舊的登入狀態
       const storedUser = localStorage.getItem('admin-template-user')
       if (storedUser) {
-        try {
-          const userData = JSON.parse(storedUser)
-          // 確保有 token 才恢復登入狀態
-          if (userData.token) {
-            user.value = userData
-            console.log('已恢復登入狀態:', userData.name)
-          } else {
-            console.log('無有效 token，請重新登入')
-            localStorage.removeItem('admin-template-user')
-          }
-        } catch (error) {
-          console.error('恢復登入狀態失敗:', error)
-          localStorage.removeItem('admin-template-user')
-        }
+        localStorage.removeItem('admin-template-user')
+        console.log('已清除舊的登入狀態，請重新登入')
       }
+      // 確保用戶狀態為空
+      user.value = null
     }
   }
 
