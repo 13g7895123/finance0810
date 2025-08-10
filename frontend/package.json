@@ -1,0 +1,25 @@
+{
+  "name": "admin-template",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@nuxt/ui": "^2.18.7",
+    "@pinia/nuxt": "^0.5.5",
+    "nuxt": "^3.13.0",
+    "pinia": "^2.2.4",
+    "vue": "latest",
+    "@heroicons/vue": "^2.1.5"
+  },
+  "devDependencies": {
+    "@nuxt/devtools": "^1.5.2",
+    "@nuxt/kit": "^3.13.0",
+    "typescript": "^5.6.3"
+  }
+}

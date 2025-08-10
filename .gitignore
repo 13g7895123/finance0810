@@ -1,0 +1,69 @@
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging
+.env.*
+backend/.env
+backend/.env.local
+backend/.env.production
+backend/.env.staging
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+dist/
+build/
+.next/
+.nuxt/
+
+# Cache and temp files
+.cache/
+.temp/
+.tmp/
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Laravel specific
+backend/storage/logs/
+backend/storage/framework/cache/
+backend/storage/framework/sessions/
+backend/storage/framework/views/
+backend/bootstrap/cache/
+
+# Nuxt specific
+frontend/.nuxt/
+frontend/dist/
+frontend/.output/
+
+# Docker
+docker-compose.override.yml
+.docker/
+
+# Documentation and project files
+CLAUDE.md
+docs/
+.claude/
+
+# Database
+*.sqlite
+*.db
+
+# Uploads
+uploads/
+storage/app/public/uploads/

@@ -1,0 +1,79 @@
+name: Finance CICD
+
+on:
+  push:
+    branches: [ master, develop ]
+
+jobs:
+  deploy-production:
+    name: 部署到生產環境
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: 取出程式碼
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p 8022 -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy via SSH
+        run: |
+          ssh -p 8022 -i ~/.ssh/id_ed25519 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            cd ~/project/bonus/finance
+            
+            # 備份當前的 .env 檔案
+            if [ -f .env ]; then
+              cp .env .env.backup
+              echo "已備份 .env 檔案"
+            fi
+            
+            # 拉取最新程式碼
+            git pull
+            
+            # 如果 .env 被覆蓋，則恢復備份
+            if [ -f .env.backup ]; then
+              cp .env.backup .env
+              rm .env.backup
+              echo "已恢復 .env 檔案"
+            fi
+            
+            # 檢查後端容器是否正在運行
+            if [ "$(docker compose ps -q backend)" ]; then
+              echo "後端容器已在運行，跳過重啟"
+              BACKEND_RUNNING=true
+            else
+              echo "後端容器未運行，將會啟動"
+              BACKEND_RUNNING=false
+            fi
+            
+            # 僅重新建構並啟動前端服務
+            docker compose up -d --build frontend
+            
+            # 如果後端未運行，則啟動後端（不重新建構）
+            if [ "$BACKEND_RUNNING" = "false" ]; then
+              docker compose up -d backend mysql redis phpmyadmin
+              echo "等待後端服務啟動完成..."
+              sleep 30
+              
+              # 執行資料庫遷移（僅在後端重新啟動時）
+              docker compose exec -T backend php artisan migrate --force
+              
+              # 執行資料庫填充（如果需要）
+              docker compose exec -T backend php artisan db:seed --force --class=RolesAndPermissionsSeeder
+            fi
+            
+            # 檢查容器狀態
+            docker compose ps
+            
+            # 清除快取（每次部署都執行）
+            docker compose exec -T backend php artisan config:cache
+            docker compose exec -T backend php artisan route:cache
+            docker compose exec -T backend php artisan view:cache
+            
+            echo "部署完成！前端已重新建構，後端保持運行狀態"
+          EOF

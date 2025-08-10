@@ -1,0 +1,376 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --primary-color: #6366f1;
+  --primary-50: #f0f9ff;
+  --primary-100: #e0f2fe;
+  --primary-200: #bae6fd;
+  --primary-300: #7dd3fc;
+  --primary-400: #38bdf8;
+  --primary-500: #6366f1;
+  --primary-600: #0284c7;
+  --primary-700: #0369a1;
+  --primary-800: #075985;
+  --primary-900: #0c4a6e;
+  --sidebar-width: 280px;
+  --sidebar-collapsed-width: 80px;
+  --navbar-height: 64px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  line-height: 1.6;
+}
+
+/* Light gradient background for main content area - matching reference website */
+.light-gradient-bg {
+  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+}
+
+/* Content cards and sections should have white/off-white backgrounds */
+.content-card, .card, .bg-white {
+  background: #ffffff;
+  border: none !important; /* Remove all borders */
+}
+
+.content-section {
+  background: #fafafa;
+}
+
+/* Ensure dashboard cards and stat cards have proper white backgrounds */
+.bg-white,
+[class*="bg-white"],
+.stat-card,
+.dashboard-card {
+  background: #ffffff !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  border: none !important; /* Remove all borders */
+}
+
+/* High contrast text colors for better readability on light background */
+.main-content-area .text-gray-900 {
+  color: #0f172a; /* Much darker slate color */
+}
+
+.main-content-area .text-gray-800 {
+  color: #1e293b; /* Darker slate color */
+}
+
+.main-content-area .text-gray-700 {
+  color: #334155; /* Dark gray */
+}
+
+.main-content-area .text-gray-600 {
+  color: #475569; /* Medium-dark gray */
+}
+
+.main-content-area .text-gray-500 {
+  color: #64748b; /* Medium gray */
+}
+
+/* Main content text contrast improvements */
+.main-content-area h1, 
+.main-content-area h2, 
+.main-content-area h3, 
+.main-content-area h4, 
+.main-content-area h5, 
+.main-content-area h6 {
+  color: #0f172a; /* Very dark for headers */
+}
+
+/* Default text color removed to use theme default */
+
+
+/* Override dark mode text colors on light background */
+.light-gradient-bg .dark\:text-white {
+  color: #0f172a !important;
+}
+
+.light-gradient-bg .dark\:text-gray-400 {
+  color: #475569 !important;
+}
+
+.light-gradient-bg .dark\:text-gray-300 {
+  color: #64748b !important;
+}
+
+/* Modern card styling with high contrast text */
+.card-modern {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  border: none !important; /* Remove all borders */
+}
+
+/* Stat cards and dashboard elements with high contrast */
+.main-content-area .card-modern .text-gray-900,
+.main-content-area .bg-white .text-gray-900 {
+  color: #0f172a;
+}
+
+.main-content-area .card-modern .text-gray-600,
+.main-content-area .bg-white .text-gray-600 {
+  color: #475569;
+}
+
+.main-content-area .card-modern .text-gray-500,
+.main-content-area .bg-white .text-gray-500 {
+  color: #64748b;
+}
+
+/* Ensure all text in cards has proper contrast */
+.main-content-area .card-modern h1, 
+.main-content-area .card-modern h2, 
+.main-content-area .card-modern h3, 
+.main-content-area .card-modern h4, 
+.main-content-area .card-modern h5, 
+.main-content-area .card-modern h6 {
+  color: #0f172a;
+}
+
+/* Default card text color removed to use theme default */
+
+/* Navigation bar text contrast improvements - removed conflicting styles */
+/* Removed header color overrides to allow component-specific styling */
+
+.rounded-custom {
+  border-radius: 12px;
+}
+
+.rounded-lg-custom {
+  border-radius: 16px;
+}
+
+.transition-all {
+  transition: all 0.3s ease;
+}
+
+.sidebar-collapsed {
+  width: var(--sidebar-collapsed-width);
+}
+
+.sidebar-expanded {
+  width: var(--sidebar-width);
+}
+
+/* Main content area positioning */
+.main-content-area {
+  margin-left: 0;
+}
+
+@media (min-width: 1024px) {
+  .main-content-area {
+    margin-left: var(--sidebar-width);
+    transition: margin-left 0.3s ease;
+  }
+  
+  .main-content-area.sidebar-collapsed {
+    margin-left: var(--sidebar-collapsed-width);
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar-mobile {
+    transform: translateX(-100%);
+  }
+  
+  .sidebar-mobile.open {
+    transform: translateX(0);
+  }
+}
+
+/* Dynamic primary color utilities */
+.bg-primary {
+  background-color: var(--primary-500);
+}
+
+.bg-primary-50 {
+  background-color: var(--primary-50);
+}
+
+.bg-primary-100 {
+  background-color: var(--primary-100);
+}
+
+.bg-primary-500 {
+  background-color: var(--primary-500);
+}
+
+.bg-primary-600 {
+  background-color: var(--primary-600);
+}
+
+.text-primary {
+  color: var(--primary-500);
+}
+
+.text-primary-400 {
+  color: var(--primary-400);
+}
+
+.text-primary-500 {
+  color: var(--primary-500);
+}
+
+.text-primary-600 {
+  color: var(--primary-600);
+}
+
+.border-primary {
+  border-color: var(--primary-500);
+}
+
+.border-primary-500 {
+  border-color: var(--primary-500);
+}
+
+.hover\:bg-primary-600:hover {
+  background-color: var(--primary-600);
+}
+
+.hover\:text-primary-500:hover {
+  color: var(--primary-500);
+}
+
+.hover\:text-primary-600:hover {
+  color: var(--primary-600);
+}
+
+.focus\:ring-primary-500:focus {
+  --tw-ring-color: var(--primary-500);
+}
+
+.focus\:border-primary-500:focus {
+  border-color: var(--primary-500);
+}
+
+/* Remove borders from all card-like elements and components */
+.border,
+.border-gray-100,
+.border-gray-200,
+.border-gray-300,
+[class*="border-"],
+.rounded-xl,
+.rounded-lg,
+.shadow,
+.shadow-sm,
+.shadow-md,
+.shadow-lg {
+  border: none !important;
+}
+
+/* Specific overrides for common patterns */
+div[class*="bg-white"],
+div[class*="rounded"],
+section[class*="bg-white"],
+article[class*="bg-white"] {
+  border: none !important;
+}
+
+/* Form elements with light gray borders */
+input[class*="border"],
+select[class*="border"],
+textarea[class*="border"] {
+  border-color: #d1d5db !important; /* Light gray border */
+  border-width: 1px !important;
+}
+
+/* Specific input types to ensure consistent styling */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+select,
+textarea {
+  border: 1px solid #d1d5db !important;
+}
+
+/* Dark mode form element borders */
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark input[type="search"],
+.dark select,
+.dark textarea {
+  border: 1px solid #6b7280 !important;
+}
+
+/* Button borders should remain as designed */
+button[class*="border"] {
+  border-color: #e5e7eb !important;
+}
+
+/* Table styling - light theme only */
+.main-content-area table {
+  border-color: #f3f4f6;
+  background-color: #ffffff;
+}
+
+.main-content-area th {
+  background-color: #f8fafc;
+  color: #334155;
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+.main-content-area td {
+  background-color: #ffffff;
+  color: #0f172a;
+  vertical-align: middle;
+}
+
+/* Table rows */
+.main-content-area tr:nth-child(even) td {
+  background-color: #f8fafc;
+}
+
+.main-content-area tr:hover td {
+  background-color: #f1f5f9;
+}
+
+/* DataTable specific overrides */
+.main-content-area .datatable,
+.main-content-area .data-table,
+.main-content-area .table-container {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+/* Remove all dark backgrounds from right-side content */
+.main-content-area .bg-gray-800,
+.main-content-area .dark\:bg-gray-800,
+.main-content-area .bg-gray-900,
+.main-content-area .dark\:bg-gray-900,
+.main-content-area .bg-gray-700,
+.main-content-area .dark\:bg-gray-700 {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* Ensure all text in main content area is dark */
+.main-content-area .text-white,
+.main-content-area .dark\:text-white,
+.main-content-area .text-gray-100,
+.main-content-area .dark\:text-gray-100,
+.main-content-area .text-gray-200,
+.main-content-area .dark\:text-gray-200,
+.main-content-area .text-gray-300,
+.main-content-area .dark\:text-gray-300 {
+  color: #0f172a !important;
+}
+
+/* Modal and popup backgrounds */
+.modal,
+.popup,
+.dropdown {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
