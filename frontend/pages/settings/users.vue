@@ -168,7 +168,7 @@
     </div>
 
     <!-- Add User Modal -->
-    <div v-if="showAddModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 pt-16">
+    <div v-if="showAddModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-xl max-w-md w-full p-6">
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
           {{ t('auth.add_user') }}
@@ -183,6 +183,20 @@
             <input
               v-model="addForm.name"
               type="text"
+              required
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+
+          <!-- Username -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {{ t('auth.username') }}
+            </label>
+            <input
+              v-model="addForm.username"
+              type="text"
+              required
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
@@ -195,6 +209,7 @@
             <input
               v-model="addForm.email"
               type="email"
+              required
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
@@ -207,6 +222,22 @@
             <input
               v-model="addForm.password"
               type="password"
+              required
+              minlength="6"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+
+          <!-- Confirm Password -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {{ t('auth.confirm_password') }}
+            </label>
+            <input
+              v-model="addForm.password_confirmation"
+              type="password"
+              required
+              minlength="6"
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
@@ -218,6 +249,7 @@
             </label>
             <select
               v-model="addForm.role"
+              required
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             >
               <option value="">選擇角色</option>
@@ -226,12 +258,27 @@
               </option>
             </select>
           </div>
+
+          <!-- Status -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {{ t('auth.status') }}
+            </label>
+            <select
+              v-model="addForm.status"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+            >
+              <option value="active">啟用</option>
+              <option value="inactive">停用</option>
+              <option value="suspended">暫停</option>
+            </select>
+          </div>
         </div>
 
         <!-- Modal Actions -->
         <div class="flex justify-end space-x-3 mt-6">
           <button
-            @click="showAddModal = false; addForm = {}"
+            @click="showAddModal = false; resetAddForm()"
             class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
           >
             {{ t('common.cancel') }}
@@ -247,7 +294,7 @@
     </div>
 
     <!-- Edit User Modal -->
-    <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 pt-16">
+    <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-xl max-w-md w-full p-6">
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
           {{ t('auth.edit_user') }}
@@ -335,7 +382,15 @@ const searchQuery = ref('')
 const showEditModal = ref(false)
 const showAddModal = ref(false)
 const editForm = ref({})
-const addForm = ref({})
+const addForm = ref({
+  name: '',
+  username: '',
+  email: '',
+  password: '',
+  password_confirmation: '',
+  role: '',
+  status: 'active'
+})
 const loading = ref(false)
 const refreshing = ref(false)
 const users = ref([])
@@ -424,23 +479,44 @@ const editUser = (user) => {
   showEditModal.value = true
 }
 
+// Reset add form
+const resetAddForm = () => {
+  addForm.value = {
+    name: '',
+    username: '',
+    email: '',
+    password: '',
+    password_confirmation: '',
+    role: '',
+    status: 'active'
+  }
+}
+
 // Add new user
 const addUser = async () => {
   try {
-    if (!addForm.value.name || !addForm.value.email || !addForm.value.password || !addForm.value.role) {
+    if (!addForm.value.name || !addForm.value.username || !addForm.value.email || !addForm.value.password || !addForm.value.password_confirmation || !addForm.value.role) {
       alert('請填寫所有必要欄位')
+      return
+    }
+
+    if (addForm.value.password !== addForm.value.password_confirmation) {
+      alert('密碼確認不相符')
       return
     }
     
     await createUser({
       name: addForm.value.name,
+      username: addForm.value.username,
       email: addForm.value.email,
       password: addForm.value.password,
-      role: addForm.value.role
+      password_confirmation: addForm.value.password_confirmation,
+      role: addForm.value.role,
+      status: addForm.value.status
     })
     
     showAddModal.value = false
-    addForm.value = {}
+    resetAddForm()
     // 重新載入用戶列表
     await loadUsers()
   } catch (error) {
