@@ -23,8 +23,17 @@ jobs:
 
       - name: Deploy via SSH
         run: |
+          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            DEPLOY_PATH="~/project/bonus/finance0810"
+          elif [[ "${GITHUB_REF##*/}" == "develop" ]]; then
+            DEPLOY_PATH="~/project/bonus/develop/finance0810_D"
+          else
+            echo "No deploy path set for this branch"
+            exit 1
+          fi
+
           ssh -p 8022 -i ~/.ssh/id_ed25519 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-            cd ~/project/bonus/finance0810
+            cd $DEPLOY_PATH
             
             # 備份當前的 .env 檔案
             if [ -f .env ]; then
