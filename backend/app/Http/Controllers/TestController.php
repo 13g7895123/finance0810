@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class TestController extends Controller
 {
@@ -342,10 +343,14 @@ class TestController extends Controller
         // Step 2: JWT解析
         if ($authToken) {
             try {
-                $user = JWTAuth::setToken($authToken)->toUser();
+                // 設置 token
+                JWTAuth::setToken($authToken);
+                $payload = JWTAuth::getPayload();
+                $user = JWTAuth::toUser();
+                
                 $debug['step2_jwt_parsing'] = [
                     'jwt_valid' => true,
-                    'token_payload' => JWTAuth::setToken($authToken)->getPayload()->toArray(),
+                    'token_payload' => $payload ? $payload->toArray() : null,
                     'user_id_from_token' => $user ? $user->id : null,
                     'status' => 'SUCCESS'
                 ];
@@ -359,43 +364,50 @@ class TestController extends Controller
                         'email' => $user->email,
                         'status' => $user->status,
                         'is_active' => $user->status === 'active',
-                        'created_at' => $user->created_at,
-                        'last_login' => $user->last_login_at
+                        'created_at' => $user->created_at ? $user->created_at->toISOString() : null,
+                        'last_login' => $user->last_login_at ? $user->last_login_at->toISOString() : null
                     ];
 
                     // Step 4: 權限檢查
-                    $roles = $user->getRoleNames()->toArray();
-                    $permissions = $user->getAllPermissions()->pluck('name')->toArray();
-                    $directPermissions = $user->getDirectPermissions()->pluck('name')->toArray();
-                    $rolePermissions = $user->getPermissionsViaRoles()->pluck('name')->toArray();
+                    try {
+                        $roles = $user->getRoleNames()->toArray();
+                        $permissions = $user->getAllPermissions()->pluck('name')->toArray();
+                        
+                        $debug['step4_permission_check'] = [
+                            'guard_name' => $user->guard_name ?? 'api',
+                            'roles' => $roles,
+                            'roles_count' => count($roles),
+                            'total_permissions' => $permissions,
+                            'permissions_count' => count($permissions),
+                            'is_admin' => in_array('admin', $roles),
+                            'is_executive' => in_array('executive', $roles),
+                            'is_manager' => in_array('manager', $roles),
+                            'has_user_management' => in_array('users.index', $permissions) || in_array('admin', $roles),
+                            'check_methods' => [
+                                'hasRole_admin' => $user->hasRole('admin'),
+                                'hasRole_executive' => $user->hasRole('executive'),
+                                'hasRole_manager' => $user->hasRole('manager'),
+                                'hasPermissionTo_users_index' => $user->hasPermissionTo('users.index')
+                            ]
+                        ];
 
-                    $debug['step4_permission_check'] = [
-                        'guard_name' => $user->guard_name ?? 'api',
-                        'roles' => $roles,
-                        'roles_count' => count($roles),
-                        'total_permissions' => $permissions,
-                        'permissions_count' => count($permissions),
-                        'direct_permissions' => $directPermissions,
-                        'role_permissions' => $rolePermissions,
-                        'is_admin' => in_array('admin', $roles),
-                        'is_manager' => in_array('manager', $roles),
-                        'has_user_management' => in_array('users.index', $permissions) || in_array('admin', $roles),
-                        'can_view_users' => $user->can('users.index'),
-                        'user_methods' => [
-                            'isAdmin()' => method_exists($user, 'isAdmin') ? $user->isAdmin() : 'method_not_exists',
-                            'isManager()' => method_exists($user, 'isManager') ? $user->isManager() : 'method_not_exists',
-                            'hasRole(admin)' => $user->hasRole('admin'),
-                            'hasPermissionTo(users.index)' => $user->hasPermissionTo('users.index')
-                        ]
-                    ];
-
-                    // Final Result
-                    $debug['final_result'] = [
-                        'authentication_status' => 'AUTHENTICATED',
-                        'authorization_status' => 'CHECKING_PERMISSIONS',
-                        'can_access_users_endpoint' => $user->hasRole('admin') || $user->hasRole('manager') || $user->hasPermissionTo('users.index'),
-                        'recommended_action' => $user->hasRole('admin') ? 'ALLOW_ALL_ACCESS' : 'CHECK_SPECIFIC_PERMISSIONS'
-                    ];
+                        // Final Result
+                        $canAccess = $user->hasRole('admin') || $user->hasRole('executive') || $user->hasRole('manager') || $user->hasPermissionTo('users.index');
+                        $debug['final_result'] = [
+                            'authentication_status' => 'AUTHENTICATED',
+                            'authorization_status' => 'PERMISSIONS_CHECKED',
+                            'can_access_users_endpoint' => $canAccess,
+                            'access_reason' => $user->hasRole('admin') ? 'admin_role' : 
+                                            ($user->hasRole('executive') ? 'executive_role' :
+                                            ($user->hasRole('manager') ? 'manager_role' :
+                                            ($user->hasPermissionTo('users.index') ? 'users_index_permission' : 'no_access')))
+                        ];
+                    } catch (\Exception $e) {
+                        $debug['step4_permission_check'] = [
+                            'error' => 'Permission check failed: ' . $e->getMessage(),
+                            'status' => 'PERMISSION_CHECK_ERROR'
+                        ];
+                    }
                 } else {
                     $debug['step3_user_lookup'] = [
                         'user_exists' => false,
@@ -430,5 +442,21 @@ class TestController extends Controller
         ];
 
         return response()->json($debug);
+    }
+
+    /**
+     * 簡單的除錯測試端點
+     */
+    public function simpleDebug(Request $request)
+    {
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Debug endpoint is working',
+            'timestamp' => now()->toISOString(),
+            'request_url' => $request->url(),
+            'has_auth_cookie' => $request->hasCookie('auth-token'),
+            'cookie_length' => $request->hasCookie('auth-token') ? strlen($request->cookie('auth-token')) : 0,
+            'environment' => app()->environment(),
+        ]);
     }
 }

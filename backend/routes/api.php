@@ -33,6 +33,7 @@ Route::get('/test/system', [TestController::class, 'systemTest']);
 Route::get('/test/auth', [TestController::class, 'authTest']);
 Route::get('/test/setup', [TestController::class, 'setupStatus']);
 Route::get('/test/cookies', [TestController::class, 'cookieTest']);
+Route::get('/test/simple-debug', [TestController::class, 'simpleDebug']);
 Route::get('/test/debug-auth', [TestController::class, 'detailedAuthDebug']);
 
 // Public routes
