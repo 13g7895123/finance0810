@@ -14,7 +14,8 @@ class UserController extends Controller
     public function __construct()
     {
         $this->middleware('auth:api');
-        $this->middleware('role:admin|manager');
+        // 修正中間件配置：新增executive角色，並改為使用我們自定義的角色中間件
+        $this->middleware('role:admin|executive|manager');
     }
 
     /**
@@ -22,30 +23,93 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        $query = User::with('roles');
+        try {
+            // 新增詳細的權限除錯日誌
+            $currentUser = auth('api')->user();
+            
+            \Log::info('UserController@index - 詳細權限檢查開始', [
+                'current_user_id' => $currentUser ? $currentUser->id : null,
+                'current_user_username' => $currentUser ? $currentUser->username : null,
+                'request_search' => $request->get('search', ''),
+                'request_ip' => $request->ip(),
+                'request_origin' => $request->header('Origin'),
+                'auth_header_present' => $request->hasHeader('Authorization'),
+                'cookie_present' => $request->hasCookie('auth-token')
+            ]);
 
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('username', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
-            });
+            if ($currentUser) {
+                $roles = $currentUser->getRoleNames()->toArray();
+                $permissions = $currentUser->getAllPermissions()->pluck('name')->toArray();
+                
+                \Log::info('UserController@index - 當前用戶權限詳情', [
+                    'user_id' => $currentUser->id,
+                    'username' => $currentUser->username,
+                    'guard_name' => $currentUser->guard_name ?? 'unknown',
+                    'roles' => $roles,
+                    'roles_count' => count($roles),
+                    'permissions' => $permissions,
+                    'permissions_count' => count($permissions),
+                    'is_admin_role' => in_array('admin', $roles),
+                    'is_manager_role' => in_array('manager', $roles),
+                    'is_executive_role' => in_array('executive', $roles),
+                    'hasRole_admin' => $currentUser->hasRole('admin'),
+                    'hasRole_manager' => $currentUser->hasRole('manager'),
+                    'hasRole_executive' => $currentUser->hasRole('executive'),
+                ]);
+
+                // 記錄middleware是否已經通過權限檢查
+                \Log::info('UserController@index - Middleware權限檢查已通過，開始獲取用戶列表');
+            }
+
+            $query = User::with('roles');
+
+            if ($request->has('search')) {
+                $search = $request->search;
+                $query->where(function($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('username', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%");
+                });
+            }
+
+            if ($request->has('role')) {
+                $query->whereHas('roles', function($q) use ($request) {
+                    $q->where('name', $request->role);
+                });
+            }
+
+            if ($request->has('status')) {
+                $query->where('status', $request->status);
+            }
+
+            $users = $query->orderBy('created_at', 'desc')->paginate(15);
+
+            \Log::info('UserController@index - 成功返回用戶列表', [
+                'total_users' => $users->total(),
+                'returned_users' => $users->count(),
+                'current_page' => $users->currentPage()
+            ]);
+
+            return response()->json($users);
+        } catch (\Exception $e) {
+            \Log::error('UserController@index - 系統錯誤', [
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'error_trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => '獲取用戶列表失敗',
+                'error' => $e->getMessage(),
+                'debug_info' => [
+                    'error_type' => get_class($e),
+                    'error_file' => $e->getFile(),
+                    'error_line' => $e->getLine()
+                ]
+            ], 500);
         }
-
-        if ($request->has('role')) {
-            $query->whereHas('roles', function($q) use ($request) {
-                $q->where('name', $request->role);
-            });
-        }
-
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
-        }
-
-        $users = $query->orderBy('created_at', 'desc')->paginate(15);
-
-        return response()->json($users);
     }
 
     /**

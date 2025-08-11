@@ -308,4 +308,127 @@ class TestController extends Controller
 
         return response()->json($cookieInfo);
     }
+
+    /**
+     * 詳細的權限除錯端點 - 顯示每個步驟的權限檢查過程
+     */
+    public function detailedAuthDebug(Request $request)
+    {
+        $debug = [
+            'timestamp' => now()->toISOString(),
+            'request_info' => [
+                'url' => $request->url(),
+                'method' => $request->method(),
+                'origin' => $request->header('Origin'),
+                'user_agent' => $request->header('User-Agent'),
+                'ip' => $request->ip()
+            ],
+            'step1_cookie_check' => [],
+            'step2_jwt_parsing' => [],
+            'step3_user_lookup' => [],
+            'step4_permission_check' => [],
+            'final_result' => []
+        ];
+
+        // Step 1: Cookie檢查
+        $authToken = $request->cookie('auth-token');
+        $debug['step1_cookie_check'] = [
+            'has_auth_cookie' => !empty($authToken),
+            'cookie_length' => $authToken ? strlen($authToken) : 0,
+            'cookie_preview' => $authToken ? substr($authToken, 0, 20) . '...' : null,
+            'status' => $authToken ? 'FOUND' : 'NOT_FOUND'
+        ];
+
+        // Step 2: JWT解析
+        if ($authToken) {
+            try {
+                $user = JWTAuth::setToken($authToken)->toUser();
+                $debug['step2_jwt_parsing'] = [
+                    'jwt_valid' => true,
+                    'token_payload' => JWTAuth::setToken($authToken)->getPayload()->toArray(),
+                    'user_id_from_token' => $user ? $user->id : null,
+                    'status' => 'SUCCESS'
+                ];
+
+                // Step 3: 用戶查詢
+                if ($user) {
+                    $debug['step3_user_lookup'] = [
+                        'user_exists' => true,
+                        'user_id' => $user->id,
+                        'username' => $user->username,
+                        'email' => $user->email,
+                        'status' => $user->status,
+                        'is_active' => $user->status === 'active',
+                        'created_at' => $user->created_at,
+                        'last_login' => $user->last_login_at
+                    ];
+
+                    // Step 4: 權限檢查
+                    $roles = $user->getRoleNames()->toArray();
+                    $permissions = $user->getAllPermissions()->pluck('name')->toArray();
+                    $directPermissions = $user->getDirectPermissions()->pluck('name')->toArray();
+                    $rolePermissions = $user->getPermissionsViaRoles()->pluck('name')->toArray();
+
+                    $debug['step4_permission_check'] = [
+                        'guard_name' => $user->guard_name ?? 'api',
+                        'roles' => $roles,
+                        'roles_count' => count($roles),
+                        'total_permissions' => $permissions,
+                        'permissions_count' => count($permissions),
+                        'direct_permissions' => $directPermissions,
+                        'role_permissions' => $rolePermissions,
+                        'is_admin' => in_array('admin', $roles),
+                        'is_manager' => in_array('manager', $roles),
+                        'has_user_management' => in_array('users.index', $permissions) || in_array('admin', $roles),
+                        'can_view_users' => $user->can('users.index'),
+                        'user_methods' => [
+                            'isAdmin()' => method_exists($user, 'isAdmin') ? $user->isAdmin() : 'method_not_exists',
+                            'isManager()' => method_exists($user, 'isManager') ? $user->isManager() : 'method_not_exists',
+                            'hasRole(admin)' => $user->hasRole('admin'),
+                            'hasPermissionTo(users.index)' => $user->hasPermissionTo('users.index')
+                        ]
+                    ];
+
+                    // Final Result
+                    $debug['final_result'] = [
+                        'authentication_status' => 'AUTHENTICATED',
+                        'authorization_status' => 'CHECKING_PERMISSIONS',
+                        'can_access_users_endpoint' => $user->hasRole('admin') || $user->hasRole('manager') || $user->hasPermissionTo('users.index'),
+                        'recommended_action' => $user->hasRole('admin') ? 'ALLOW_ALL_ACCESS' : 'CHECK_SPECIFIC_PERMISSIONS'
+                    ];
+                } else {
+                    $debug['step3_user_lookup'] = [
+                        'user_exists' => false,
+                        'status' => 'USER_NOT_FOUND'
+                    ];
+                    $debug['final_result']['authentication_status'] = 'TOKEN_VALID_BUT_USER_NOT_FOUND';
+                }
+            } catch (\Exception $e) {
+                $debug['step2_jwt_parsing'] = [
+                    'jwt_valid' => false,
+                    'error' => $e->getMessage(),
+                    'error_type' => get_class($e),
+                    'status' => 'JWT_PARSE_ERROR'
+                ];
+                $debug['final_result']['authentication_status'] = 'TOKEN_INVALID';
+            }
+        } else {
+            $debug['step2_jwt_parsing']['status'] = 'SKIPPED_NO_TOKEN';
+            $debug['step3_user_lookup']['status'] = 'SKIPPED_NO_TOKEN';
+            $debug['step4_permission_check']['status'] = 'SKIPPED_NO_TOKEN';
+            $debug['final_result']['authentication_status'] = 'NOT_AUTHENTICATED';
+        }
+
+        // 新增系統狀態檢查
+        $debug['system_status'] = [
+            'roles_count' => Role::count(),
+            'permissions_count' => Permission::count(),
+            'users_count' => User::count(),
+            'admin_users_count' => User::role('admin')->count(),
+            'api_guard_roles' => Role::where('guard_name', 'api')->pluck('name')->toArray(),
+            'web_guard_roles' => Role::where('guard_name', 'web')->pluck('name')->toArray(),
+        ];
+
+        return response()->json($debug);
+    }
 }
