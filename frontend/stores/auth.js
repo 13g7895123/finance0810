@@ -51,7 +51,7 @@ export const useAuthStore = defineStore('auth', () => {
       })
       
       // 使用統一的 API composable
-      const { data: response, error } = await post('/auth/login', {
+      const { data: response, error } = await post('http://finance.local/api/auth/login', {
         username: credentials.username,  // 後端期望 username 欄位
         password: credentials.password
       })

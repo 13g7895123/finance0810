@@ -25,5 +25,9 @@ export default defineNuxtConfig({
     experimental: {
       wasm: true
     }
-  }
+  },
+  devServer: {
+    host: 'frontend.localhost',
+    port: 3000
+  },
 })
