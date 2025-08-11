@@ -11,8 +11,13 @@
     >
       <!-- Logo/Brand -->
       <div class="h-16 flex items-center justify-center border-b border-gray-600">
-        <div v-if="!sidebarCollapsed" class="text-xl font-bold text-white">
-          金融管理系統
+        <div v-if="!sidebarCollapsed" class="text-center">
+          <div class="text-xl font-bold text-white">
+            金融管理系統
+          </div>
+          <div class="text-xs text-gray-300 mt-1">
+            {{ currentTime }}
+          </div>
         </div>
         <div v-else class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
           <span class="text-white font-bold text-sm">金</span>
@@ -70,8 +75,13 @@
     >
       <!-- Logo/Brand -->
       <div class="h-16 flex items-center justify-between px-4 border-b border-gray-600">
-        <div class="text-xl font-bold text-white">
-          金融管理系統
+        <div class="text-left">
+          <div class="text-xl font-bold text-white">
+            金融管理系統
+          </div>
+          <div class="text-xs text-gray-300 mt-1">
+            {{ currentTime }}
+          </div>
         </div>
         <button
           @click="closeMobileSidebar"
@@ -136,12 +146,42 @@ const resizeHandle = ref(null)
 const sidebarWidth = ref(280) // 預設寬度
 const isDragging = ref(false)
 
+// 當前時間顯示
+const currentTime = ref('')
+const updateTime = () => {
+  const now = new Date()
+  currentTime.value = now.toLocaleString('zh-TW', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Taipei'
+  })
+}
+
+// 定時器更新時間
+let timeInterval = null
+
 onMounted(() => {
   isClient.value = true
   // 從 localStorage 載入儲存的寬度
   const savedWidth = localStorage.getItem('sidebar-width')
   if (savedWidth) {
     sidebarWidth.value = parseInt(savedWidth)
+  }
+  
+  // 初始化時間顯示並開始定時更新
+  updateTime()
+  timeInterval = setInterval(updateTime, 1000)
+})
+
+onUnmounted(() => {
+  // 清除定時器
+  if (timeInterval) {
+    clearInterval(timeInterval)
   }
 })
 
