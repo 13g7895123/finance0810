@@ -172,53 +172,7 @@ jobs:
             echo "========================================="
           EOF
 
-      - name: Capture Host Information
-        id: host_info
-        if: success()
-        run: |
-          # 獲取主機資訊並輸出到step outputs (避免遮罩)
-          ssh -p 8022 -i ~/.ssh/id_ed25519 -o ConnectTimeout=10 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'HOST_INFO_EOF'
-            echo "host_id=$(hostname | tr -d '\n' | base64)" >> $GITHUB_OUTPUT
-            echo "deploy_time=$(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT  
-            echo "user_info=$(whoami)" >> $GITHUB_OUTPUT
-          HOST_INFO_EOF
-
       - name: Cleanup SSH key
         if: always()
         run: |
           rm -f ~/.ssh/id_ed25519
-
-      - name: Deployment Summary
-        if: success()
-        run: |
-          # 解碼主機資訊
-          if [ -n "${{ steps.host_info.outputs.host_id }}" ]; then
-            HOST_NAME=$(echo "${{ steps.host_info.outputs.host_id }}" | base64 -d 2>/dev/null || echo "未知主機")
-          else
-            HOST_NAME="主機資訊獲取失敗"
-          fi
-          
-          echo "## 🎉 部署成功摘要" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| 項目 | 值 |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
-          echo "| 分支 | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| 環境 | \`${{ github.ref == 'refs/heads/master' && 'production' || 'development' }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| 主機 | \`${HOST_NAME}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| 使用者 | \`${{ steps.host_info.outputs.user_info }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| 提交 | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| 作者 | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 部署時間 | ${{ steps.host_info.outputs.deploy_time }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| GitHub時間 | $(date -u) |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### ✅ 驗證項目" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔍 主機資訊已驗證並記錄" >> $GITHUB_STEP_SUMMARY
-          echo "- 📁 部署目錄已確認" >> $GITHUB_STEP_SUMMARY
-          echo "- 📊 Git倉庫資訊已檢查" >> $GITHUB_STEP_SUMMARY
-          echo "- 🐳 Docker環境已驗證" >> $GITHUB_STEP_SUMMARY
-          echo "- 🎯 容器服務狀態已確認" >> $GITHUB_STEP_SUMMARY
-          echo "- 🌐 網路設定已檢查" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔐 安全提醒" >> $GITHUB_STEP_SUMMARY
-          echo "- 敏感資訊已加密處理，避免在日誌中顯示" >> $GITHUB_STEP_SUMMARY
-          echo "- 主機驗證已完成，確保部署到正確環境" >> $GITHUB_STEP_SUMMARY
