@@ -57,7 +57,7 @@ jobs:
             echo "========================================="
 
             if [[ "\$BRANCH_NAME" == "master" ]]; then
-              DEPLOY_PATH="~/project/bonus/finance"
+              DEPLOY_PATH="project/bonus/finance"
             elif [[ "\$BRANCH_NAME" == "develop" ]]; then
               DEPLOY_PATH="project/bonus/develop/finance0810_D"
             else
@@ -106,45 +106,7 @@ jobs:
               rm .env.backup
               echo "已恢復 .env 檔案"
             fi
-            
-            # Docker環境驗證
-            echo "🐳 Docker環境驗證:"
-            if ! command -v docker &> /dev/null; then
-              echo "❌ 錯誤: Docker未安裝或無法訪問"
-              exit 1
-            fi
-            
-            if ! command -v "docker compose" &> /dev/null; then
-              echo "❌ 錯誤: Docker Compose未安裝或無法訪問"
-              exit 1
-            fi
-            
-            echo "✅ Docker環境正常"
-            echo "Docker版本: \$(docker --version)"
-            echo "Docker Compose版本: \$(docker compose version)"
-            
-            # 驗證docker-compose.yml檔案
-            if [ ! -f "docker-compose.yml" ]; then
-              echo "❌ 錯誤: docker-compose.yml檔案不存在"
-              exit 1
-            fi
-            
-            echo "✅ docker-compose.yml檔案存在"
-            echo "========================================="
-            
-            # 檢查後端容器是否正在運行
-            echo "🔍 檢查現有容器狀態:"
-            docker compose ps
-            echo "========================================="
-            
-            if [ "\$(docker compose ps -q backend)" ]; then
-              echo "✅ 後端容器已在運行，跳過重啟"
-              BACKEND_RUNNING=true
-            else
-              echo "⚠️  後端容器未運行，將會啟動"
-              BACKEND_RUNNING=false
-            fi
-            
+                        
             # 僅重新建構並啟動前端服務
             docker compose up -d --build frontend
             
