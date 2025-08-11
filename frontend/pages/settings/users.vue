@@ -44,7 +44,7 @@
       </div>
 
       <!-- Access Denied for Non-Admin -->
-      <div v-if="!authStore.hasPermission('all_access') && !authStore.isAdmin" class="text-center py-12">
+      <div v-if="!authStore.hasPermission('user.view') && !authStore.isAdmin && !authStore.isManager" class="text-center py-12">
         <ShieldExclamationIcon class="w-12 h-12 text-red-500 mx-auto mb-4" />
         <h3 class="text-lg font-medium text-gray-900 mb-2">存取被拒絕</h3>
         <p class="text-gray-600">您沒有權限使用此功能</p>
@@ -377,7 +377,7 @@ const debounce = (func, delay) => {
 }
 
 watch(searchQuery, debounce(() => {
-  if (authStore.hasPermission('all_access') || authStore.isAdmin) {
+  if (authStore.hasPermission('user.view') || authStore.isAdmin || authStore.isManager) {
     loadUsers()
   }
 }, 300))
@@ -496,7 +496,7 @@ const refreshUsers = async () => {
 
 // 頁面初始化
 onMounted(() => {
-  if (authStore.hasPermission('all_access') || authStore.isAdmin) {
+  if (authStore.hasPermission('user.view') || authStore.isAdmin || authStore.isManager) {
     loadUsers()
     loadRoles()
   }

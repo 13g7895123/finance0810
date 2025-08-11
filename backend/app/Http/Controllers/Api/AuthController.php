@@ -72,7 +72,7 @@ class AuthController extends Controller
             request()->secure(),    // secure (HTTPS)
             true,                   // httpOnly
             false,                  // raw
-            'Strict'                // sameSite
+            'None'                  // sameSite - allows cross-origin requests
         );
 
         return $this->respondWithToken($token, $user)->withCookie($cookie);

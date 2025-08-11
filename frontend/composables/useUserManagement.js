@@ -4,7 +4,7 @@ export const useUserManagement = () => {
   
   // 檢查認證狀態
   const checkAuth = () => {
-    if (!authStore.user?.token) {
+    if (!authStore.user || !authStore.isLoggedIn) {
       throw new Error('Authentication required. Please login first.')
     }
   }
