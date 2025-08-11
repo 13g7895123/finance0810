@@ -45,7 +45,26 @@ export const useUserManagement = () => {
   // 指派角色
   const assignRole = async (userId, roleName) => {
     checkAuth()
-    const { data, error } = await post(`/users/${userId}/roles`, { role: roleName })
+    try {
+      if (!userId || !roleName) {
+        throw new Error('User ID and role name are required')
+      }
+      const { data, error } = await post(`/users/${userId}/roles`, { role: roleName })
+      if (error) {
+        console.error(`Error assigning role ${roleName} to user ${userId}:`, error)
+        throw error
+      }
+      return data
+    } catch (err) {
+      console.error(`Failed to assign role ${roleName} to user ${userId}:`, err)
+      throw err
+    }
+  }
+
+  // 移除用戶角色
+  const removeUserFromRole = async (userId, roleId) => {
+    checkAuth()
+    const { data, error } = await del(`/users/${userId}/roles/${roleId}`)
     if (error) throw error
     return data
   }
@@ -80,6 +99,7 @@ export const useUserManagement = () => {
     updateUser,
     deleteUser,
     assignRole,
+    removeUserFromRole,
     getRoles,
     getUserStats,
     getUser

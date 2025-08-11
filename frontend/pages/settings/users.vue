@@ -35,11 +35,11 @@
           <!-- Refresh Button -->
           <button
             @click="refreshUsers"
-            class="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 border-2 border-gray-600 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors duration-200 font-medium"
+            class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
             :disabled="refreshing"
           >
-            <ArrowPathIcon class="w-5 h-5 mr-2" :class="{ 'animate-spin': refreshing }" />
-            {{ refreshing ? '重新整理中...' : '重新整理' }}
+            <ArrowPathIcon class="w-4 h-4 mr-2" :class="{ 'animate-spin': refreshing }" />
+            重新整理
           </button>
         </div>
       </div>
@@ -239,196 +239,196 @@
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- Add User Modal -->
-    <div v-if="showAddModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-xl max-w-md w-full p-6">
-        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
-          {{ t('auth.add_user') }}
-        </h3>
-        
-        <div class="space-y-4">
-          <!-- Name -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {{ t('auth.full_name') }}
-            </label>
-            <input
-              v-model="addForm.name"
-              type="text"
-              required
-              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-            />
-          </div>
-
-          <!-- Username -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {{ t('auth.username') }}
-            </label>
-            <input
-              v-model="addForm.username"
-              type="text"
-              required
-              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-            />
-          </div>
-          
-          <!-- Email -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {{ t('auth.email') }}
-            </label>
-            <input
-              v-model="addForm.email"
-              type="email"
-              required
-              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-            />
-          </div>
-
-          <!-- Password -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {{ t('auth.password') }}
-            </label>
-            <input
-              v-model="addForm.password"
-              type="password"
-              required
-              minlength="6"
-              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-            />
-          </div>
-
-          <!-- Confirm Password -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {{ t('auth.confirm_password') }}
-            </label>
-            <input
-              v-model="addForm.password_confirmation"
-              type="password"
-              required
-              minlength="6"
-              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-            />
-          </div>
-
-          <!-- Role -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {{ t('auth.role') }}
-            </label>
-            <select
-              v-model="addForm.role"
-              required
-              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-            >
-              <option value="">選擇角色</option>
-              <option v-for="role in roles" :key="role.id" :value="role.name">
-                {{ role.display_name }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Status -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {{ t('auth.status') }}
-            </label>
-            <select
-              v-model="addForm.status"
-              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-            >
-              <option value="active">啟用</option>
-              <option value="inactive">停用</option>
-              <option value="suspended">暫停</option>
-            </select>
-          </div>
+  <!-- Add User Modal - Moved outside main container -->
+  <div v-if="showAddModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-xl max-w-md w-full p-6">
+      <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+        {{ t('auth.add_user') }}
+      </h3>
+      
+      <div class="space-y-4">
+        <!-- Name -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {{ t('auth.full_name') }}
+          </label>
+          <input
+            v-model="addForm.name"
+            type="text"
+            required
+            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+          />
         </div>
 
-        <!-- Modal Actions -->
-        <div class="flex justify-end space-x-3 mt-6">
-          <button
-            @click="showAddModal = false; resetAddForm()"
-            class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+        <!-- Username -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {{ t('auth.username') }}
+          </label>
+          <input
+            v-model="addForm.username"
+            type="text"
+            required
+            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+          />
+        </div>
+        
+        <!-- Email -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {{ t('auth.email') }}
+          </label>
+          <input
+            v-model="addForm.email"
+            type="email"
+            required
+            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+          />
+        </div>
+
+        <!-- Password -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {{ t('auth.password') }}
+          </label>
+          <input
+            v-model="addForm.password"
+            type="password"
+            required
+            minlength="6"
+            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+          />
+        </div>
+
+        <!-- Confirm Password -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {{ t('auth.confirm_password') }}
+          </label>
+          <input
+            v-model="addForm.password_confirmation"
+            type="password"
+            required
+            minlength="6"
+            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+          />
+        </div>
+
+        <!-- Role -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {{ t('auth.role') }}
+          </label>
+          <select
+            v-model="addForm.role"
+            required
+            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
           >
-            {{ t('common.cancel') }}
-          </button>
-          <button
-            @click="addUser"
-            class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors duration-200"
+            <option value="">選擇角色</option>
+            <option v-for="role in roles" :key="role.id" :value="role.name">
+              {{ role.display_name }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Status -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {{ t('auth.status') }}
+          </label>
+          <select
+            v-model="addForm.status"
+            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
           >
-            {{ t('common.create') }}
-          </button>
+            <option value="active">啟用</option>
+            <option value="inactive">停用</option>
+            <option value="suspended">暫停</option>
+          </select>
         </div>
       </div>
+
+      <!-- Modal Actions -->
+      <div class="flex justify-end space-x-3 mt-6">
+        <button
+          @click="showAddModal = false; resetAddForm()"
+          class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+        >
+          {{ t('common.cancel') }}
+        </button>
+        <button
+          @click="addUser"
+          class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors duration-200"
+        >
+          {{ t('common.create') }}
+        </button>
+      </div>
     </div>
+  </div>
 
-    <!-- Edit User Modal -->
-    <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-xl max-w-md w-full p-6">
-        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
-          {{ t('auth.edit_user') }}
-        </h3>
+  <!-- Edit User Modal - Moved outside main container -->
+  <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-xl max-w-md w-full p-6">
+      <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+        {{ t('auth.edit_user') }}
+      </h3>
+      
+      <div class="space-y-4">
+        <!-- Name -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {{ t('auth.full_name') }}
+          </label>
+          <input
+            v-model="editForm.name"
+            type="text"
+            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+          />
+        </div>
         
-        <div class="space-y-4">
-          <!-- Name -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {{ t('auth.full_name') }}
-            </label>
-            <input
-              v-model="editForm.name"
-              type="text"
-              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-            />
-          </div>
-          
-          <!-- Email -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {{ t('auth.email') }}
-            </label>
-            <input
-              v-model="editForm.email"
-              type="email"
-              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-            />
-          </div>
-
-          <!-- Role -->
-          <div v-if="editForm.id !== authStore.user?.id">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {{ t('auth.role') }}
-            </label>
-            <select
-              v-model="editForm.role"
-              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
-            >
-              <option v-for="role in roles" :key="role.id" :value="role.name">
-                {{ role.display_name }}
-              </option>
-            </select>
-          </div>
+        <!-- Email -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {{ t('auth.email') }}
+          </label>
+          <input
+            v-model="editForm.email"
+            type="email"
+            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+          />
         </div>
 
-        <!-- Modal Actions -->
-        <div class="flex justify-end space-x-3 mt-6">
-          <button
-            @click="showEditModal = false"
-            class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+        <!-- Role -->
+        <div v-if="editForm.id !== authStore.user?.id">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {{ t('auth.role') }}
+          </label>
+          <select
+            v-model="editForm.role"
+            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
           >
-            {{ t('common.cancel') }}
-          </button>
-          <button
-            @click="saveUser"
-            class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors duration-200"
-          >
-            {{ t('common.save') }}
-          </button>
+            <option v-for="role in roles" :key="role.id" :value="role.name">
+              {{ role.display_name }}
+            </option>
+          </select>
         </div>
+      </div>
+
+      <!-- Modal Actions -->
+      <div class="flex justify-end space-x-3 mt-6">
+        <button
+          @click="showEditModal = false"
+          class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+        >
+          {{ t('common.cancel') }}
+        </button>
+        <button
+          @click="saveUser"
+          class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors duration-200"
+        >
+          {{ t('common.save') }}
+        </button>
       </div>
     </div>
   </div>

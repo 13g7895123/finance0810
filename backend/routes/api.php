@@ -86,6 +86,8 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/permissions/category/{category}', [PermissionController::class, 'getByCategory']);
         Route::get('/users/{user}/roles', [PermissionController::class, 'getUserRoles']);
         Route::get('/roles/{role}/permissions', [PermissionController::class, 'getRolePermissions']);
+        Route::post('/roles/{role}/permissions', [PermissionController::class, 'assignPermissionToRole']);
+        Route::delete('/roles/{role}/permissions/{permissionName}', [PermissionController::class, 'removePermissionFromRole']);
     });
     
     // Reports (Manager, Admin and Executive only)

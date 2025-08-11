@@ -1,10 +1,28 @@
 <template>
   <div class="space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
         <h1 class="text-3xl font-bold text-gray-900 dark:text-white">權限管理</h1>
         <p class="text-gray-600 dark:text-gray-400 mt-2">管理用戶權限和角色設定</p>
+      </div>
+      
+      <!-- Quick Actions -->
+      <div class="flex items-center space-x-3">
+        <button
+          @click="showQuickAssign = true"
+          class="inline-flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors duration-200"
+        >
+          <UserPlusIcon class="w-4 h-4 mr-2" />
+          快速分配
+        </button>
+        <button
+          @click="viewMode = viewMode === 'roles' ? 'matrix' : 'roles'"
+          class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+        >
+          <component :is="viewMode === 'roles' ? TableCellsIcon : Squares2X2Icon" class="w-4 h-4 mr-2" />
+          {{ viewMode === 'roles' ? '矩陣視圖' : '角色視圖' }}
+        </button>
       </div>
     </div>
 
@@ -14,102 +32,376 @@
       <p class="text-gray-600 dark:text-gray-400">載入權限資料中...</p>
     </div>
 
-    <!-- Permission Management -->
-    <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- Roles & Permissions -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">角色權限設定</h2>
-          <select v-model="selectedRole" @change="loadRolePermissions" 
-                  class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
-            <option value="">選擇角色</option>
-            <option v-for="role in roles" :key="role.id" :value="role">
-              {{ role.display_name }}
-            </option>
-          </select>
-        </div>
-
-        <!-- Role Permissions -->
-        <div v-if="selectedRole" class="space-y-4">
-          <div v-for="(categoryPermissions, category) in permissions" :key="category" 
-               class="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-            <h3 class="font-medium text-gray-900 dark:text-white mb-3 capitalize">
-              {{ category }}
-            </h3>
-            <div class="space-y-2">
-              <div v-for="permission in categoryPermissions" :key="permission.id" 
-                   class="flex items-center justify-between">
-                <div class="flex items-center space-x-3">
-                  <input :id="`perm-${permission.id}`" type="checkbox" 
-                         :checked="rolePermissions.includes(permission.name)"
-                         @change="togglePermission(permission.name)"
-                         class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:focus:ring-primary-600 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600">
-                  <label :for="`perm-${permission.id}`" class="text-sm text-gray-700 dark:text-gray-300">
-                    {{ permission.display_name }}
-                  </label>
+    <div v-else>
+      <!-- Role-based View -->
+      <div v-if="viewMode === 'roles'" class="space-y-6">
+        <!-- Role Selector with Visual Cards -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white">選擇管理角色</h2>
+            <div class="text-sm text-gray-500 dark:text-gray-400">
+              共 {{ roles.length }} 個角色
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div
+              v-for="role in roles"
+              :key="role.id"
+              @click="selectRole(role)"
+              class="relative p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md"
+              :class="{
+                'border-primary-500 bg-primary-50 dark:bg-primary-900/20': selectedRole?.id === role.id,
+                'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500': selectedRole?.id !== role.id
+              }"
+            >
+              <div class="flex items-center space-x-3 mb-3">
+                <div 
+                  class="p-2 rounded-lg"
+                  :class="getRoleIconBg(role.name)"
+                >
+                  <component 
+                    :is="getRoleIcon(role.name)" 
+                    class="w-5 h-5"
+                    :class="getRoleIconColor(role.name)"
+                  />
                 </div>
-                <span class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ permission.description }}
-                </span>
+                <div>
+                  <h3 class="font-semibold text-gray-900 dark:text-white">{{ role.display_name }}</h3>
+                </div>
+              </div>
+              
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs text-gray-500 dark:text-gray-400">用戶數</span>
+                  <span class="text-xs font-medium text-gray-900 dark:text-white">{{ getUsersInRole(role.id).length }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-xs text-gray-500 dark:text-gray-400">權限數</span>
+                  <span class="text-xs font-medium text-gray-900 dark:text-white">{{ getRolePermissionCount(role.id) }}</span>
+                </div>
+              </div>
+              
+              <div v-if="selectedRole?.id === role.id" class="absolute top-2 right-2">
+                <CheckCircleIcon class="w-5 h-5 text-primary-500" />
               </div>
             </div>
           </div>
         </div>
 
-        <div v-else class="text-center py-8">
-          <p class="text-gray-500 dark:text-gray-400">請選擇角色以管理權限</p>
+        <!-- Selected Role Management -->
+        <div v-if="selectedRole" class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <!-- Permission Management - Main Section -->
+          <div class="xl:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+            <div class="p-6">
+              <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center space-x-3">
+                  <div 
+                    class="p-2 rounded-lg"
+                    :class="getRoleIconBg(selectedRole.name)"
+                  >
+                    <component 
+                      :is="getRoleIcon(selectedRole.name)" 
+                      class="w-6 h-6"
+                      :class="getRoleIconColor(selectedRole.name)"
+                    />
+                  </div>
+                  <div>
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ selectedRole.display_name }} 權限設定</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">管理此角色的系統權限</p>
+                  </div>
+                </div>
+                
+                <div class="flex items-center space-x-2">
+                  <button
+                    @click="toggleAllPermissions"
+                    class="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300"
+                  >
+                    {{ allPermissionsSelected ? '取消全選' : '全選' }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Permission Categories -->
+              <div class="space-y-4 max-h-96 overflow-y-auto">
+                <div v-for="(categoryPermissions, category) in permissions" :key="category" 
+                     class="border border-gray-200 dark:border-gray-600 rounded-lg">
+                  <div 
+                    @click="toggleCategory(category)"
+                    class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+                  >
+                    <div class="flex items-center space-x-3">
+                      <component 
+                        :is="expandedCategories.includes(category) ? ChevronDownIcon : ChevronRightIcon" 
+                        class="w-4 h-4 text-gray-400" 
+                      />
+                      <h3 class="font-medium text-gray-900 dark:text-white capitalize">{{ getCategoryDisplayName(category) }}</h3>
+                      <span class="inline-flex px-2 py-1 text-xs bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded-full">
+                        {{ getCategoryPermissionCount(category) }}
+                      </span>
+                    </div>
+                    
+                    <div class="flex items-center space-x-2">
+                      <div class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ getCategorySelectedCount(category) }}/{{ categoryPermissions.length }} 已選
+                      </div>
+                      <input 
+                        type="checkbox"
+                        :checked="isCategoryFullySelected(category)"
+                        :indeterminate="isCategoryPartiallySelected(category)"
+                        @click.stop="toggleCategoryPermissions(category)"
+                        class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
+                      >
+                    </div>
+                  </div>
+                  
+                  <div v-if="expandedCategories.includes(category)" class="border-t border-gray-200 dark:border-gray-600">
+                    <div class="p-4 space-y-3">
+                      <div v-for="permission in categoryPermissions" :key="permission.id" 
+                           class="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200">
+                        <input 
+                          :id="`perm-${permission.id}`" 
+                          type="checkbox" 
+                          :checked="rolePermissions.includes(permission.name)"
+                          @change="togglePermission(permission.name)"
+                          class="w-4 h-4 mt-1 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
+                        >
+                        <div class="flex-1 min-w-0">
+                          <label :for="`perm-${permission.id}`" class="block text-sm font-medium text-gray-900 dark:text-white cursor-pointer">
+                            {{ permission.display_name }}
+                          </label>
+                          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ permission.description }}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Role Users & Summary -->
+          <div class="space-y-6">
+            <!-- Role Summary -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">角色統計</h3>
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-gray-600 dark:text-gray-400">用戶數量</span>
+                  <span class="text-lg font-semibold text-gray-900 dark:text-white">{{ getUsersInRole(selectedRole.id).length }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-gray-600 dark:text-gray-400">權限數量</span>
+                  <span class="text-lg font-semibold text-gray-900 dark:text-white">{{ rolePermissions.length }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-gray-600 dark:text-gray-400">完整度</span>
+                  <span class="text-lg font-semibold text-primary-600 dark:text-primary-400">
+                    {{ Math.round((rolePermissions.length / getTotalPermissionCount()) * 100) }}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Users in Role -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">此角色的用戶</h3>
+                <button
+                  @click="showUserAssignment = true"
+                  class="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300 flex items-center space-x-1"
+                >
+                  <UserPlusIcon class="w-4 h-4" />
+                  <span>分配用戶</span>
+                </button>
+              </div>
+              
+              <div class="space-y-3 max-h-64 overflow-y-auto">
+                <div v-for="user in getUsersInRole(selectedRole.id)" :key="user.id" 
+                     class="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <img :src="user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366f1&color=fff`" 
+                       :alt="user.name" class="w-8 h-8 rounded-full">
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ user.name }}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ user.email }}</div>
+                  </div>
+                  <button
+                    @click="handleRemoveUserFromRole(user.id, selectedRole.id)"
+                    class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                  >
+                    <XMarkIcon class="w-4 h-4" />
+                  </button>
+                </div>
+                
+                <div v-if="getUsersInRole(selectedRole.id).length === 0" class="text-center py-8">
+                  <UsersIcon class="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                  <p class="text-sm text-gray-500 dark:text-gray-400">此角色暫無用戶</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Users & Roles -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">用戶角色分配</h2>
-        
-        <!-- User List -->
-        <div class="space-y-3">
-          <div v-for="user in users" :key="user.id" 
-               class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+      <!-- Matrix View -->
+      <div v-else class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white">權限矩陣視圖</h2>
             <div class="flex items-center space-x-3">
-              <img :src="user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366f1&color=fff`" 
-                   :alt="user.name" class="w-8 h-8 rounded-full">
-              <div>
-                <div class="text-sm font-medium text-gray-900 dark:text-white">{{ user.name }}</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">{{ user.email }}</div>
+              <input
+                v-model="matrixSearch"
+                type="text"
+                placeholder="搜尋權限..."
+                class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm"
+              >
+            </div>
+          </div>
+          
+          <div class="overflow-x-auto">
+            <table class="min-w-full">
+              <thead>
+                <tr class="border-b border-gray-200 dark:border-gray-700">
+                  <th class="text-left py-3 px-4 font-medium text-gray-900 dark:text-white sticky left-0 bg-white dark:bg-gray-800 z-10">
+                    權限
+                  </th>
+                  <th v-for="role in roles" :key="role.id" 
+                      class="text-center py-3 px-2 font-medium text-gray-900 dark:text-white min-w-24">
+                    <div class="flex flex-col items-center space-y-1">
+                      <component 
+                        :is="getRoleIcon(role.name)" 
+                        class="w-4 h-4"
+                        :class="getRoleIconColor(role.name)"
+                      />
+                      <span class="text-xs">{{ role.display_name }}</span>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <template v-for="(categoryPermissions, category) in filteredMatrixPermissions" :key="category">
+                  <tr class="bg-gray-50 dark:bg-gray-700">
+                    <td colspan="100%" class="py-2 px-4 font-medium text-gray-900 dark:text-white text-sm capitalize">
+                      {{ getCategoryDisplayName(category) }}
+                    </td>
+                  </tr>
+                  <tr v-for="permission in categoryPermissions" :key="permission.id" 
+                      class="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="py-3 px-4 sticky left-0 bg-white dark:bg-gray-800">
+                      <div>
+                        <div class="text-sm font-medium text-gray-900 dark:text-white">{{ permission.display_name }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">{{ permission.description }}</div>
+                      </div>
+                    </td>
+                    <td v-for="role in roles" :key="role.id" class="text-center py-3 px-2">
+                      <input 
+                        type="checkbox"
+                        :checked="isPermissionInRole(permission.name, role.id)"
+                        @change="toggleRolePermission(role.id, permission.name)"
+                        class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
+                      >
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick User Assignment Modal -->
+    <div v-if="showQuickAssign" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-96 overflow-hidden">
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white">快速用戶角色分配</h3>
+            <button @click="showQuickAssign = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+              <XMarkIcon class="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-4 overflow-y-auto max-h-80">
+            <!-- Users Column -->
+            <div>
+              <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">用戶</h4>
+              <div class="space-y-2">
+                <div v-for="user in users" :key="user.id" 
+                     class="flex items-center space-x-3 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <img :src="user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366f1&color=fff`" 
+                       :alt="user.name" class="w-6 h-6 rounded-full">
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ user.name }}</div>
+                  </div>
+                  <select 
+                    v-model="quickAssignRoles[user.id]"
+                    @change="assignQuickRole(user.id, quickAssignRoles[user.id])"
+                    class="text-xs border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="">選擇角色</option>
+                    <option v-for="role in roles" :key="role.id" :value="role.id">
+                      {{ role.display_name }}
+                    </option>
+                  </select>
+                </div>
               </div>
             </div>
-            <div class="flex flex-wrap gap-1">
-              <span v-for="role in user.roles" :key="role.id" 
-                    class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
-                    :class="{
-                      'bg-purple-100 text-purple-800': role.name === 'admin' || role.name === 'executive',
-                      'bg-blue-100 text-blue-800': role.name === 'manager',
-                      'bg-green-100 text-green-800': role.name === 'sales'
-                    }">
-                {{ role.display_name }}
-              </span>
+            
+            <!-- Roles Column -->
+            <div>
+              <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">角色分佈</h4>
+              <div class="space-y-2">
+                <div v-for="role in roles" :key="role.id" 
+                     class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                  <div class="flex items-center space-x-2">
+                    <component 
+                      :is="getRoleIcon(role.name)" 
+                      class="w-4 h-4"
+                      :class="getRoleIconColor(role.name)"
+                    />
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">{{ role.display_name }}</span>
+                  </div>
+                  <span class="text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full">
+                    {{ getUsersInRole(role.id).length }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Permission Categories -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-      <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">權限分類總覽</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div v-for="(categoryPermissions, category) in permissions" :key="category"
-             class="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-          <h3 class="font-medium text-gray-900 dark:text-white mb-2 capitalize">{{ category }}</h3>
-          <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
-            共 {{ categoryPermissions.length }} 項權限
-          </p>
-          <div class="space-y-1">
-            <div v-for="permission in categoryPermissions.slice(0, 3)" :key="permission.id" 
-                 class="text-xs text-gray-500 dark:text-gray-400">
-              • {{ permission.display_name }}
+    <!-- User Assignment Modal -->
+    <div v-if="showUserAssignment" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white">分配用戶到角色</h3>
+            <button @click="showUserAssignment = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+              <XMarkIcon class="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div class="space-y-3 max-h-64 overflow-y-auto">
+            <div v-for="user in getAvailableUsersForRole(selectedRole?.id)" :key="user.id" 
+                 class="flex items-center space-x-3 p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+              <img :src="user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366f1&color=fff`" 
+                   :alt="user.name" class="w-8 h-8 rounded-full">
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-gray-900 dark:text-white">{{ user.name }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ user.email }}</div>
+              </div>
+              <button
+                @click="assignUserToRole(user.id, selectedRole.id)"
+                class="text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300"
+              >
+                <PlusIcon class="w-4 h-4" />
+              </button>
             </div>
-            <div v-if="categoryPermissions.length > 3" class="text-xs text-gray-400">
-              +{{ categoryPermissions.length - 3 }} 更多...
+            
+            <div v-if="getAvailableUsersForRole(selectedRole?.id).length === 0" class="text-center py-8">
+              <p class="text-sm text-gray-500 dark:text-gray-400">所有用戶已分配此角色</p>
             </div>
           </div>
         </div>
@@ -119,7 +411,23 @@
 </template>
 
 <script setup>
-import { ShieldCheckIcon } from '@heroicons/vue/24/outline'
+import { nextTick } from 'vue'
+import {
+  ShieldCheckIcon,
+  UserPlusIcon,
+  TableCellsIcon,
+  Squares2X2Icon,
+  CheckCircleIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  UsersIcon,
+  XMarkIcon,
+  PlusIcon,
+  ShieldExclamationIcon,
+  CogIcon,
+  UserIcon,
+  BuildingOfficeIcon
+} from '@heroicons/vue/24/outline'
 
 definePageMeta({
   middleware: 'auth'
@@ -130,36 +438,121 @@ useHead({
 })
 
 // Composables
-const { getPermissions, getRolePermissions, getUserRoles } = usePermissions()
-const { getUsers, getRoles } = useUserManagement()
+const { getPermissions, getRolePermissions, assignPermissionToRole, removePermissionFromRole } = usePermissions()
+const { getUsers, getRoles, assignRole, removeUserFromRole } = useUserManagement()
 
 // Reactive data
 const loading = ref(true)
 const permissions = ref({})
 const roles = ref([])
 const users = ref([])
-const selectedRole = ref('')
+const selectedRole = ref(null)
 const rolePermissions = ref([])
+const rolePermissionsCache = ref({})
+
+// UI State
+const viewMode = ref('roles') // 'roles' or 'matrix'
+const showQuickAssign = ref(false)
+const showUserAssignment = ref(false)
+const expandedCategories = ref([])
+const matrixSearch = ref('')
+const quickAssignRoles = ref({})
 
 // Load initial data
 const loadData = async () => {
   try {
     loading.value = true
     
-    // Load all data in parallel
-    const [permissionsData, rolesData, usersData] = await Promise.all([
+    console.log('Loading permissions management data...')
+    
+    // Load all data in parallel with individual error handling
+    const [permissionsData, rolesData, usersData] = await Promise.allSettled([
       getPermissions(),
       getRoles(),
       getUsers()
     ])
     
-    permissions.value = permissionsData.permissions
-    roles.value = rolesData
-    users.value = usersData.data || usersData
+    // Handle permissions data
+    if (permissionsData.status === 'fulfilled') {
+      permissions.value = permissionsData.value.permissions || {}
+      console.log('Permissions loaded:', Object.keys(permissions.value).length, 'categories')
+    } else {
+      console.error('Failed to load permissions:', permissionsData.reason)
+      permissions.value = {}
+    }
+    
+    // Handle roles data
+    if (rolesData.status === 'fulfilled') {
+      roles.value = rolesData.value || []
+      console.log('Roles loaded:', roles.value.length, 'roles')
+    } else {
+      console.error('Failed to load roles:', rolesData.reason)
+      roles.value = []
+    }
+    
+    // Handle users data
+    if (usersData.status === 'fulfilled') {
+      users.value = usersData.value.data || usersData.value || []
+      console.log('Users loaded:', users.value.length, 'users')
+    } else {
+      console.error('Failed to load users:', usersData.reason)
+      users.value = []
+    }
+    
+    // Expand first category by default
+    if (Object.keys(permissions.value).length > 0) {
+      expandedCategories.value = [Object.keys(permissions.value)[0]]
+    }
+    
+    // Load permissions for all roles to cache
+    if (roles.value.length > 0) {
+      await loadAllRolePermissions()
+    }
+    
+    console.log('Permissions management data loaded successfully')
   } catch (error) {
-    console.error('Failed to load permission data:', error)
+    console.error('Critical error loading permission data:', error)
+    alert('載入權限資料時發生錯誤，請重新整理頁面或聯繫系統管理員')
   } finally {
     loading.value = false
+  }
+}
+
+// Load permissions for all roles
+const loadAllRolePermissions = async () => {
+  try {
+    const permissionPromises = roles.value.map(async (role) => {
+      try {
+        const data = await getRolePermissions(role.id)
+        return { roleId: role.id, permissions: data.permissions || [] }
+      } catch (error) {
+        console.error(`Failed to load permissions for role ${role.id}:`, error)
+        return { roleId: role.id, permissions: [] }
+      }
+    })
+    
+    const results = await Promise.all(permissionPromises)
+    results.forEach(({ roleId, permissions }) => {
+      rolePermissionsCache.value[roleId] = permissions
+    })
+    
+    // Set current role permissions if role is selected
+    if (selectedRole.value) {
+      rolePermissions.value = rolePermissionsCache.value[selectedRole.value.id] || []
+    }
+  } catch (error) {
+    console.error('Failed to load role permissions:', error)
+  }
+}
+
+// Role selection and management
+const selectRole = async (role) => {
+  selectedRole.value = role
+  rolePermissions.value = rolePermissionsCache.value[role.id] || []
+  
+  // Load fresh permissions if not cached
+  if (!rolePermissionsCache.value[role.id]) {
+    await loadRolePermissions()
   }
 }
 
@@ -170,37 +563,340 @@ const loadRolePermissions = async () => {
   try {
     const data = await getRolePermissions(selectedRole.value.id)
     rolePermissions.value = data.permissions || []
+    rolePermissionsCache.value[selectedRole.value.id] = rolePermissions.value
   } catch (error) {
     console.error('Failed to load role permissions:', error)
     rolePermissions.value = []
   }
 }
 
-// Toggle permission for selected role
+// Permission management
 const togglePermission = async (permissionName) => {
-  if (!selectedRole.value) return
+  if (!selectedRole.value) {
+    console.warn('No role selected for permission toggle')
+    return
+  }
   
   try {
     const hasPermission = rolePermissions.value.includes(permissionName)
     
     if (hasPermission) {
       // Remove permission
+      console.log(`Removing permission ${permissionName} from role ${selectedRole.value.id}`)
       await removePermissionFromRole(selectedRole.value.id, permissionName)
       rolePermissions.value = rolePermissions.value.filter(p => p !== permissionName)
     } else {
       // Add permission
+      console.log(`Adding permission ${permissionName} to role ${selectedRole.value.id}`)
       await assignPermissionToRole(selectedRole.value.id, permissionName)
-      rolePermissions.value.push(permissionName)
+      if (!rolePermissions.value.includes(permissionName)) {
+        rolePermissions.value.push(permissionName)
+      }
     }
+    
+    // Update cache
+    rolePermissionsCache.value[selectedRole.value.id] = [...rolePermissions.value]
+    console.log(`Permission ${permissionName} toggled successfully for role ${selectedRole.value.display_name}`)
   } catch (error) {
     console.error('Failed to toggle permission:', error)
-    // Revert the change
+    // Show user-friendly error message
+    alert(`權限設定失敗: ${error.message || '請檢查網路連線或聯繫系統管理員'}`)
+    // Revert the change by reloading
     await loadRolePermissions()
   }
 }
 
+// Category management
+const toggleCategory = (category) => {
+  const index = expandedCategories.value.indexOf(category)
+  if (index > -1) {
+    expandedCategories.value.splice(index, 1)
+  } else {
+    expandedCategories.value.push(category)
+  }
+}
+
+const toggleCategoryPermissions = async (category) => {
+  if (!selectedRole.value || !permissions.value[category]) return
+  
+  const categoryPermissions = permissions.value[category]
+  const isFullySelected = isCategoryFullySelected(category)
+  
+  try {
+    if (isFullySelected) {
+      // Remove all permissions in category
+      for (const permission of categoryPermissions) {
+        if (rolePermissions.value.includes(permission.name)) {
+          await removePermissionFromRole(selectedRole.value.id, permission.name)
+          rolePermissions.value = rolePermissions.value.filter(p => p !== permission.name)
+        }
+      }
+    } else {
+      // Add all permissions in category
+      for (const permission of categoryPermissions) {
+        if (!rolePermissions.value.includes(permission.name)) {
+          await assignPermissionToRole(selectedRole.value.id, permission.name)
+          rolePermissions.value.push(permission.name)
+        }
+      }
+    }
+    
+    // Update cache
+    rolePermissionsCache.value[selectedRole.value.id] = rolePermissions.value
+  } catch (error) {
+    console.error('Failed to toggle category permissions:', error)
+    await loadRolePermissions()
+  }
+}
+
+const toggleAllPermissions = async () => {
+  if (!selectedRole.value) return
+  
+  const allPermissions = getAllPermissionNames()
+  const isAllSelected = allPermissionsSelected.value
+  
+  try {
+    if (isAllSelected) {
+      // Remove all permissions
+      for (const permissionName of rolePermissions.value) {
+        await removePermissionFromRole(selectedRole.value.id, permissionName)
+      }
+      rolePermissions.value = []
+    } else {
+      // Add all permissions
+      for (const permissionName of allPermissions) {
+        if (!rolePermissions.value.includes(permissionName)) {
+          await assignPermissionToRole(selectedRole.value.id, permissionName)
+          rolePermissions.value.push(permissionName)
+        }
+      }
+    }
+    
+    // Update cache
+    rolePermissionsCache.value[selectedRole.value.id] = rolePermissions.value
+  } catch (error) {
+    console.error('Failed to toggle all permissions:', error)
+    await loadRolePermissions()
+  }
+}
+
+// User-Role management (basic versions - detailed versions are below)
+
+const assignQuickRole = async (userId, roleId) => {
+  if (!roleId) return
+  await assignUserToRole(userId, roleId)
+}
+
+// Matrix view
+const toggleRolePermission = async (roleId, permissionName) => {
+  const role = roles.value.find(r => r.id === roleId)
+  if (!role) {
+    console.warn('Role not found for matrix toggle:', roleId)
+    return
+  }
+  
+  const oldSelectedRole = selectedRole.value
+  const oldRolePermissions = [...rolePermissions.value]
+  
+  try {
+    // Temporarily switch to the target role
+    selectedRole.value = role
+    rolePermissions.value = rolePermissionsCache.value[roleId] || []
+    
+    // Toggle the permission for this role
+    await togglePermission(permissionName)
+    
+    // Update the cache for this specific role
+    rolePermissionsCache.value[roleId] = [...rolePermissions.value]
+  } catch (error) {
+    console.error('Failed to toggle role permission in matrix view:', error)
+  } finally {
+    // Restore previous selection
+    selectedRole.value = oldSelectedRole
+    if (oldSelectedRole) {
+      rolePermissions.value = rolePermissionsCache.value[oldSelectedRole.id] || oldRolePermissions
+    } else {
+      rolePermissions.value = oldRolePermissions
+    }
+  }
+}
+
+// Utility functions
+const getRoleIcon = (roleName) => {
+  const iconMap = {
+    admin: ShieldExclamationIcon,
+    executive: BuildingOfficeIcon,
+    manager: CogIcon,
+    staff: UserIcon,
+    sales: UserIcon
+  }
+  return iconMap[roleName] || UserIcon
+}
+
+const getRoleIconColor = (roleName) => {
+  const colorMap = {
+    admin: 'text-purple-600 dark:text-purple-400',
+    executive: 'text-purple-600 dark:text-purple-400',
+    manager: 'text-blue-600 dark:text-blue-400',
+    staff: 'text-green-600 dark:text-green-400',
+    sales: 'text-green-600 dark:text-green-400'
+  }
+  return colorMap[roleName] || 'text-gray-600 dark:text-gray-400'
+}
+
+const getRoleIconBg = (roleName) => {
+  const bgMap = {
+    admin: 'bg-purple-100 dark:bg-purple-900/20',
+    executive: 'bg-purple-100 dark:bg-purple-900/20',
+    manager: 'bg-blue-100 dark:bg-blue-900/20',
+    staff: 'bg-green-100 dark:bg-green-900/20',
+    sales: 'bg-green-100 dark:bg-green-900/20'
+  }
+  return bgMap[roleName] || 'bg-gray-100 dark:bg-gray-900/20'
+}
+
+const getCategoryDisplayName = (category) => {
+  const nameMap = {
+    users: '用戶管理',
+    customers: '客戶管理',
+    reports: '報表管理',
+    chat: '聊天功能',
+    system: '系統設定',
+    finance: '財務管理'
+  }
+  return nameMap[category] || category
+}
+
+const getUsersInRole = (roleId) => {
+  return users.value.filter(user => 
+    user.roles && user.roles.some(role => role.id === roleId)
+  )
+}
+
+const getAvailableUsersForRole = (roleId) => {
+  if (!roleId) return []
+  return users.value.filter(user => 
+    !user.roles || !user.roles.some(role => role.id === roleId)
+  )
+}
+
+const getRolePermissionCount = (roleId) => {
+  return rolePermissionsCache.value[roleId]?.length || 0
+}
+
+const getCategoryPermissionCount = (category) => {
+  return permissions.value[category]?.length || 0
+}
+
+const getCategorySelectedCount = (category) => {
+  if (!permissions.value[category] || !selectedRole.value) return 0
+  return permissions.value[category].filter(p => 
+    rolePermissions.value.includes(p.name)
+  ).length
+}
+
+const isCategoryFullySelected = (category) => {
+  if (!permissions.value[category] || !selectedRole.value) return false
+  return permissions.value[category].every(p => 
+    rolePermissions.value.includes(p.name)
+  )
+}
+
+const isCategoryPartiallySelected = (category) => {
+  if (!permissions.value[category] || !selectedRole.value) return false
+  const selectedCount = getCategorySelectedCount(category)
+  const totalCount = getCategoryPermissionCount(category)
+  return selectedCount > 0 && selectedCount < totalCount
+}
+
+// Handle indeterminate state for checkboxes (simplified approach)
+const setCategoryCheckboxState = () => {
+  // This function is now handled via Vue's reactive :indeterminate binding
+  // No DOM manipulation needed
+}
+
+const isPermissionInRole = (permissionName, roleId) => {
+  return rolePermissionsCache.value[roleId]?.includes(permissionName) || false
+}
+
+const getAllPermissionNames = () => {
+  const allNames = []
+  Object.values(permissions.value).forEach(categoryPerms => {
+    categoryPerms.forEach(perm => allNames.push(perm.name))
+  })
+  return allNames
+}
+
+const getTotalPermissionCount = () => {
+  return getAllPermissionNames().length
+}
+
+// Additional utility functions for user-role management
+const getAvailableUsersForRole = (roleId) => {
+  if (!roleId) return []
+  return users.value.filter(user => 
+    !user.roles || !user.roles.some(role => role.id === roleId)
+  )
+}
+
+const assignUserToRole = async (userId, roleId) => {
+  try {
+    const role = roles.value.find(r => r.id === roleId)
+    if (role) {
+      await assignRole(userId, role.name)
+      // Refresh users data
+      await loadData()
+      showUserAssignment.value = false
+    }
+  } catch (error) {
+    console.error('Failed to assign user to role:', error)
+    alert(`分配用戶到角色失敗: ${error.message}`)
+  }
+}
+
+const handleRemoveUserFromRole = async (userId, roleId) => {
+  try {
+    await removeUserFromRole(userId, roleId)
+    // Refresh users data
+    await loadData()
+  } catch (error) {
+    console.error('Failed to remove user from role:', error)
+    alert(`移除用戶角色失敗: ${error.message}`)
+  }
+}
+
+// Computed properties
+const allPermissionsSelected = computed(() => {
+  if (!selectedRole.value) return false
+  const totalCount = getTotalPermissionCount()
+  return rolePermissions.value.length === totalCount
+})
+
+const filteredMatrixPermissions = computed(() => {
+  if (!matrixSearch.value) return permissions.value
+  
+  const filtered = {}
+  Object.entries(permissions.value).forEach(([category, perms]) => {
+    const matchingPerms = perms.filter(perm => 
+      perm.display_name.toLowerCase().includes(matrixSearch.value.toLowerCase()) ||
+      perm.description.toLowerCase().includes(matrixSearch.value.toLowerCase())
+    )
+    if (matchingPerms.length > 0) {
+      filtered[category] = matchingPerms
+    }
+  })
+  return filtered
+})
+
 // Initialize
-onMounted(() => {
-  loadData()
+onMounted(async () => {
+  await loadData()
+  // Set up indeterminate checkbox states
+  setCategoryCheckboxState()
+})
+
+// Watch for permission changes to update checkbox states
+watch([rolePermissions, permissions], () => {
+  setCategoryCheckboxState()
 })
 </script>
