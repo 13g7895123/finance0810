@@ -33,6 +33,8 @@ jobs:
             BRANCH_NAME="${BRANCH_NAME}"
 
             ls -la
+            cd project/bonus
+            ls -la
             
             echo "========================================="
             echo "開始部署程序..."
