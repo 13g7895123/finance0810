@@ -112,8 +112,9 @@
                 <span 
                   class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
                   :class="{
-                    'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400': user.status === 'active',
-                    'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400': user.status === 'inactive'
+                    'bg-blue-600 text-white dark:bg-blue-500 dark:text-white': user.status === 'active',
+                    'bg-red-600 text-white dark:bg-red-500 dark:text-white': user.status === 'inactive',
+                    'bg-yellow-600 text-white dark:bg-yellow-500 dark:text-white': user.status === 'suspended'
                   }"
                 >
                   {{ t(`auth.status_${user.status}`) }}
@@ -165,6 +166,77 @@
             <p class="text-gray-500 dark:text-gray-400">{{ t('auth.no_users_found') }}</p>
           </div>
         </ClientOnly>
+
+        <!-- Pagination Controls -->
+        <div v-if="totalPages > 1" class="mt-6 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4">
+          <div class="flex-1 flex justify-between sm:hidden">
+            <button
+              @click="loadUsers(currentPage - 1)"
+              :disabled="currentPage <= 1"
+              class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              上一頁
+            </button>
+            <button
+              @click="loadUsers(currentPage + 1)"
+              :disabled="currentPage >= totalPages"
+              class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              下一頁
+            </button>
+          </div>
+          
+          <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            <div>
+              <p class="text-sm text-gray-700 dark:text-gray-300">
+                顯示第 <span class="font-medium">{{ ((currentPage - 1) * perPage) + 1 }}</span> 
+                到 <span class="font-medium">{{ Math.min(currentPage * perPage, totalUsers) }}</span> 
+                筆，共 <span class="font-medium">{{ totalUsers }}</span> 筆記錄
+              </p>
+            </div>
+            <div>
+              <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="分頁導航">
+                <button
+                  @click="loadUsers(currentPage - 1)"
+                  :disabled="currentPage <= 1"
+                  class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeftIcon class="h-5 w-5" />
+                </button>
+                
+                <!-- Page numbers -->
+                <template v-for="page in getVisiblePages()" :key="page">
+                  <button
+                    v-if="typeof page === 'number'"
+                    @click="loadUsers(page)"
+                    :class="[
+                      page === currentPage
+                        ? 'bg-primary-50 border-primary-500 text-primary-600 dark:bg-primary-900/50 dark:border-primary-400 dark:text-primary-300'
+                        : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700',
+                      'relative inline-flex items-center px-4 py-2 border text-sm font-medium'
+                    ]"
+                  >
+                    {{ page }}
+                  </button>
+                  <span
+                    v-else
+                    class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    ...
+                  </span>
+                </template>
+                
+                <button
+                  @click="loadUsers(currentPage + 1)"
+                  :disabled="currentPage >= totalPages"
+                  class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronRightIcon class="h-5 w-5" />
+                </button>
+              </nav>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -185,7 +257,7 @@
               v-model="addForm.name"
               type="text"
               required
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
 
@@ -198,7 +270,7 @@
               v-model="addForm.username"
               type="text"
               required
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
           
@@ -211,7 +283,7 @@
               v-model="addForm.email"
               type="email"
               required
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
 
@@ -225,7 +297,7 @@
               type="password"
               required
               minlength="6"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
 
@@ -239,7 +311,7 @@
               type="password"
               required
               minlength="6"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
 
@@ -251,7 +323,7 @@
             <select
               v-model="addForm.role"
               required
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             >
               <option value="">選擇角色</option>
               <option v-for="role in roles" :key="role.id" :value="role.name">
@@ -267,7 +339,7 @@
             </label>
             <select
               v-model="addForm.status"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             >
               <option value="active">啟用</option>
               <option value="inactive">停用</option>
@@ -310,7 +382,7 @@
             <input
               v-model="editForm.name"
               type="text"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
           
@@ -322,7 +394,7 @@
             <input
               v-model="editForm.email"
               type="email"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
 
@@ -333,7 +405,7 @@
             </label>
             <select
               v-model="editForm.role"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
             >
               <option v-for="role in roles" :key="role.id" :value="role.name">
                 {{ role.display_name }}
@@ -368,7 +440,9 @@ import {
   ShieldExclamationIcon,
   UsersIcon,
   PlusIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon
 } from '@heroicons/vue/24/outline'
 
 definePageMeta({
@@ -397,12 +471,36 @@ const refreshing = ref(false)
 const users = ref([])
 const roles = ref([])
 
+// Pagination state
+const currentPage = ref(1)
+const totalPages = ref(1)
+const perPage = ref(10)
+const totalUsers = ref(0)
+
 // 載入用戶數據
-const loadUsers = async () => {
+const loadUsers = async (page = 1) => {
   try {
     loading.value = true
-    const response = await getUsers({ search: searchQuery.value })
-    users.value = response.data || []
+    const response = await getUsers({ 
+      search: searchQuery.value,
+      page: page,
+      per_page: perPage.value
+    })
+    
+    // Handle different response formats
+    if (response.data && Array.isArray(response.data)) {
+      users.value = response.data
+      currentPage.value = response.current_page || page
+      totalPages.value = response.last_page || Math.ceil((response.total || response.data.length) / perPage.value)
+      totalUsers.value = response.total || response.data.length
+    } else if (Array.isArray(response)) {
+      users.value = response
+      currentPage.value = page
+      totalPages.value = Math.ceil(response.length / perPage.value)
+      totalUsers.value = response.length
+    } else {
+      users.value = []
+    }
   } catch (error) {
     console.error('Failed to load users:', error)
   } finally {
@@ -422,6 +520,42 @@ const loadRoles = async () => {
 
 // Filter users based on search query - 搜索功能由API處理
 const filteredUsers = computed(() => users.value)
+
+// Generate visible page numbers for pagination
+const getVisiblePages = () => {
+  const pages = []
+  const maxVisible = 7
+  
+  if (totalPages.value <= maxVisible) {
+    for (let i = 1; i <= totalPages.value; i++) {
+      pages.push(i)
+    }
+  } else {
+    if (currentPage.value <= 4) {
+      for (let i = 1; i <= 5; i++) {
+        pages.push(i)
+      }
+      pages.push('...')
+      pages.push(totalPages.value)
+    } else if (currentPage.value >= totalPages.value - 3) {
+      pages.push(1)
+      pages.push('...')
+      for (let i = totalPages.value - 4; i <= totalPages.value; i++) {
+        pages.push(i)
+      }
+    } else {
+      pages.push(1)
+      pages.push('...')
+      for (let i = currentPage.value - 1; i <= currentPage.value + 1; i++) {
+        pages.push(i)
+      }
+      pages.push('...')
+      pages.push(totalPages.value)
+    }
+  }
+  
+  return pages
+}
 
 // 監聽搜索查詢變化
 const debounce = (func, delay) => {
@@ -504,8 +638,13 @@ const addUser = async () => {
       alert('密碼確認不相符')
       return
     }
+
+    if (addForm.value.password.length < 6) {
+      alert('密碼長度至少需要6個字元')
+      return
+    }
     
-    await createUser({
+    const response = await createUser({
       name: addForm.value.name,
       username: addForm.value.username,
       email: addForm.value.email,
@@ -515,13 +654,31 @@ const addUser = async () => {
       status: addForm.value.status
     })
     
-    showAddModal.value = false
-    resetAddForm()
-    // 重新載入用戶列表
-    await loadUsers()
+    // Show success message
+    if (response?.success !== false) {
+      alert('使用者建立成功')
+      showAddModal.value = false
+      resetAddForm()
+      // 重新載入用戶列表
+      await loadUsers()
+    }
   } catch (error) {
     console.error('Failed to create user:', error)
-    alert('新增用戶失敗，請重試')
+    
+    // Handle validation errors
+    if (error?.errors) {
+      const errorMessages = []
+      for (const field in error.errors) {
+        errorMessages.push(`${field}: ${error.errors[field].join(', ')}`)
+      }
+      alert(`表單驗證失敗:\n${errorMessages.join('\n')}`)
+    } else if (error?.message) {
+      alert(`新增用戶失敗: ${error.message}`)
+    } else if (error?.error) {
+      alert(`系統錯誤: ${error.error}`)
+    } else {
+      alert('新增用戶失敗，請重試')
+    }
   }
 }
 

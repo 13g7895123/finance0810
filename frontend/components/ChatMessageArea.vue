@@ -26,12 +26,6 @@
         
         <div class="flex items-center space-x-2">
           <button class="p-2 text-gray-500 hover:bg-gray-100  rounded-lg">
-            <PhoneIcon class="w-5 h-5" />
-          </button>
-          <button class="p-2 text-gray-500 hover:bg-gray-100  rounded-lg">
-            <VideoCameraIcon class="w-5 h-5" />
-          </button>
-          <button class="p-2 text-gray-500 hover:bg-gray-100  rounded-lg">
             <InformationCircleIcon class="w-5 h-5" />
           </button>
         </div>
@@ -161,8 +155,6 @@
 
 <script setup>
 import { 
-  PhoneIcon,
-  VideoCameraIcon,
   InformationCircleIcon,
   PaperClipIcon,
   PaperAirplaneIcon

@@ -117,34 +117,78 @@ class UserController extends Controller
      */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:100',
-            'username' => 'required|string|max:50|unique:users',
-            'email' => 'required|email|max:100|unique:users',
-            'password' => 'required|string|min:6|confirmed',
-            'role' => 'required|exists:roles,name',
-            'status' => 'sometimes|in:active,inactive,suspended',
-        ]);
+        try {
+            \Log::info('UserController@store - 開始建立使用者', [
+                'request_data' => $request->all()
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:100',
+                'username' => 'required|string|max:50|unique:users',
+                'email' => 'required|email|max:100|unique:users',
+                'password' => 'required|string|min:6|confirmed',
+                'role' => 'required|exists:roles,name',
+                'status' => 'sometimes|in:active,inactive,suspended',
+            ]);
+
+            if ($validator->fails()) {
+                \Log::warning('UserController@store - 驗證失敗', [
+                    'errors' => $validator->errors()->toArray()
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => '表單驗證失敗',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $user = User::create([
+                'name' => $request->name,
+                'username' => $request->username,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+                'status' => $request->status ?? 'active',
+                'password_changed_at' => now(),
+            ]);
+
+            \Log::info('UserController@store - 使用者已建立', [
+                'user_id' => $user->id,
+                'username' => $user->username
+            ]);
+
+            $user->assignRole($request->role);
+
+            \Log::info('UserController@store - 角色已指派', [
+                'user_id' => $user->id,
+                'role' => $request->role
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => '使用者建立成功',
+                'user' => $user->load('roles')
+            ], 201);
+
+        } catch (\Exception $e) {
+            \Log::error('UserController@store - 建立使用者失敗', [
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'request_data' => $request->all(),
+                'error_trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => '建立使用者時發生錯誤',
+                'error' => $e->getMessage(),
+                'debug_info' => [
+                    'error_type' => get_class($e),
+                    'error_file' => $e->getFile(),
+                    'error_line' => $e->getLine()
+                ]
+            ], 500);
         }
-
-        $user = User::create([
-            'name' => $request->name,
-            'username' => $request->username,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'status' => $request->status ?? 'active',
-            'password_changed_at' => now(),
-        ]);
-
-        $user->assignRole($request->role);
-
-        return response()->json([
-            'message' => '使用者建立成功',
-            'user' => $user->load('roles')
-        ], 201);
     }
 
     /**
