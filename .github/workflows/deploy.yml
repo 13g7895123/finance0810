@@ -42,8 +42,7 @@ jobs:
               exit 1
             fi
 
-            echo "secrets.SSH_HOST: ${{ secrets.SSH_HOST }}"
-            echo "secrets.SSH_USER: ${{ secrets.SSH_USER }}"
+            hostname -I
 
             echo "切換到部署目錄: \$DEPLOY_PATH"
             cd \$DEPLOY_PATH || { echo "無法切換到部署目錄"; exit 1; }
