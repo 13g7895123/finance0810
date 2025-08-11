@@ -250,4 +250,62 @@ class TestController extends Controller
 
         return $steps;
     }
+
+    /**
+     * Test cookie and authentication configuration
+     */
+    public function cookieTest(Request $request)
+    {
+        $isProduction = app()->environment('production');
+        $domain = $isProduction ? '.mercylife.cc' : null;
+        
+        $cookieInfo = [
+            'environment' => app()->environment(),
+            'is_production' => $isProduction,
+            'request_secure' => $request->secure(),
+            'request_host' => $request->getHost(),
+            'request_url' => $request->url(),
+            'cookie_domain' => $domain,
+            'sameSite' => $isProduction ? 'Lax' : 'None',
+            'cors_enabled' => config('cors.supports_credentials'),
+            'allowed_origins' => config('cors.allowed_origins'),
+            'jwt_configured' => !empty(config('jwt.secret')),
+            'jwt_ttl' => config('jwt.ttl', 60),
+        ];
+
+        // 檢查是否有 auth-token cookie
+        $authToken = $request->cookie('auth-token');
+        $cookieInfo['auth_cookie_present'] = !empty($authToken);
+        $cookieInfo['auth_cookie_length'] = $authToken ? strlen($authToken) : 0;
+
+        // 檢查 Authorization header
+        $authHeader = $request->header('Authorization');
+        $cookieInfo['auth_header_present'] = !empty($authHeader);
+        
+        // 檢查 JWT middleware 是否正常運作
+        if ($authToken && !$authHeader) {
+            $cookieInfo['jwt_middleware_status'] = 'Cookie found but not converted to header - check JWTCookieMiddleware';
+        } elseif ($authToken && $authHeader) {
+            $cookieInfo['jwt_middleware_status'] = 'Cookie successfully converted to Authorization header';
+        } else {
+            $cookieInfo['jwt_middleware_status'] = 'No authentication cookie found';
+        }
+
+        // 建議
+        $recommendations = [];
+        if (!$isProduction && !$request->secure()) {
+            $recommendations[] = 'Development: OK to use HTTP, but HTTPS is recommended for testing production scenarios';
+        }
+        if ($isProduction && !$request->secure()) {
+            $recommendations[] = 'Production: HTTPS is required for secure cookies';
+        }
+        if (!in_array($request->header('Origin', 'unknown'), config('cors.allowed_origins', []))) {
+            $recommendations[] = 'Current origin may not be in CORS allowed_origins list';
+        }
+
+        $cookieInfo['recommendations'] = $recommendations;
+        $cookieInfo['debug_note'] = 'This endpoint helps debug authentication issues. Check cookie settings and CORS configuration.';
+
+        return response()->json($cookieInfo);
+    }
 }

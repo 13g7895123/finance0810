@@ -32,6 +32,7 @@ Route::get('/health/info', [HealthController::class, 'info']);
 Route::get('/test/system', [TestController::class, 'systemTest']);
 Route::get('/test/auth', [TestController::class, 'authTest']);
 Route::get('/test/setup', [TestController::class, 'setupStatus']);
+Route::get('/test/cookies', [TestController::class, 'cookieTest']);
 
 // Public routes
 Route::post('/auth/login', [AuthController::class, 'login']);

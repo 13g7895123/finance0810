@@ -63,16 +63,21 @@ class AuthController extends Controller
         $user->updateLastLogin($request->ip());
 
         // 設定 HTTP-Only Cookie
+        // 根據環境設定 domain 和 sameSite
+        $isProduction = app()->environment('production');
+        $domain = $isProduction ? '.mercylife.cc' : null; // 生產環境使用子域名通用設定
+        $sameSite = $isProduction ? 'Lax' : 'None'; // 生產環境使用 Lax，開發環境使用 None
+        
         $cookie = cookie(
             'auth-token',           // cookie 名稱
             $token,                 // token 值
             JWTAuth::factory()->getTTL(), // 過期時間（分鐘）
             '/',                    // path
-            null,                   // domain
+            $domain,                // domain - 生產環境設定子域名共用
             request()->secure(),    // secure (HTTPS)
             true,                   // httpOnly
             false,                  // raw
-            'None'                  // sameSite - allows cross-origin requests
+            $sameSite               // sameSite - 依環境調整
         );
 
         return $this->respondWithToken($token, $user)->withCookie($cookie);
@@ -157,7 +162,21 @@ class AuthController extends Controller
         JWTAuth::logout();
 
         // 清除 HTTP-Only Cookie
-        $cookie = cookie()->forget('auth-token');
+        // 使用與登入時相同的 domain 設定
+        $isProduction = app()->environment('production');
+        $domain = $isProduction ? '.mercylife.cc' : null;
+        
+        $cookie = cookie(
+            'auth-token',           // cookie 名稱
+            null,                   // 清空值
+            -1,                     // 過期時間設為過去
+            '/',                    // path
+            $domain,                // domain - 與登入時相同
+            request()->secure(),    // secure
+            true,                   // httpOnly
+            false,                  // raw
+            $isProduction ? 'Lax' : 'None' // sameSite
+        );
 
         return response()->json(['message' => '登出成功'])->withCookie($cookie);
     }

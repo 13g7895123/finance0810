@@ -25,6 +25,8 @@ return [
         'http://127.0.0.1:3000',
         'http://localhost:9121',
         'http://127.0.0.1:9121',
+        'https://dev-finance.mercylife.cc',
+        'https://finance.mercylife.cc',
     ],
 
     'allowed_origins_patterns' => [],
