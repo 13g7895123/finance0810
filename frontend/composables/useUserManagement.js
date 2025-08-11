@@ -2,10 +2,8 @@ export const useUserManagement = () => {
   const authStore = useAuthStore()
   const { get, post, put, del } = useApi()
   
-  // 檢查認證狀態 - 暫時關閉前端驗證
+  // 檢查認證狀態
   const checkAuth = () => {
-    // 暫時關閉認證檢查，直接放行
-    return
     if (!authStore.user || !authStore.isLoggedIn) {
       throw new Error('Authentication required. Please login first.')
     }

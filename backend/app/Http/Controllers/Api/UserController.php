@@ -15,8 +15,7 @@ class UserController extends Controller
     {
         $this->middleware('auth:api');
         // 修正中間件配置：新增executive角色，並改為使用我們自定義的角色中間件
-        // 暫時關閉權限驗證進行功能測試
-        // $this->middleware('role:admin|executive|manager');
+        $this->middleware('role:admin|executive|manager');
     }
 
     /**
