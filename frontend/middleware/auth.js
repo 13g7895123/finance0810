@@ -1,4 +1,7 @@
 export default defineNuxtRouteMiddleware(async (to, from) => {
+  // 暫時關閉前端驗證 - 直接放行
+  return
+  
   const authStore = useAuthStore()
   
   console.log('Auth middleware - 來源頁面:', from?.path, '目標頁面:', to.path)

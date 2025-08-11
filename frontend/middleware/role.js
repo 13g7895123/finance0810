@@ -1,4 +1,7 @@
 export default defineNuxtRouteMiddleware(async (to) => {
+  // 暫時關閉前端權限驗證 - 直接放行
+  return
+  
   const authStore = useAuthStore()
   
   // 初始化認證狀態
