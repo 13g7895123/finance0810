@@ -75,7 +75,9 @@ export const useAuthStore = defineStore('auth', () => {
         const userData = {
           ...response.user,
           token: response.access_token,  // 後端回傳 access_token
-          role: response.user.roles?.[0] || null  // 取得主要角色（第一個角色）
+          role: Array.isArray(response.user.roles) 
+            ? response.user.roles[0] 
+            : (response.user.roles && response.user.roles[0]) || null  // 取得主要角色（第一個角色）
         }
         
         console.log('設定的用戶資料:', userData)
@@ -177,7 +179,9 @@ export const useAuthStore = defineStore('auth', () => {
               // Token 有效，恢復用戶狀態
               user.value = {
                 ...userData.user,
-                role: userData.user.roles?.[0] || null
+                role: Array.isArray(userData.user.roles) 
+                  ? userData.user.roles[0] 
+                  : (userData.user.roles && userData.user.roles[0]) || null
               }
               console.log('已恢復登入狀態:', userData.user.username)
             } else {

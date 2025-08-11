@@ -34,7 +34,7 @@ class AdminUserSeeder extends Seeder
         
         // Try to find admin role with explicit guard
         $adminRole = \Spatie\Permission\Models\Role::where('name', 'admin')
-            ->where('guard_name', 'web')
+            ->where('guard_name', 'api')
             ->first();
             
         if ($adminRole) {
@@ -47,7 +47,7 @@ class AdminUserSeeder extends Seeder
             // Create the admin role if it doesn't exist
             $adminRole = \Spatie\Permission\Models\Role::create([
                 'name' => 'admin',
-                'guard_name' => 'web',
+                'guard_name' => 'api',
                 'display_name' => '經銷商/公司高層',
                 'description' => '系統管理員，擁有所有權限',
             ]);
@@ -68,7 +68,7 @@ class AdminUserSeeder extends Seeder
         );
         
         $executiveRole = \Spatie\Permission\Models\Role::where('name', 'executive')
-            ->where('guard_name', 'web')
+            ->where('guard_name', 'api')
             ->first();
         if ($executiveRole) {
             $executive->roles()->detach();
@@ -78,7 +78,7 @@ class AdminUserSeeder extends Seeder
             $this->command->warn('Executive role not found. Creating it now...');
             $executiveRole = \Spatie\Permission\Models\Role::create([
                 'name' => 'executive',
-                'guard_name' => 'web',
+                'guard_name' => 'api',
                 'display_name' => '經銷商/公司高層',
                 'description' => '公司高層，擁有管理員等級權限',
             ]);
@@ -99,7 +99,7 @@ class AdminUserSeeder extends Seeder
         );
         
         $managerRole = \Spatie\Permission\Models\Role::where('name', 'manager')
-            ->where('guard_name', 'web')
+            ->where('guard_name', 'api')
             ->first();
         if ($managerRole) {
             $manager->roles()->detach();
@@ -109,7 +109,7 @@ class AdminUserSeeder extends Seeder
             $this->command->warn('Manager role not found. Creating it now...');
             $managerRole = \Spatie\Permission\Models\Role::create([
                 'name' => 'manager',
-                'guard_name' => 'web',
+                'guard_name' => 'api',
                 'display_name' => '行政人員/主管',
                 'description' => '可編輯大部分資料，無法修改銀行交涉紀錄',
             ]);
@@ -130,7 +130,7 @@ class AdminUserSeeder extends Seeder
         );
         
         $staffRole = \Spatie\Permission\Models\Role::where('name', 'staff')
-            ->where('guard_name', 'web')
+            ->where('guard_name', 'api')
             ->first();
         if ($staffRole) {
             $staff->roles()->detach();
@@ -140,7 +140,7 @@ class AdminUserSeeder extends Seeder
             $this->command->warn('Staff role not found. Creating it now...');
             $staffRole = \Spatie\Permission\Models\Role::create([
                 'name' => 'staff',
-                'guard_name' => 'web',
+                'guard_name' => 'api',
                 'display_name' => '業務人員',
                 'description' => '僅能編輯查詢自己負責的客戶資料',
             ]);

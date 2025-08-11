@@ -23,9 +23,9 @@ class RolesAndPermissionsSeeder extends Seeder
 
         foreach ($permissions as $category => $categoryPermissions) {
             foreach ($categoryPermissions as $permissionName => $displayName) {
-                // 創建 web guard 權限
+                // 創建 api guard 權限
                 Permission::firstOrCreate(
-                    ['name' => $permissionName, 'guard_name' => 'web'],
+                    ['name' => $permissionName, 'guard_name' => 'api'],
                     [
                         'display_name' => $displayName,
                         'category' => $category,
@@ -37,7 +37,7 @@ class RolesAndPermissionsSeeder extends Seeder
 
         // Create roles
         $adminRole = Role::firstOrCreate(
-            ['name' => 'admin', 'guard_name' => 'web'],
+            ['name' => 'admin', 'guard_name' => 'api'],
             [
                 'display_name' => '經銷商/公司高層',
                 'description' => '系統管理員，擁有所有權限',
@@ -46,7 +46,7 @@ class RolesAndPermissionsSeeder extends Seeder
         );
 
         $executiveRole = Role::firstOrCreate(
-            ['name' => 'executive', 'guard_name' => 'web'],
+            ['name' => 'executive', 'guard_name' => 'api'],
             [
                 'display_name' => '經銷商/公司高層',
                 'description' => '公司高層，擁有管理員等級權限',
@@ -55,7 +55,7 @@ class RolesAndPermissionsSeeder extends Seeder
         );
 
         $managerRole = Role::firstOrCreate(
-            ['name' => 'manager', 'guard_name' => 'web'],
+            ['name' => 'manager', 'guard_name' => 'api'],
             [
                 'display_name' => '行政人員/主管',
                 'description' => '可編輯大部分資料，無法修改銀行交涉紀錄',
@@ -64,7 +64,7 @@ class RolesAndPermissionsSeeder extends Seeder
         );
 
         $staffRole = Role::firstOrCreate(
-            ['name' => 'staff', 'guard_name' => 'web'],
+            ['name' => 'staff', 'guard_name' => 'api'],
             [
                 'display_name' => '業務人員',
                 'description' => '僅能編輯查詢自己負責的客戶資料',

@@ -18,7 +18,7 @@ class User extends Authenticatable implements JWTSubject
     /**
      * The guard name for Spatie permissions
      */
-    protected $guard_name = 'web';
+    protected $guard_name = 'api';
 
     /**
      * The attributes that are mass assignable.
