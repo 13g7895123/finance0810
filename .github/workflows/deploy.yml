@@ -31,10 +31,6 @@ jobs:
             set -e  # 在任何命令失敗時立即退出
             
             BRANCH_NAME="${BRANCH_NAME}"
-
-            ls -la
-            cd project/bonus
-            ls -la
             
             echo "========================================="
             echo "開始部署程序..."
@@ -63,7 +59,7 @@ jobs:
             if [[ "\$BRANCH_NAME" == "master" ]]; then
               DEPLOY_PATH="~/project/bonus/finance"
             elif [[ "\$BRANCH_NAME" == "develop" ]]; then
-              DEPLOY_PATH="~/project/bonus/develop/finance0810_D"
+              DEPLOY_PATH="project/bonus/develop/finance0810_D"
             else
               echo "No deploy path set for this branch: \$BRANCH_NAME"
               exit 1
