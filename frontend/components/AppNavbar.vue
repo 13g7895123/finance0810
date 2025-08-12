@@ -102,12 +102,12 @@
       <div class="relative">
         <button
           @click="toggleNotifications"
-          class="p-2 hover:bg-gray-700 rounded-lg transition-colors duration-200 relative group"
+          class="p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200 relative group"
         >
-          <BellIcon class="w-5 h-5 text-gray-700 group-hover:text-white" />
+          <BellIcon class="w-5 h-5 text-gray-700 group-hover:text-gray-900" />
           <span 
             v-if="unreadCount > 0"
-            class="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-bold"
+            class="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 rounded-full flex items-center justify-center text-xs text-white font-bold"
           >
             {{ unreadCount > 99 ? '99+' : unreadCount }}
           </span>
@@ -124,14 +124,14 @@
         >
           <div
             v-if="showNotifications"
-            class="absolute right-0 top-full mt-2 w-96 bg-gray-800 rounded-lg shadow-lg border border-gray-600 z-50"
+            class="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl z-50"
           >
-            <div class="p-4 border-b border-gray-600 flex items-center justify-between">
-              <h3 class="font-semibold text-white">通知</h3>
+            <div class="p-4 bg-gray-50 rounded-t-lg flex items-center justify-between">
+              <h3 class="font-semibold text-gray-900">通知</h3>
               <div class="flex items-center space-x-2">
                 <button
                   @click="markAllAsRead"
-                  class="text-xs text-primary-500 hover:text-primary-600 transition-colors duration-200"
+                  class="text-xs text-blue-600 hover:text-blue-800 transition-colors duration-200 font-medium"
                 >
                   全部標記已讀
                 </button>
@@ -141,47 +141,56 @@
               <div
                 v-for="notification in recentNotifications"
                 :key="notification.id"
-                class="p-4 border-b border-gray-600 hover:bg-gray-700 transition-colors duration-200 cursor-pointer"
-                :class="{ 'bg-gray-700': !notification.read }"
+                class="p-4 transition-colors duration-200 cursor-pointer"
+                :class="{
+                  'bg-blue-50 hover:bg-blue-100': !notification.read,
+                  'bg-white hover:bg-gray-50': notification.read
+                }"
                 @click="markAsRead(notification.id)"
               >
                 <div class="flex items-start space-x-3">
                   <div 
                     class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
                     :class="{
-                      'bg-red-100 text-red-600  ': notification.priority === 'high',
-                      'bg-yellow-100 text-yellow-600  ': notification.priority === 'medium',
-                      'bg-blue-100 text-blue-600  ': notification.priority === 'low'
+                      'bg-red-100 text-red-600': notification.priority === 'high',
+                      'bg-yellow-100 text-yellow-600': notification.priority === 'medium',
+                      'bg-blue-100 text-blue-600': notification.priority === 'low'
                     }"
                   >
                     <component :is="getNotificationIcon(notification.icon)" class="w-4 h-4" />
                   </div>
                   <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-white">
+                    <p class="text-sm font-medium" :class="{
+                      'text-gray-900': !notification.read,
+                      'text-gray-600': notification.read
+                    }">
                       {{ notification.title }}
                     </p>
-                    <p class="text-sm text-gray-300 mt-1">{{ notification.message }}</p>
+                    <p class="text-sm mt-1" :class="{
+                      'text-gray-700': !notification.read,
+                      'text-gray-500': notification.read
+                    }">{{ notification.message }}</p>
                     <p class="text-xs text-gray-400 mt-1">{{ notificationsStore.getTimeAgo(notification.time) }}</p>
                   </div>
                   <div class="flex-shrink-0">
                     <div
                       v-if="!notification.read"
-                      class="w-2 h-2 bg-primary-500 rounded-full"
+                      class="w-3 h-3 bg-blue-500 rounded-full"
                     ></div>
                   </div>
                 </div>
               </div>
               <div
                 v-if="recentNotifications.length === 0"
-                class="p-8 text-center text-gray-400"
+                class="p-8 text-center text-gray-500"
               >
                 暫無通知
               </div>
             </div>
-            <div class="p-3 border-t border-gray-600">
+            <div class="p-3 bg-gray-50 rounded-b-lg">
               <button
                 @click="clearReadNotifications"
-                class="w-full text-center text-sm text-gray-400 hover:text-gray-200 transition-colors duration-200"
+                class="w-full text-center text-sm text-gray-600 hover:text-gray-800 transition-colors duration-200 font-medium"
               >
                 清除所有
               </button>

@@ -13,19 +13,20 @@ export const useApi = () => {
    * 通用API請求方法
    */
   const apiRequest = async (method, endpoint, data = null, options = {}) => {
-    try {
-      const requestOptions = {
-        method: method.toUpperCase(),
-        baseURL,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          ...options.headers
-        },
-        credentials: 'include', // 允許發送 HTTP-Only Cookie
-        ...options
-      }
+    // Define requestOptions outside try block so it's accessible in catch
+    const requestOptions = {
+      method: method.toUpperCase(),
+      baseURL,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...options.headers
+      },
+      credentials: 'include', // 允許發送 HTTP-Only Cookie
+      ...options
+    }
 
+    try {
       // 添加請求資料
       if (data && ['POST', 'PUT', 'PATCH'].includes(requestOptions.method)) {
         requestOptions.body = JSON.stringify(data)
