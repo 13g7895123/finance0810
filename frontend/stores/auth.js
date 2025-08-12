@@ -2,7 +2,6 @@ export const useAuthStore = defineStore('auth', () => {
   // 用戶狀態
   const user = ref(null)
   const isLoggedIn = computed(() => !!user.value)
-  const _initialized = ref(false)
   
   // 權限檢查
   const isExecutive = computed(() => user.value?.role === roles.EXECUTIVE)
@@ -244,7 +243,6 @@ export const useAuthStore = defineStore('auth', () => {
     isManager,
     isStaff,
     roles,
-    _initialized,
     
     // 方法
     login,

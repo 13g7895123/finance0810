@@ -15,26 +15,19 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     return
   }
   
-  // 初始化認證狀態 - 如果還沒有初始化才執行
+  // 初始化認證狀態 - 確保非同步完成
   if (process.client) {
     try {
-      // 如果 plugin 已經初始化過，就不需要再次初始化
-      if (!authStore._initialized.value) {
-        console.log('Auth middleware - 執行初始化 (plugin 未完成)')
-        await nextTick() // 確保 DOM 已準備好
-        const initSuccess = await authStore.initializeAuth() // 等待初始化完成
-        authStore._initialized.value = true
-        
-        console.log('Auth middleware - 初始化結果:', initSuccess)
-        console.log('Auth middleware - 初始化後登入狀態:', authStore.isLoggedIn)
-        
-        // 如果初始化失敗且確實沒有登入狀態，才重定向
-        if (!initSuccess && !authStore.isLoggedIn) {
-          console.log('初始化失敗且用戶未登入，重定向到登入頁')
-          return navigateTo('/auth/login')
-        }
-      } else {
-        console.log('Auth middleware - 跳過初始化 (plugin 已完成)')
+      await nextTick() // 確保 DOM 已準備好
+      const initSuccess = await authStore.initializeAuth() // 等待初始化完成
+      
+      console.log('Auth middleware - 初始化結果:', initSuccess)
+      console.log('Auth middleware - 初始化後登入狀態:', authStore.isLoggedIn)
+      
+      // 如果初始化失敗且確實沒有登入狀態，才重定向
+      if (!initSuccess && !authStore.isLoggedIn) {
+        console.log('初始化失敗且用戶未登入，重定向到登入頁')
+        return navigateTo('/auth/login')
       }
       
     } catch (error) {
