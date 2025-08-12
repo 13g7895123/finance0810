@@ -153,11 +153,15 @@ const handleLogin = async () => {
         }
       }
       
-      // 根據用戶角色決定重定向路徑
-      let redirectPath = '/dashboard/analytics' // 默認重定向路徑
+      // 檢查是否有指定的重定向路徑
+      const route = useRoute()
+      let redirectPath = route.query.redirect || '/dashboard/analytics' // 默認重定向路徑
       
-      if (result.user.role === 'staff') {
-        redirectPath = '/sales/customers'
+      // 如果沒有指定重定向路徑，根據用戶角色決定
+      if (!route.query.redirect) {
+        if (result.user.role === 'staff') {
+          redirectPath = '/sales/customers'
+        }
       }
       
       console.log('準備重定向到:', redirectPath)
@@ -199,13 +203,8 @@ const handleLogin = async () => {
   }
 }
 
-// 如果已經登入，重定向到首頁
+// SweetAlert 插件檢查（開發模式）
 onMounted(() => {
-  if (authStore.isLoggedIn) {
-    navigateTo('/')
-  }
-  
-  // SweetAlert 插件檢查（開發模式）
   if (process.dev && !$swal) {
     console.error('SweetAlert plugin not available')
   }

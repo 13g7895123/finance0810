@@ -27,17 +27,23 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
       // 最終檢查登入狀態
       if (!authStore.isLoggedIn) {
         console.log('初始化完成但用戶未登入，重定向到登入頁')
-        return navigateTo('/auth/login')
+        // 保存原始目標路徑
+        const redirectPath = to.path !== '/' ? to.path : undefined
+        return navigateTo(redirectPath ? `/auth/login?redirect=${encodeURIComponent(redirectPath)}` : '/auth/login')
       }
       
     } catch (error) {
       console.error('Auth middleware - 等待初始化失敗:', error)
-      return navigateTo('/auth/login')
+      // 保存原始目標路徑
+      const redirectPath = to.path !== '/' ? to.path : undefined
+      return navigateTo(redirectPath ? `/auth/login?redirect=${encodeURIComponent(redirectPath)}` : '/auth/login')
     }
   } else {
     // Server side: 如果沒有登入狀態就重定向
     if (!authStore.isLoggedIn) {
-      return navigateTo('/auth/login')
+      // 保存原始目標路徑
+      const redirectPath = to.path !== '/' ? to.path : undefined
+      return navigateTo(redirectPath ? `/auth/login?redirect=${encodeURIComponent(redirectPath)}` : '/auth/login')
     }
   }
 })
