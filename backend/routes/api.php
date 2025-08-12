@@ -12,6 +12,7 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\WebhookController;
+use App\Http\Controllers\Api\LineIntegrationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -115,5 +116,16 @@ Route::middleware(['auth:api'])->group(function () {
         Route::put('/custom-fields/{field}', [\App\Http\Controllers\Api\CustomFieldController::class, 'update']);
         Route::delete('/custom-fields/{field}', [\App\Http\Controllers\Api\CustomFieldController::class, 'destroy']);
         Route::post('/custom-fields/set-value', [\App\Http\Controllers\Api\CustomFieldController::class, 'setValue']);
+
+        // LINE Integration Management (Admin and Manager only)
+        Route::prefix('line-integration')->group(function () {
+            Route::get('/settings', [LineIntegrationController::class, 'getSettings']);
+            Route::post('/settings', [LineIntegrationController::class, 'updateSettings']);
+            Route::post('/test-connection', [LineIntegrationController::class, 'testConnection']);
+            Route::get('/bot-info', [LineIntegrationController::class, 'getBotInfo']);
+            Route::get('/stats', [LineIntegrationController::class, 'getStats']);
+            Route::get('/recent-conversations', [LineIntegrationController::class, 'getRecentConversations']);
+            Route::post('/send-message', [LineIntegrationController::class, 'sendMessage']);
+        });
     });
 });
