@@ -52,12 +52,28 @@
               description="從 LINE Developers Console 取得的 Channel Access Token"
               required
             >
-              <UInput 
-                v-model="form.channel_access_token"
-                type="password"
-                placeholder="輸入 Channel Access Token"
-                class="line-input"
-              />
+              <div class="relative">
+                <UInput 
+                  v-model="form.channel_access_token"
+                  :type="showTokens.access_token ? 'text' : 'password'"
+                  :placeholder="originalSettings?.channel_access_token ? '已設定 (點擊眼睛圖示查看)' : '輸入 Channel Access Token'"
+                  class="line-input pr-10"
+                />
+                <button
+                  type="button"
+                  @click="toggleTokenVisibility('access_token')"
+                  class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  v-if="form.channel_access_token"
+                >
+                  <UIcon :name="showTokens.access_token ? 'i-heroicons-eye-slash' : 'i-heroicons-eye'" class="w-4 h-4" />
+                </button>
+              </div>
+              <template #help v-if="originalSettings?.channel_access_token && !form.channel_access_token">
+                <div class="flex items-center mt-1 text-xs text-green-600">
+                  <UIcon name="i-heroicons-check-circle" class="w-3 h-3 mr-1" />
+                  已儲存 ({{ maskedValue(originalSettings.channel_access_token) }})
+                </div>
+              </template>
             </UFormGroup>
 
             <!-- Channel Secret -->
@@ -66,12 +82,28 @@
               description="從 LINE Developers Console 取得的 Channel Secret"
               required
             >
-              <UInput 
-                v-model="form.channel_secret"
-                type="password"
-                placeholder="輸入 Channel Secret"
-                class="line-input"
-              />
+              <div class="relative">
+                <UInput 
+                  v-model="form.channel_secret"
+                  :type="showTokens.channel_secret ? 'text' : 'password'"
+                  :placeholder="originalSettings?.channel_secret ? '已設定 (點擊眼睛圖示查看)' : '輸入 Channel Secret'"
+                  class="line-input pr-10"
+                />
+                <button
+                  type="button"
+                  @click="toggleTokenVisibility('channel_secret')"
+                  class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  v-if="form.channel_secret"
+                >
+                  <UIcon :name="showTokens.channel_secret ? 'i-heroicons-eye-slash' : 'i-heroicons-eye'" class="w-4 h-4" />
+                </button>
+              </div>
+              <template #help v-if="originalSettings?.channel_secret && !form.channel_secret">
+                <div class="flex items-center mt-1 text-xs text-green-600">
+                  <UIcon name="i-heroicons-check-circle" class="w-3 h-3 mr-1" />
+                  已儲存 ({{ maskedValue(originalSettings.channel_secret) }})
+                </div>
+              </template>
             </UFormGroup>
 
             <!-- Bot Basic ID -->
@@ -81,30 +113,42 @@
             >
               <UInput 
                 v-model="form.bot_basic_id"
-                placeholder="@xxxxxxxx"
+                :placeholder="originalSettings?.bot_basic_id ? `已設定: ${originalSettings.bot_basic_id}` : '@xxxxxxxx'"
                 class="line-input"
               />
+              <template #help v-if="originalSettings?.bot_basic_id && !form.bot_basic_id">
+                <div class="flex items-center mt-1 text-xs text-green-600">
+                  <UIcon name="i-heroicons-check-circle" class="w-3 h-3 mr-1" />
+                  已儲存: {{ originalSettings.bot_basic_id }}
+                </div>
+              </template>
             </UFormGroup>
 
             <!-- Webhook URL -->
             <UFormGroup 
               label="Webhook URL" 
-              description="設定到 LINE Developers Console"
+              description="此網址由系統自動產生，需複製到 LINE Developers Console 設定"
             >
               <UInput 
                 :model-value="webhookUrl"
                 readonly
-                class="font-mono text-sm line-input"
+                class="font-mono text-sm line-input bg-gray-50"
               />
               <template #help>
-                <UButton 
-                  @click="copyWebhookUrl" 
-                  variant="ghost" 
-                  size="2xs"
-                  class="mt-1"
-                >
-                  複製網址
-                </UButton>
+                <div class="flex items-center justify-between mt-1">
+                  <div class="text-xs text-amber-600">
+                    <UIcon name="i-heroicons-information-circle" class="w-3 h-3 mr-1 inline" />
+                    系統自動產生，不可編輯
+                  </div>
+                  <UButton 
+                    @click="copyWebhookUrl" 
+                    variant="ghost" 
+                    size="2xs"
+                  >
+                    <UIcon name="i-heroicons-clipboard" class="w-3 h-3 mr-1" />
+                    複製網址
+                  </UButton>
+                </div>
               </template>
             </UFormGroup>
           </div>
@@ -294,6 +338,12 @@ const statsLoading = ref(false)
 const botInfoLoading = ref(false)
 const conversationsLoading = ref(false)
 
+// Token 顯示狀態
+const showTokens = ref({
+  access_token: false,
+  channel_secret: false
+})
+
 // 資料狀態
 const settings = ref(null)
 const originalSettings = ref(null)
@@ -339,7 +389,13 @@ const integrationStatusColor = computed(() => {
 
 const hasChanges = computed(() => {
   if (!originalSettings.value) return false
-  return JSON.stringify(form.value) !== JSON.stringify(originalSettings.value)
+  
+  // 檢查是否有任何表單欄位被填寫
+  const hasFormData = form.value.channel_access_token || 
+                     form.value.channel_secret || 
+                     form.value.bot_basic_id
+  
+  return hasFormData
 })
 
 // 方法
@@ -349,12 +405,20 @@ const loadSettings = async () => {
     const response = await getSettings()
     if (response.data) {
       settings.value = response.data.settings
-      form.value = {
+      
+      // 儲存原始設定用於顯示遮罩
+      originalSettings.value = {
         channel_access_token: response.data.settings.channel_access_token || '',
         channel_secret: response.data.settings.channel_secret || '',
         bot_basic_id: response.data.settings.bot_basic_id || ''
       }
-      originalSettings.value = JSON.parse(JSON.stringify(form.value))
+      
+      // 表單值初始為空，讓用戶看到已保存的提示
+      form.value = {
+        channel_access_token: '',
+        channel_secret: '',
+        bot_basic_id: ''
+      }
     }
   } catch (error) {
     toast.add({
@@ -370,15 +434,23 @@ const loadSettings = async () => {
 const saveSettings = async () => {
   saving.value = true
   try {
-    const response = await updateSettings(form.value)
+    // 合併現有設定和新設定
+    const settingsToSave = {
+      channel_access_token: form.value.channel_access_token || originalSettings.value?.channel_access_token || '',
+      channel_secret: form.value.channel_secret || originalSettings.value?.channel_secret || '',
+      bot_basic_id: form.value.bot_basic_id || originalSettings.value?.bot_basic_id || ''
+    }
+    
+    const response = await updateSettings(settingsToSave)
     if (response.data) {
       toast.add({
         title: '設定已儲存',
         description: response.data.message,
         color: 'green'
       })
-      originalSettings.value = JSON.parse(JSON.stringify(form.value))
-      await loadSettings() // 重新載入設定
+      
+      // 重新載入設定
+      await loadSettings()
     }
   } catch (error) {
     toast.add({
@@ -479,6 +551,18 @@ const formatTime = (timestamp) => {
   return date.toLocaleString('zh-TW')
 }
 
+// Token 顯示切換
+const toggleTokenVisibility = (tokenType) => {
+  showTokens.value[tokenType] = !showTokens.value[tokenType]
+}
+
+// 遮罩顯示敏感資料
+const maskedValue = (value) => {
+  if (!value) return ''
+  if (value.length <= 8) return '*'.repeat(value.length)
+  return value.substring(0, 4) + '*'.repeat(value.length - 8) + value.substring(value.length - 4)
+}
+
 // 生命週期
 onMounted(async () => {
   await loadSettings()
@@ -514,5 +598,22 @@ useHead({
 :deep(.line-input input:focus-visible) {
   outline: none !important;
   box-shadow: none !important;
+}
+
+/* Webhook URL 只讀樣式 */
+:deep(.line-input.bg-gray-50 input) {
+  background-color: #f9fafb !important;
+  cursor: not-allowed !important;
+}
+
+/* 眼睛圖標按鈕樣式 */
+button[type="button"]:hover {
+  transform: scale(1.1);
+  transition: transform 0.2s ease;
+}
+
+/* 已儲存狀態提示樣式 */
+.text-green-600 {
+  font-weight: 500;
 }
 </style>
