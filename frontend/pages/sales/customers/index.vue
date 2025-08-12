@@ -122,7 +122,7 @@
           </thead>
           <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             <tr 
-              v-for="customer in filteredCustomers" 
+              v-for="customer in paginatedCustomers" 
               :key="customer.id"
               class="hover:bg-gray-50 dark:hover:bg-gray-700"
             >
@@ -136,10 +136,10 @@
                     />
                   </div>
                   <div class="ml-4">
-                    <div class="text-sm font-medium text-gray-900 dark:text-white">
+                    <div class="text-base font-medium text-gray-900 dark:text-white">
                       {{ customer.name }}
                     </div>
-                    <div class="text-sm text-gray-500 dark:text-gray-400">
+                    <div class="text-base text-gray-500 dark:text-gray-400">
                       {{ customer.company }}
                     </div>
                   </div>
@@ -147,28 +147,28 @@
               </td>
               
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-900 dark:text-white">{{ customer.email }}</div>
-                <div class="text-sm text-gray-500 dark:text-gray-400">{{ customer.phone }}</div>
+                <div class="text-base text-gray-900 dark:text-white">{{ customer.email }}</div>
+                <div class="text-base text-gray-500 dark:text-gray-400">{{ customer.phone }}</div>
               </td>
               
               <td class="px-6 py-4 whitespace-nowrap">
                 <span 
-                  class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
+                  class="inline-flex px-2 py-1 text-sm font-semibold rounded-full"
                   :class="getStatusClass(customer.status)"
                 >
                   {{ getStatusText(customer.status) }}
                 </span>
               </td>
               
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500 dark:text-gray-400">
                 {{ formatDate(customer.lastContact) }}
               </td>
               
-              <td v-if="!authStore.isSales" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+              <td v-if="!authStore.isSales" class="px-6 py-4 whitespace-nowrap text-base text-gray-500 dark:text-gray-400">
                 {{ customer.assignedSales }}
               </td>
               
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+              <td class="px-6 py-4 whitespace-nowrap text-right text-base font-medium space-x-2">
                 <button class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
                   查看
                 </button>
@@ -182,6 +182,76 @@
             </tr>
           </tbody>
         </table>
+      </div>
+      
+      <!-- Pagination Controls -->
+      <div v-if="totalPages > 1" class="mt-6 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4">
+        <div class="flex-1 flex justify-between sm:hidden">
+          <button
+            @click="previousPage"
+            :disabled="currentPage === 1"
+            class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            上一頁
+          </button>
+          <button
+            @click="nextPage"
+            :disabled="currentPage === totalPages"
+            class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            下一頁
+          </button>
+        </div>
+        
+        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+          <div>
+            <p class="text-sm text-gray-700 dark:text-gray-300">
+              顯示第 <span class="font-medium">{{ ((currentPage - 1) * itemsPerPage) + 1 }}</span> 
+              到 <span class="font-medium">{{ Math.min(currentPage * itemsPerPage, filteredCustomers.length) }}</span> 
+              筆，共 <span class="font-medium">{{ filteredCustomers.length }}</span> 筆記錄
+            </p>
+          </div>
+          <div>
+            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="分頁導航">
+              <button
+                @click="previousPage"
+                :disabled="currentPage === 1"
+                class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ❮
+              </button>
+              
+              <template v-for="page in getVisiblePages()" :key="page">
+                <button
+                  v-if="typeof page === 'number'"
+                  @click="goToPage(page)"
+                  :class="[
+                    page === currentPage
+                      ? 'bg-primary-50 border-primary-500 text-primary-600 dark:bg-primary-900/50 dark:border-primary-400 dark:text-primary-300'
+                      : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700',
+                    'relative inline-flex items-center px-4 py-2 border text-sm font-medium'
+                  ]"
+                >
+                  {{ page }}
+                </button>
+                <span
+                  v-else
+                  class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  ...
+                </span>
+              </template>
+              
+              <button
+                @click="nextPage"
+                :disabled="currentPage === totalPages"
+                class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ❯
+              </button>
+            </nav>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -306,6 +376,73 @@ const filteredCustomers = computed(() => {
 
   return result
 })
+
+// Pagination
+const currentPage = ref(1)
+const itemsPerPage = 10
+
+const totalPages = computed(() => Math.ceil(filteredCustomers.value.length / itemsPerPage))
+
+const paginatedCustomers = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage
+  const end = start + itemsPerPage
+  return filteredCustomers.value.slice(start, end)
+})
+
+// Pagination methods
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++
+  }
+}
+
+const previousPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value--
+  }
+}
+
+const goToPage = (page) => {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+  }
+}
+
+// Generate visible page numbers for pagination
+const getVisiblePages = () => {
+  const pages = []
+  const maxVisible = 7
+  
+  if (totalPages.value <= maxVisible) {
+    for (let i = 1; i <= totalPages.value; i++) {
+      pages.push(i)
+    }
+  } else {
+    if (currentPage.value <= 4) {
+      for (let i = 1; i <= 5; i++) {
+        pages.push(i)
+      }
+      pages.push('...')
+      pages.push(totalPages.value)
+    } else if (currentPage.value >= totalPages.value - 3) {
+      pages.push(1)
+      pages.push('...')
+      for (let i = totalPages.value - 4; i <= totalPages.value; i++) {
+        pages.push(i)
+      }
+    } else {
+      pages.push(1)
+      pages.push('...')
+      for (let i = currentPage.value - 1; i <= currentPage.value + 1; i++) {
+        pages.push(i)
+      }
+      pages.push('...')
+      pages.push(totalPages.value)
+    }
+  }
+  
+  return pages
+}
 
 // 狀態樣式
 const getStatusClass = (status) => {

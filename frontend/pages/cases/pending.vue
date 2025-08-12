@@ -112,36 +112,36 @@
           </thead>
           <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             <tr v-for="caseItem in filteredCases" :key="caseItem.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium text-gray-900 dark:text-white">
                 {{ caseItem.id }}
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500 dark:text-gray-400">
                 <div>{{ formatDate(caseItem.createdAt) }}</div>
-                <div class="text-xs">{{ formatTime(caseItem.createdAt) }}</div>
+                <div class="text-sm">{{ formatTime(caseItem.createdAt) }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
                   <img :src="caseItem.assignedSales.avatar" :alt="caseItem.assignedSales.name" class="w-8 h-8 rounded-full mr-2" />
-                  <span class="text-sm font-medium text-gray-900 dark:text-white">{{ caseItem.assignedSales.name }}</span>
+                  <span class="text-base font-medium text-gray-900 dark:text-white">{{ caseItem.assignedSales.name }}</span>
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <span class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300 rounded-full">
+                <span class="px-2 py-1 text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300 rounded-full">
                   {{ caseItem.region }}
                 </span>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <span class="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300 rounded-full">
+                <span class="px-2 py-1 text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300 rounded-full">
                   {{ caseItem.website }}
                 </span>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900 dark:text-white">{{ caseItem.customerName }}</div>
-                <div class="text-sm text-gray-500 dark:text-gray-400">{{ caseItem.phone }}</div>
+                <div class="text-base font-medium text-gray-900 dark:text-white">{{ caseItem.customerName }}</div>
+                <div class="text-base text-gray-500 dark:text-gray-400">{{ caseItem.phone }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <span 
-                  class="px-2 py-1 text-xs font-medium rounded-full"
+                  class="px-2 py-1 text-sm font-medium rounded-full"
                   :class="getInquiryStatusClass(caseItem.inquiryStatus)"
                 >
                   {{ caseItem.inquiryStatus }}
@@ -150,7 +150,7 @@
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center space-x-2">
                   <span 
-                    class="px-2 py-1 text-xs font-medium rounded-full"
+                    class="px-2 py-1 text-sm font-medium rounded-full"
                     :class="getTrackingStatusClass(caseItem.trackingStatus)"
                   >
                     {{ caseItem.trackingStatus }}
@@ -158,7 +158,7 @@
                   <div v-if="caseItem.needsAttention" class="w-2 h-2 bg-red-500 rounded-full" title="需要注意"></div>
                 </div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-2">
                 <button
                   @click="editCase(caseItem)"
                   class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
