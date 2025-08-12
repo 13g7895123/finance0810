@@ -132,7 +132,7 @@
                   >
                     <div class="flex items-center space-x-3">
                       <component 
-                        :is="expandedCategories.includes(category) ? ChevronDownIcon : ChevronRightIcon" 
+                        :is="Array.isArray(expandedCategories) && expandedCategories.includes(category) ? ChevronDownIcon : ChevronRightIcon" 
                         class="w-4 h-4 text-gray-400" 
                       />
                       <h3 class="font-medium text-gray-900 dark:text-white capitalize">{{ getCategoryDisplayName(category) }}</h3>
@@ -155,14 +155,14 @@
                     </div>
                   </div>
                   
-                  <div v-if="expandedCategories.includes(category)" class="border-t border-gray-200 dark:border-gray-600">
+                  <div v-if="Array.isArray(expandedCategories) && expandedCategories.includes(category)" class="border-t border-gray-200 dark:border-gray-600">
                     <div class="p-4 space-y-3">
                       <div v-for="permission in categoryPermissions" :key="permission.id" 
                            class="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200">
                         <input 
                           :id="`perm-${permission.id}`" 
                           type="checkbox" 
-                          :checked="rolePermissions.includes(permission.name)"
+                          :checked="Array.isArray(rolePermissions) ? rolePermissions.includes(permission.name) : false"
                           @change="togglePermission(permission.name)"
                           class="w-4 h-4 mt-1 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
                         >
@@ -502,6 +502,8 @@ const loadData = async () => {
     // Expand first category by default
     if (Object.keys(permissions.value).length > 0) {
       expandedCategories.value = [Object.keys(permissions.value)[0]]
+    } else {
+      expandedCategories.value = []
     }
     
     // Load permissions for all roles to cache
@@ -538,7 +540,8 @@ const loadAllRolePermissions = async () => {
     
     // Set current role permissions if role is selected
     if (selectedRole.value) {
-      rolePermissions.value = rolePermissionsCache.value[selectedRole.value.id] || []
+      const cachedPerms = rolePermissionsCache.value[selectedRole.value.id]
+      rolePermissions.value = Array.isArray(cachedPerms) ? cachedPerms : []
     }
   } catch (error) {
     console.error('Failed to load role permissions:', error)
@@ -548,7 +551,8 @@ const loadAllRolePermissions = async () => {
 // Role selection and management
 const selectRole = async (role) => {
   selectedRole.value = role
-  rolePermissions.value = rolePermissionsCache.value[role.id] || []
+  const cachedPerms = rolePermissionsCache.value[role.id]
+  rolePermissions.value = Array.isArray(cachedPerms) ? cachedPerms : []
   
   // Load fresh permissions if not cached
   if (!rolePermissionsCache.value[role.id]) {
@@ -562,7 +566,8 @@ const loadRolePermissions = async () => {
   
   try {
     const data = await getRolePermissions(selectedRole.value.id)
-    rolePermissions.value = data.permissions || []
+    const perms = data.permissions || []
+    rolePermissions.value = Array.isArray(perms) ? perms : []
     rolePermissionsCache.value[selectedRole.value.id] = rolePermissions.value
   } catch (error) {
     console.error('Failed to load role permissions:', error)
@@ -578,19 +583,20 @@ const togglePermission = async (permissionName) => {
   }
   
   try {
-    const hasPermission = rolePermissions.value.includes(permissionName)
+    const rolePerms = Array.isArray(rolePermissions.value) ? rolePermissions.value : []
+    const hasPermission = rolePerms.includes(permissionName)
     
     if (hasPermission) {
       // Remove permission
       console.log(`Removing permission ${permissionName} from role ${selectedRole.value.id}`)
       await removePermissionFromRole(selectedRole.value.id, permissionName)
-      rolePermissions.value = rolePermissions.value.filter(p => p !== permissionName)
+      rolePermissions.value = rolePerms.filter(p => p !== permissionName)
     } else {
       // Add permission
       console.log(`Adding permission ${permissionName} to role ${selectedRole.value.id}`)
       await assignPermissionToRole(selectedRole.value.id, permissionName)
-      if (!rolePermissions.value.includes(permissionName)) {
-        rolePermissions.value.push(permissionName)
+      if (!rolePerms.includes(permissionName)) {
+        rolePermissions.value = [...rolePerms, permissionName]
       }
     }
     
@@ -608,6 +614,9 @@ const togglePermission = async (permissionName) => {
 
 // Category management
 const toggleCategory = (category) => {
+  if (!Array.isArray(expandedCategories.value)) {
+    expandedCategories.value = []
+  }
   const index = expandedCategories.value.indexOf(category)
   if (index > -1) {
     expandedCategories.value.splice(index, 1)
@@ -626,19 +635,22 @@ const toggleCategoryPermissions = async (category) => {
     if (isFullySelected) {
       // Remove all permissions in category
       for (const permission of categoryPermissions) {
-        if (rolePermissions.value.includes(permission.name)) {
+        const rolePerms = Array.isArray(rolePermissions.value) ? rolePermissions.value : []
+        if (rolePerms.includes(permission.name)) {
           await removePermissionFromRole(selectedRole.value.id, permission.name)
-          rolePermissions.value = rolePermissions.value.filter(p => p !== permission.name)
+          rolePermissions.value = rolePerms.filter(p => p !== permission.name)
         }
       }
     } else {
       // Add all permissions in category
+      const currentPerms = Array.isArray(rolePermissions.value) ? rolePermissions.value : []
       for (const permission of categoryPermissions) {
-        if (!rolePermissions.value.includes(permission.name)) {
+        if (!currentPerms.includes(permission.name)) {
           await assignPermissionToRole(selectedRole.value.id, permission.name)
-          rolePermissions.value.push(permission.name)
+          currentPerms.push(permission.name)
         }
       }
+      rolePermissions.value = currentPerms
     }
     
     // Update cache
@@ -658,18 +670,21 @@ const toggleAllPermissions = async () => {
   try {
     if (isAllSelected) {
       // Remove all permissions
-      for (const permissionName of rolePermissions.value) {
+      const currentPerms = Array.isArray(rolePermissions.value) ? rolePermissions.value : []
+      for (const permissionName of currentPerms) {
         await removePermissionFromRole(selectedRole.value.id, permissionName)
       }
       rolePermissions.value = []
     } else {
       // Add all permissions
+      const currentPerms = Array.isArray(rolePermissions.value) ? rolePermissions.value : []
       for (const permissionName of allPermissions) {
-        if (!rolePermissions.value.includes(permissionName)) {
+        if (!currentPerms.includes(permissionName)) {
           await assignPermissionToRole(selectedRole.value.id, permissionName)
-          rolePermissions.value.push(permissionName)
+          currentPerms.push(permissionName)
         }
       }
+      rolePermissions.value = currentPerms
     }
     
     // Update cache
@@ -701,7 +716,8 @@ const toggleRolePermission = async (roleId, permissionName) => {
   try {
     // Temporarily switch to the target role
     selectedRole.value = role
-    rolePermissions.value = rolePermissionsCache.value[roleId] || []
+    const cachedPerms = rolePermissionsCache.value[roleId]
+    rolePermissions.value = Array.isArray(cachedPerms) ? cachedPerms : []
     
     // Toggle the permission for this role
     await togglePermission(permissionName)
@@ -714,9 +730,10 @@ const toggleRolePermission = async (roleId, permissionName) => {
     // Restore previous selection
     selectedRole.value = oldSelectedRole
     if (oldSelectedRole) {
-      rolePermissions.value = rolePermissionsCache.value[oldSelectedRole.id] || oldRolePermissions
+      const cachedPerms = rolePermissionsCache.value[oldSelectedRole.id]
+      rolePermissions.value = Array.isArray(cachedPerms) ? cachedPerms : oldRolePermissions
     } else {
-      rolePermissions.value = oldRolePermissions
+      rolePermissions.value = Array.isArray(oldRolePermissions) ? oldRolePermissions : []
     }
   }
 }
@@ -790,15 +807,17 @@ const getCategoryPermissionCount = (category) => {
 
 const getCategorySelectedCount = (category) => {
   if (!permissions.value[category] || !selectedRole.value) return 0
+  const rolePerms = Array.isArray(rolePermissions.value) ? rolePermissions.value : []
   return permissions.value[category].filter(p => 
-    rolePermissions.value.includes(p.name)
+    rolePerms.includes(p.name)
   ).length
 }
 
 const isCategoryFullySelected = (category) => {
   if (!permissions.value[category] || !selectedRole.value) return false
+  const rolePerms = Array.isArray(rolePermissions.value) ? rolePermissions.value : []
   return permissions.value[category].every(p => 
-    rolePermissions.value.includes(p.name)
+    rolePerms.includes(p.name)
   )
 }
 
@@ -832,12 +851,6 @@ const getTotalPermissionCount = () => {
 }
 
 // Additional utility functions for user-role management
-const getAvailableUsersForRole = (roleId) => {
-  if (!roleId) return []
-  return users.value.filter(user => 
-    !user.roles || !user.roles.some(role => role.id === roleId)
-  )
-}
 
 const assignUserToRole = async (userId, roleId) => {
   try {
@@ -869,7 +882,8 @@ const handleRemoveUserFromRole = async (userId, roleId) => {
 const allPermissionsSelected = computed(() => {
   if (!selectedRole.value) return false
   const totalCount = getTotalPermissionCount()
-  return rolePermissions.value.length === totalCount
+  const rolePerms = Array.isArray(rolePermissions.value) ? rolePermissions.value : []
+  return rolePerms.length === totalCount
 })
 
 const filteredMatrixPermissions = computed(() => {
