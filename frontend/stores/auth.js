@@ -2,6 +2,7 @@ export const useAuthStore = defineStore('auth', () => {
   // 用戶狀態
   const user = ref(null)
   const isLoggedIn = computed(() => !!user.value)
+  const _initialized = ref(false)
   
   // 權限檢查
   const isExecutive = computed(() => user.value?.role === roles.EXECUTIVE)
@@ -164,52 +165,72 @@ export const useAuthStore = defineStore('auth', () => {
   // 初始化用戶狀態 - 從 sessionStorage 恢復用戶資料，token 由 cookie 處理
   const initializeAuth = async () => {
     if (process.client) {
-      // 嘗試從 sessionStorage 恢復用戶資料
-      const storedProfile = sessionStorage.getItem('user-profile')
-      
-      if (storedProfile) {
-        try {
-          const userProfile = JSON.parse(storedProfile)
-          // 驗證 cookie 中是否有有效 token（通過 API 呼叫測試）
+      try {
+        // 嘗試從 sessionStorage 恢復用戶資料
+        const storedProfile = sessionStorage.getItem('user-profile')
+        
+        if (storedProfile) {
           try {
-            const { get } = useApi()
-            const { data: userData, error } = await get('/auth/me')
-            
-            if (!error && userData?.user) {
-              // Token 有效，恢復用戶狀態
-              user.value = {
-                ...userData.user,
-                role: Array.isArray(userData.user.roles) 
-                  ? userData.user.roles[0] 
-                  : (userData.user.roles && userData.user.roles[0]) || null
+            const userProfile = JSON.parse(storedProfile)
+            // 驗證 cookie 中是否有有效 token（通過 API 呼叫測試）
+            try {
+              const { get } = useApi()
+              const { data: userData, error } = await get('/auth/me')
+              
+              if (!error && userData?.user) {
+                // Token 有效，恢復用戶狀態
+                user.value = {
+                  ...userData.user,
+                  role: Array.isArray(userData.user.roles) 
+                    ? userData.user.roles[0] 
+                    : (userData.user.roles && userData.user.roles[0]) || null
+                }
+                console.log('已恢復登入狀態:', userData.user.username)
+                return true // 成功恢復登入狀態
+              } else {
+                // Token 無效，清除資料
+                sessionStorage.removeItem('user-profile')
+                user.value = null
+                return false
               }
-              console.log('已恢復登入狀態:', userData.user.username)
-            } else {
-              // Token 無效，清除資料
-              sessionStorage.removeItem('user-profile')
-              user.value = null
+            } catch (apiError) {
+              console.error('API 驗證失敗:', apiError)
+              // API 呼叫失敗時，保留用戶資料但標記為未驗證狀態
+              // 這樣可以避免頁面刷新時立即重定向
+              user.value = {
+                ...userProfile,
+                role: Array.isArray(userProfile.roles) 
+                  ? userProfile.roles[0] 
+                  : (userProfile.roles && userProfile.roles[0]) || null,
+                _unverified: true // 標記為未驗證狀態
+              }
+              console.log('API 暫時無法連線，保留登入狀態但標記為未驗證')
+              return true // 暫時允許通過
             }
-          } catch (apiError) {
-            // API 呼叫失敗，清除資料
+          } catch (error) {
+            console.error('解析用戶資料失敗:', error)
             sessionStorage.removeItem('user-profile')
             user.value = null
+            return false
           }
-        } catch (error) {
-          console.error('恢復用戶資料失敗:', error)
-          sessionStorage.removeItem('user-profile')
+        } else {
           user.value = null
+          return false
         }
-      } else {
+      } catch (error) {
+        console.error('初始化認證失敗:', error)
         user.value = null
-      }
-      
-      // 清除舊的 localStorage 資料（向後相容）
-      if (localStorage.getItem('admin-template-user') || localStorage.getItem('auth-token')) {
-        localStorage.removeItem('admin-template-user')
-        localStorage.removeItem('auth-token')
-        console.log('已清除舊的 localStorage 資料')
+        return false
+      } finally {
+        // 清除舊的 localStorage 資料（向後相容）
+        if (localStorage.getItem('admin-template-user') || localStorage.getItem('auth-token')) {
+          localStorage.removeItem('admin-template-user')
+          localStorage.removeItem('auth-token')
+          console.log('已清除舊的 localStorage 資料')
+        }
       }
     }
+    return false
   }
 
   // 所有用戶管理功能現在都透過 useUserManagement composable 處理
@@ -223,6 +244,7 @@ export const useAuthStore = defineStore('auth', () => {
     isManager,
     isStaff,
     roles,
+    _initialized,
     
     // 方法
     login,
