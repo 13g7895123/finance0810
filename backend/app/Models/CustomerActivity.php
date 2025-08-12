@@ -59,4 +59,6 @@ class CustomerActivity extends Model
     const TYPE_CASE_APPROVED = 'case_approved';
     const TYPE_CASE_REJECTED = 'case_rejected';
     const TYPE_DISBURSED = 'disbursed';
+    const TYPE_SUSPECTED_BLACKLIST = 'suspected_blacklist';
+    const TYPE_BLACKLISTED = 'blacklisted';
 }

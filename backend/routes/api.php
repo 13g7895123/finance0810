@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\Api\PermissionController;
+use App\Http\Controllers\Api\WebhookController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,8 +42,9 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/refresh', [AuthController::class, 'refresh']);
 
-// LINE Bot webhook
+// Webhooks
 Route::post('/line/webhook', [ChatController::class, 'webhook']);
+Route::post('/webhook/wp', [WebhookController::class, 'wp']);
 
 // Protected routes
 Route::middleware(['auth:api'])->group(function () {
@@ -62,6 +64,11 @@ Route::middleware(['auth:api'])->group(function () {
     Route::post('/customers/{customer}/status', [CustomerController::class, 'updateStatus']);
     Route::post('/customers/{customer}/assign', [CustomerController::class, 'assignToUser']);
     Route::get('/customers/{customer}/history', [CustomerController::class, 'getHistory']);
+
+    // Blacklist Management
+    Route::post('/customers/{customer}/blacklist/report', [\App\Http\Controllers\Api\BlacklistController::class, 'report']);
+    Route::post('/customers/{customer}/blacklist/approve', [\App\Http\Controllers\Api\BlacklistController::class, 'approve'])->middleware('role:admin|executive|manager');
+    Route::post('/customers/{customer}/blacklist/toggle-hide', [\App\Http\Controllers\Api\BlacklistController::class, 'toggleHide'])->middleware('role:admin|executive|manager');
     
     // Chat Management - Uses customer ownership middleware
     Route::get('/chats', [ChatController::class, 'index']);
@@ -101,5 +108,12 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/reports/website-performance', [ReportController::class, 'websiteReport']);
         Route::get('/reports/region-performance', [ReportController::class, 'regionReport']);
         Route::get('/reports/approval-rates', [ReportController::class, 'approvalRate']);
+
+        // Custom fields management
+        Route::get('/custom-fields', [\App\Http\Controllers\Api\CustomFieldController::class, 'index']);
+        Route::post('/custom-fields', [\App\Http\Controllers\Api\CustomFieldController::class, 'store']);
+        Route::put('/custom-fields/{field}', [\App\Http\Controllers\Api\CustomFieldController::class, 'update']);
+        Route::delete('/custom-fields/{field}', [\App\Http\Controllers\Api\CustomFieldController::class, 'destroy']);
+        Route::post('/custom-fields/set-value', [\App\Http\Controllers\Api\CustomFieldController::class, 'setValue']);
     });
 });

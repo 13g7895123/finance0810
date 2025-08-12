@@ -36,6 +36,26 @@ class CustomerController extends Controller
             $query->where('status', $request->status);
         }
 
+        // Source filters
+        if ($request->has('channel')) {
+            $query->where('channel', $request->channel);
+        }
+        if ($request->has('website_source')) {
+            $query->where('website_source', $request->website_source);
+        }
+
+        // Blacklist filters
+        if ($request->boolean('is_blacklisted', null) !== null) {
+            $query->where('is_blacklisted', $request->boolean('is_blacklisted'));
+        }
+        if ($request->has('blacklist_status')) {
+            $query->where('blacklist_status', $request->blacklist_status);
+        }
+        if ($request->boolean('is_hidden', null) !== null) {
+            $query->where('is_hidden', $request->boolean('is_hidden'));
+        }
+
+
         if ($request->has('region')) {
             $query->where('region', $request->region);
         }
@@ -61,9 +81,13 @@ class CustomerController extends Controller
             });
         }
 
-        // Pagination
+        // Sorting: newest case first, fallback to created_at
         $perPage = $request->get('per_page', 15);
-        $customers = $query->orderBy('created_at', 'desc')->paginate($perPage);
+        $customers = $query
+            ->orderByRaw('CASE WHEN latest_case_at IS NOT NULL THEN 0 ELSE 1 END')
+            ->orderByDesc('latest_case_at')
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
 
         return response()->json($customers);
     }

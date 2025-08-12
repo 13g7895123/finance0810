@@ -131,6 +131,22 @@ class Customer extends Model
     }
 
     /**
+     * Additional identifiers: phone/email/line binding
+     */
+    public function identifiers()
+    {
+        return $this->hasMany(CustomerIdentifier::class);
+    }
+
+    /**
+     * Leads imported from multiple channels
+     */
+    public function leads()
+    {
+        return $this->hasMany(CustomerLead::class);
+    }
+
+    /**
      * Scope to filter by assigned user
      */
     public function scopeAssignedTo($query, $userId)
