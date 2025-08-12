@@ -1,10 +1,15 @@
 export default defineNuxtRouteMiddleware(async (to) => {
   const authStore = useAuthStore()
   
-  // 初始化認證狀態
+  // 等待初始化完成 - 使用單例模式，避免重複初始化
   if (process.client) {
-    await nextTick()
-    authStore.initializeAuth()
+    try {
+      await nextTick()
+      await authStore.waitForInitialization()
+    } catch (error) {
+      console.error('Role middleware 初始化失敗:', error)
+      return navigateTo('/auth/login')
+    }
   }
   
   // 如果未登入，重定向到登入頁面

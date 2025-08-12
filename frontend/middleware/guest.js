@@ -9,10 +9,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo('/')
   }
   
-  // 在客戶端初始化認證狀態（不阻塞）
+  // 在客戶端初始化認證狀態（使用單例模式）
   if (process.client && !authStore.user) {
     try {
-      await authStore.initializeAuth()
+      await authStore.waitForInitialization()
       // 再次檢查登入狀態
       if (authStore.isLoggedIn) {
         console.log('初始化後發現用戶已登入，重定向到首頁')

@@ -3,6 +3,11 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const isLoggedIn = computed(() => !!user.value)
   
+  // 初始化狀態追蹤
+  const _isInitializing = ref(false)
+  const _isInitialized = ref(false)
+  const _initPromise = ref(null)
+  
   // 權限檢查
   const isExecutive = computed(() => user.value?.role === roles.EXECUTIVE)
   const isAdmin = computed(() => user.value?.role === roles.ADMIN)
@@ -161,10 +166,36 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = userData
   }
 
-  // 初始化用戶狀態 - 從 sessionStorage 恢復用戶資料，token 由 cookie 處理
-  const initializeAuth = async () => {
-    if (process.client) {
+  // 初始化用戶狀態 - 單例模式，防止多次並發初始化
+  const initializeAuth = async (force = false) => {
+    // 如果已經初始化完成且不是強制重新初始化，直接返回結果
+    if (_isInitialized.value && !force) {
+      console.log('Auth already initialized, skipping')
+      return isLoggedIn.value
+    }
+    
+    // 如果正在初始化中，返回現有的 Promise
+    if (_isInitializing.value && _initPromise.value && !force) {
+      console.log('Auth initialization in progress, waiting for existing promise')
       try {
+        return await _initPromise.value
+      } catch (error) {
+        console.error('Failed to wait for existing initialization:', error)
+        return false
+      }
+    }
+    
+    if (!process.client) {
+      return false
+    }
+    
+    // 開始初始化
+    _isInitializing.value = true
+    
+    const initPromise = (async () => {
+      try {
+        console.log('Starting auth initialization...')
+        
         // 嘗試從 sessionStorage 恢復用戶資料
         const storedProfile = sessionStorage.getItem('user-profile')
         
@@ -227,9 +258,38 @@ export const useAuthStore = defineStore('auth', () => {
           localStorage.removeItem('auth-token')
           console.log('已清除舊的 localStorage 資料')
         }
+        
+        // 標記初始化完成
+        _isInitializing.value = false
+        _isInitialized.value = true
+        _initPromise.value = null
+        console.log('Auth initialization completed')
+      }
+    })()
+    
+    // 保存 Promise 以供其他調用等待
+    _initPromise.value = initPromise
+    
+    return await initPromise
+  }
+  
+  // 等待初始化完成的輔助方法
+  const waitForInitialization = async () => {
+    if (_isInitialized.value) {
+      return isLoggedIn.value
+    }
+    
+    if (_isInitializing.value && _initPromise.value) {
+      try {
+        return await _initPromise.value
+      } catch (error) {
+        console.error('Failed to wait for initialization:', error)
+        return false
       }
     }
-    return false
+    
+    // 如果沒有進行初始化，啟動初始化
+    return await initializeAuth()
   }
 
   // 所有用戶管理功能現在都透過 useUserManagement composable 處理
@@ -243,6 +303,8 @@ export const useAuthStore = defineStore('auth', () => {
     isManager,
     isStaff,
     roles,
+    _isInitialized,
+    _isInitializing,
     
     // 方法
     login,
@@ -250,6 +312,7 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     setUser,
     initializeAuth,
+    waitForInitialization,
     hasPermission
   }
 })
