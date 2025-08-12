@@ -81,7 +81,7 @@ definePageMeta({
 })
 
 const authStore = useAuthStore()
-const { getConversations, getConversation, replyMessage } = useChat()
+const { getConversations, getConversation, replyMessage, getChatStats, searchConversations } = useChat()
 
 // 搜尋查詢
 const searchQuery = ref('')
@@ -341,8 +341,74 @@ const combinedUsers = computed(() => {
   return allUsers.value
 })
 
+// 搜尋結果
+const searchResults = ref([])
+const isSearching = ref(false)
+
+// 執行搜尋
+const performSearch = async (query) => {
+  if (!query.trim()) {
+    searchResults.value = []
+    return
+  }
+  
+  try {
+    isSearching.value = true
+    const response = await searchConversations(query.trim())
+    
+    if (response?.data) {
+      // 轉換搜尋結果格式
+      const searchUsers = response.data.map(conv => ({
+        id: parseInt(conv.line_user_id),
+        name: conv.customer?.name || '客戶',
+        role: 'line_customer',
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.customer?.name || '客戶')}&background=00C300&color=fff`,
+        lastMessage: conv.last_message || '',
+        timestamp: new Date(conv.last_message_time),
+        unreadCount: conv.unread_count || 0,
+        online: false,
+        isBot: true,
+        lineUserId: conv.line_user_id,
+        customerInfo: {
+          phone: conv.customer?.phone || '',
+          region: conv.customer?.region || '',
+          source: conv.customer?.source || '',
+          status: conv.customer?.status || ''
+        }
+      }))
+      
+      searchResults.value = searchUsers
+    }
+  } catch (error) {
+    console.error('Search failed:', error)
+    searchResults.value = []
+  } finally {
+    isSearching.value = false
+  }
+}
+
+// 監聽搜尋查詢變化
+let searchTimeout = null
+watch(searchQuery, (newQuery) => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  
+  if (!newQuery.trim()) {
+    searchResults.value = []
+    return
+  }
+  
+  searchTimeout = setTimeout(() => {
+    performSearch(newQuery)
+  }, 500)
+})
+
 // 根據權限過濾用戶列表
 const filteredUsers = computed(() => {
+  // 如果有搜尋結果，優先顯示搜尋結果
+  if (searchQuery.value.trim() && searchResults.value.length > 0) {
+    return searchResults.value
+  }
+  
   let users = combinedUsers.value
 
   // 權限過濾 - 業務人員只能看到自己相關的對話和BOT
@@ -355,8 +421,8 @@ const filteredUsers = computed(() => {
     )
   }
 
-  // 搜尋過濾
-  if (searchQuery.value.trim()) {
+  // 本地搜尋過濾（如果沒有遠端搜尋結果）
+  if (searchQuery.value.trim() && searchResults.value.length === 0 && !isSearching.value) {
     users = users.filter(user =>
       user.name.toLowerCase().includes(searchQuery.value.toLowerCase())
     )

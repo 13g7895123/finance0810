@@ -205,4 +205,120 @@ class ChatController extends Controller
 
         return response()->json(['unread_count' => $count]);
     }
+
+    /**
+     * Mark conversation messages as read.
+     */
+    public function markAsRead(Request $request, $userId)
+    {
+        $user = Auth::user();
+        
+        $query = ChatConversation::where('line_user_id', $userId)
+            ->where('status', 'unread');
+
+        // Staff can only mark their assigned customers' messages as read
+        if ($user->isStaff()) {
+            $query->whereHas('customer', function($q) use ($user) {
+                $q->where('assigned_to', $user->id);
+            });
+        }
+
+        $updated = $query->update(['status' => 'read']);
+
+        return response()->json([
+            'success' => true,
+            'updated_count' => $updated
+        ]);
+    }
+
+    /**
+     * Delete conversation.
+     */
+    public function deleteConversation(Request $request, $userId)
+    {
+        $user = Auth::user();
+        
+        $query = ChatConversation::where('line_user_id', $userId);
+
+        // Staff can only delete their assigned customers' conversations
+        if ($user->isStaff()) {
+            $query->whereHas('customer', function($q) use ($user) {
+                $q->where('assigned_to', $user->id);
+            });
+        }
+
+        $deleted = $query->delete();
+
+        return response()->json([
+            'success' => true,
+            'deleted_count' => $deleted
+        ]);
+    }
+
+    /**
+     * Get chat statistics.
+     */
+    public function getChatStats()
+    {
+        $user = Auth::user();
+        
+        $baseQuery = ChatConversation::query();
+        
+        // Staff can only see stats for their assigned customers
+        if ($user->isStaff()) {
+            $baseQuery->whereHas('customer', function($q) use ($user) {
+                $q->where('assigned_to', $user->id);
+            });
+        }
+
+        $totalConversations = (clone $baseQuery)->distinct('line_user_id')->count();
+        $unreadMessages = (clone $baseQuery)->where('status', 'unread')->where('is_from_customer', true)->count();
+        $todayMessages = (clone $baseQuery)->whereDate('message_timestamp', today())->count();
+        $activeCustomers = (clone $baseQuery)->whereDate('message_timestamp', '>=', now()->subDays(7))->distinct('line_user_id')->count();
+
+        return response()->json([
+            'total_conversations' => $totalConversations,
+            'unread_messages' => $unreadMessages,
+            'today_messages' => $todayMessages,
+            'active_customers' => $activeCustomers
+        ]);
+    }
+
+    /**
+     * Search conversations.
+     */
+    public function searchConversations(Request $request)
+    {
+        $user = Auth::user();
+        $query = $request->get('q', '');
+
+        $conversationQuery = ChatConversation::with(['customer', 'user'])
+            ->select('line_user_id', 'customer_id')
+            ->selectRaw('MAX(message_timestamp) as last_message_time')
+            ->selectRaw('COUNT(CASE WHEN status = "unread" AND is_from_customer = 1 THEN 1 END) as unread_count');
+
+        // Staff can only search their assigned customers
+        if ($user->isStaff()) {
+            $conversationQuery->whereHas('customer', function($q) use ($user) {
+                $q->where('assigned_to', $user->id);
+            });
+        }
+
+        // Search in customer names, phone, or message content
+        if ($query) {
+            $conversationQuery->where(function($q) use ($query) {
+                $q->whereHas('customer', function($customerQuery) use ($query) {
+                    $customerQuery->where('name', 'LIKE', "%{$query}%")
+                        ->orWhere('phone', 'LIKE', "%{$query}%");
+                })
+                ->orWhere('message_content', 'LIKE', "%{$query}%");
+            });
+        }
+
+        $conversations = $conversationQuery->groupBy('line_user_id', 'customer_id')
+            ->orderBy('last_message_time', 'desc')
+            ->paginate(20);
+
+        return response()->json($conversations);
+    }
 }

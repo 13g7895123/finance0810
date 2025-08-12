@@ -213,11 +213,51 @@ export const useChat = () => {
   // 標記訊息為已讀
   const markAsRead = async (userId) => {
     try {
-      // 這個功能在 getConversation 時自動執行
-      return { success: true }
+      return await apiCall(`/chats/${userId}/read`, {
+        method: 'POST'
+      })
     } catch (error) {
       console.error('Failed to mark as read:', error)
       return { success: false }
+    }
+  }
+
+  // 刪除對話
+  const deleteConversation = async (userId) => {
+    try {
+      return await apiCall(`/chats/${userId}`, {
+        method: 'DELETE'
+      })
+    } catch (error) {
+      console.error('Failed to delete conversation:', error)
+      return { success: false }
+    }
+  }
+
+  // 獲取對話統計
+  const getChatStats = async () => {
+    try {
+      return await apiCall('/chats/stats')
+    } catch (error) {
+      console.error('Failed to get chat stats:', error)
+      return {
+        total_conversations: 0,
+        unread_messages: 0,
+        today_messages: 0,
+        active_customers: 0
+      }
+    }
+  }
+
+  // 搜尋對話
+  const searchConversations = async (query) => {
+    try {
+      return await apiCall('/chats/search', {
+        query: { q: query }
+      })
+    } catch (error) {
+      console.error('Failed to search conversations:', error)
+      return { data: [] }
     }
   }
 
@@ -226,6 +266,9 @@ export const useChat = () => {
     getConversation,
     replyMessage,
     getUnreadCount,
-    markAsRead
+    markAsRead,
+    deleteConversation,
+    getChatStats,
+    searchConversations
   }
 }

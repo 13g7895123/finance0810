@@ -65,9 +65,13 @@ Route::middleware(['auth:api'])->group(function () {
     
     // Chat Management - Uses customer ownership middleware
     Route::get('/chats', [ChatController::class, 'index']);
+    Route::get('/chats/search', [ChatController::class, 'searchConversations']);
+    Route::get('/chats/stats', [ChatController::class, 'getChatStats']);
+    Route::get('/chats/unread/count', [ChatController::class, 'getUnreadCount']);
     Route::get('/chats/{userId}', [ChatController::class, 'getConversation']);
     Route::post('/chats/{userId}/reply', [ChatController::class, 'reply']);
-    Route::get('/chats/unread/count', [ChatController::class, 'getUnreadCount']);
+    Route::post('/chats/{userId}/read', [ChatController::class, 'markAsRead']);
+    Route::delete('/chats/{userId}', [ChatController::class, 'deleteConversation']);
     
     // User Management (Admin and Manager only)
     Route::middleware(['role:admin|executive|manager'])->group(function () {
