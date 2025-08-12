@@ -27,18 +27,21 @@ class LineIntegrationController extends Controller
     {
         $user = Auth::user();
         
+        // Get cached settings first, then fall back to config
+        $cachedSettings = Cache::get('line_integration_settings', []);
+        
         $settings = [
-            'channel_access_token' => $this->getMaskedToken(config('services.line.channel_access_token', '')),
-            'channel_secret' => $this->getMaskedSecret(config('services.line.channel_secret', '')),
+            'channel_access_token' => $this->getMaskedToken($cachedSettings['channel_access_token'] ?? config('services.line.channel_access_token', '')),
+            'channel_secret' => $this->getMaskedSecret($cachedSettings['channel_secret'] ?? config('services.line.channel_secret', '')),
             'webhook_url' => url('/api/line/webhook'),
-            'bot_basic_id' => config('services.line.bot_basic_id', ''),
-            'auto_reply_enabled' => config('services.line.auto_reply_enabled', true),
-            'default_reply_message' => config('services.line.default_reply_message', '感謝您的訊息，專員將盡快回覆您。'),
+            'bot_basic_id' => $cachedSettings['bot_basic_id'] ?? config('services.line.bot_basic_id', ''),
+            'auto_reply_enabled' => $cachedSettings['auto_reply_enabled'] ?? config('services.line.auto_reply_enabled', true),
+            'default_reply_message' => $cachedSettings['default_reply_message'] ?? config('services.line.default_reply_message', '感謝您的訊息，專員將盡快回覆您。'),
             'business_hours' => [
-                'enabled' => config('services.line.business_hours_enabled', false),
-                'start_time' => config('services.line.business_hours_start', '09:00'),
-                'end_time' => config('services.line.business_hours_end', '18:00'),
-                'out_of_hours_message' => config('services.line.out_of_hours_message', '目前為非營業時間，我們將在營業時間內盡快回覆您。營業時間：週一至週五 9:00-18:00')
+                'enabled' => $cachedSettings['business_hours_enabled'] ?? config('services.line.business_hours_enabled', false),
+                'start_time' => $cachedSettings['business_hours_start'] ?? config('services.line.business_hours_start', '09:00'),
+                'end_time' => $cachedSettings['business_hours_end'] ?? config('services.line.business_hours_end', '18:00'),
+                'out_of_hours_message' => $cachedSettings['out_of_hours_message'] ?? config('services.line.out_of_hours_message', '目前為非營業時間，我們將在營業時間內盡快回覆您。營業時間：週一至週五 9:00-18:00')
             ],
             'webhook_status' => $this->getWebhookStatus(),
             'integration_status' => $this->getIntegrationStatus(),
@@ -88,13 +91,29 @@ class LineIntegrationController extends Controller
                 $connectionStatus = $this->testLineConnection($settings['channel_access_token']);
             }
 
+            // Get the updated settings using the same method as getSettings()
+            $cachedSettings = Cache::get('line_integration_settings', []);
+            $updatedSettings = [
+                'channel_access_token' => $this->getMaskedToken($cachedSettings['channel_access_token'] ?? ''),
+                'channel_secret' => $this->getMaskedSecret($cachedSettings['channel_secret'] ?? ''),
+                'webhook_url' => url('/api/line/webhook'),
+                'bot_basic_id' => $cachedSettings['bot_basic_id'] ?? '',
+                'auto_reply_enabled' => $cachedSettings['auto_reply_enabled'] ?? true,
+                'default_reply_message' => $cachedSettings['default_reply_message'] ?? '感謝您的訊息，專員將盡快回覆您。',
+                'business_hours' => [
+                    'enabled' => $cachedSettings['business_hours_enabled'] ?? false,
+                    'start_time' => $cachedSettings['business_hours_start'] ?? '09:00',
+                    'end_time' => $cachedSettings['business_hours_end'] ?? '18:00',
+                    'out_of_hours_message' => $cachedSettings['out_of_hours_message'] ?? '目前為非營業時間'
+                ],
+                'webhook_status' => $this->getWebhookStatus(),
+                'integration_status' => $this->getIntegrationStatus(),
+            ];
+
             return response()->json([
                 'message' => 'LINE 整合設定已更新',
                 'connection_status' => $connectionStatus,
-                'settings' => array_merge($settings, [
-                    'channel_access_token' => $this->getMaskedToken($settings['channel_access_token']),
-                    'channel_secret' => $this->getMaskedSecret($settings['channel_secret']),
-                ])
+                'settings' => $updatedSettings
             ]);
 
         } catch (\Exception $e) {
