@@ -33,159 +33,87 @@
     <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <!-- 基本設定 -->
       <div class="lg:col-span-2">
-        <UCard>
-          <template #header>
-            <div class="flex items-center justify-between">
-              <h2 class="text-xl font-semibold text-gray-900">基本設定</h2>
-              <UButton 
-                @click="saveSettings" 
-                :loading="saving"
-                :disabled="!hasChanges"
-              >
-                儲存設定
-              </UButton>
-            </div>
-          </template>
-
-          <div class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <!-- Channel Access Token -->
-              <UFormGroup 
-                label="Channel Access Token" 
-                description="從 LINE Developers Console 取得的 Channel Access Token"
-                required
-              >
-                <UInput 
-                  v-model="form.channel_access_token"
-                  type="password"
-                  placeholder="輸入 Channel Access Token"
-                />
-              </UFormGroup>
-
-              <!-- Channel Secret -->
-              <UFormGroup 
-                label="Channel Secret" 
-                description="從 LINE Developers Console 取得的 Channel Secret"
-                required
-              >
-                <UInput 
-                  v-model="form.channel_secret"
-                  type="password"
-                  placeholder="輸入 Channel Secret"
-                />
-              </UFormGroup>
-
-              <!-- Bot Basic ID -->
-              <UFormGroup 
-                label="Bot Basic ID" 
-                description="LINE Bot 的 Basic ID（選填）"
-              >
-                <UInput 
-                  v-model="form.bot_basic_id"
-                  placeholder="@xxxxxxxx"
-                />
-              </UFormGroup>
-
-              <!-- Webhook URL -->
-              <UFormGroup 
-                label="Webhook URL" 
-                description="設定到 LINE Developers Console"
-              >
-                <UInput 
-                  :model-value="webhookUrl"
-                  readonly
-                  class="font-mono text-sm"
-                />
-                <template #help>
-                  <UButton 
-                    @click="copyWebhookUrl" 
-                    variant="ghost" 
-                    size="2xs"
-                    class="mt-1"
-                  >
-                    複製網址
-                  </UButton>
-                </template>
-              </UFormGroup>
-            </div>
-
-            <!-- 自動回覆設定 -->
-            <UDivider />
-            
-            <div class="space-y-4">
-              <h3 class="text-lg font-medium text-gray-900">自動回覆設定</h3>
-              
-              <UFormGroup>
-                <UCheckbox 
-                  v-model="form.auto_reply_enabled" 
-                  label="啟用自動回覆"
-                />
-              </UFormGroup>
-
-              <UFormGroup 
-                v-if="form.auto_reply_enabled"
-                label="預設回覆訊息" 
-                description="客戶發送訊息時的自動回覆內容"
-              >
-                <UTextarea 
-                  v-model="form.default_reply_message"
-                  placeholder="感謝您的訊息，專員將盡快回覆您。"
-                  :rows="3"
-                />
-              </UFormGroup>
-            </div>
-
-            <!-- 營業時間設定 -->
-            <UDivider />
-            
-            <div class="space-y-4">
-              <h3 class="text-lg font-medium text-gray-900">營業時間設定</h3>
-              
-              <UFormGroup>
-                <UCheckbox 
-                  v-model="form.business_hours.enabled" 
-                  label="啟用營業時間回覆"
-                />
-              </UFormGroup>
-
-              <div v-if="form.business_hours.enabled" class="grid grid-cols-2 gap-4">
-                <UFormGroup label="營業開始時間">
-                  <UInput 
-                    v-model="form.business_hours.start_time"
-                    type="time"
-                  />
-                </UFormGroup>
-
-                <UFormGroup label="營業結束時間">
-                  <UInput 
-                    v-model="form.business_hours.end_time"
-                    type="time"
-                  />
-                </UFormGroup>
-
-                <div class="col-span-2">
-                  <UFormGroup 
-                    label="非營業時間回覆訊息" 
-                    description="非營業時間客戶發送訊息時的回覆內容"
-                  >
-                    <UTextarea 
-                      v-model="form.business_hours.out_of_hours_message"
-                      placeholder="目前為非營業時間，我們將在營業時間內盡快回覆您。"
-                      :rows="3"
-                    />
-                  </UFormGroup>
-                </div>
-              </div>
-            </div>
+        <div class="bg-white rounded-lg shadow-sm p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-semibold text-gray-900">基本設定</h2>
+            <UButton 
+              @click="saveSettings" 
+              :loading="saving"
+              :disabled="!hasChanges"
+            >
+              儲存設定
+            </UButton>
           </div>
-        </UCard>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Channel Access Token -->
+            <UFormGroup 
+              label="Channel Access Token" 
+              description="從 LINE Developers Console 取得的 Channel Access Token"
+              required
+            >
+              <UInput 
+                v-model="form.channel_access_token"
+                type="password"
+                placeholder="輸入 Channel Access Token"
+                class="line-input"
+              />
+            </UFormGroup>
+
+            <!-- Channel Secret -->
+            <UFormGroup 
+              label="Channel Secret" 
+              description="從 LINE Developers Console 取得的 Channel Secret"
+              required
+            >
+              <UInput 
+                v-model="form.channel_secret"
+                type="password"
+                placeholder="輸入 Channel Secret"
+                class="line-input"
+              />
+            </UFormGroup>
+
+            <!-- Bot Basic ID -->
+            <UFormGroup 
+              label="Bot Basic ID" 
+              description="LINE Bot 的 Basic ID（選填）"
+            >
+              <UInput 
+                v-model="form.bot_basic_id"
+                placeholder="@xxxxxxxx"
+                class="line-input"
+              />
+            </UFormGroup>
+
+            <!-- Webhook URL -->
+            <UFormGroup 
+              label="Webhook URL" 
+              description="設定到 LINE Developers Console"
+            >
+              <UInput 
+                :model-value="webhookUrl"
+                readonly
+                class="font-mono text-sm line-input"
+              />
+              <template #help>
+                <UButton 
+                  @click="copyWebhookUrl" 
+                  variant="ghost" 
+                  size="2xs"
+                  class="mt-1"
+                >
+                  複製網址
+                </UButton>
+              </template>
+            </UFormGroup>
+          </div>
+        </div>
       </div>
 
       <!-- 統計資訊 -->
-      <UCard>
-        <template #header>
-          <h3 class="text-lg font-semibold text-gray-900">LINE 整合統計</h3>
-        </template>
+      <div class="bg-white rounded-lg shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">LINE 整合統計</h3>
 
         <div class="space-y-4">
           <div v-if="statsLoading" class="flex justify-center py-8">
@@ -224,7 +152,7 @@
           </div>
         </div>
 
-        <template #footer>
+        <div class="mt-4">
           <UButton 
             @click="loadStats" 
             variant="ghost" 
@@ -234,14 +162,12 @@
           >
             重新整理統計
           </UButton>
-        </template>
-      </UCard>
+        </div>
+      </div>
 
       <!-- LINE Bot 資訊 -->
-      <UCard>
-        <template #header>
-          <h3 class="text-lg font-semibold text-gray-900">LINE Bot 資訊</h3>
-        </template>
+      <div class="bg-white rounded-lg shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">LINE Bot 資訊</h3>
 
         <div class="space-y-4">
           <div v-if="botInfoLoading" class="flex justify-center py-8">
@@ -268,7 +194,7 @@
           </div>
         </div>
 
-        <template #footer>
+        <div class="mt-4">
           <UButton 
             @click="loadBotInfo" 
             variant="ghost" 
@@ -279,15 +205,13 @@
           >
             重新載入 Bot 資訊
           </UButton>
-        </template>
-      </UCard>
+        </div>
+      </div>
     </div>
 
     <!-- 最近對話 -->
-    <UCard>
-      <template #header>
-        <h3 class="text-lg font-semibold text-gray-900">最近 LINE 對話</h3>
-      </template>
+    <div class="bg-white rounded-lg shadow-sm p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">最近 LINE 對話</h3>
 
       <div v-if="conversationsLoading" class="flex justify-center py-8">
         <USpinner />
@@ -333,7 +257,7 @@
         <p class="text-gray-500">尚無 LINE 對話記錄</p>
       </div>
 
-      <template #footer>
+      <div class="mt-4">
         <UButton 
           @click="loadRecentConversations" 
           variant="ghost" 
@@ -343,8 +267,8 @@
         >
           重新整理對話列表
         </UButton>
-      </template>
-    </UCard>
+      </div>
+    </div>
   </div>
 
   <!-- Toast 通知 -->
@@ -381,15 +305,7 @@ const recentConversations = ref([])
 const form = ref({
   channel_access_token: '',
   channel_secret: '',
-  bot_basic_id: '',
-  auto_reply_enabled: true,
-  default_reply_message: '感謝您的訊息，專員將盡快回覆您。',
-  business_hours: {
-    enabled: false,
-    start_time: '09:00',
-    end_time: '18:00',
-    out_of_hours_message: '目前為非營業時間，我們將在營業時間內盡快回覆您。營業時間：週一至週五 9:00-18:00'
-  }
+  bot_basic_id: ''
 })
 
 // 計算屬性
@@ -436,15 +352,7 @@ const loadSettings = async () => {
       form.value = {
         channel_access_token: response.data.settings.channel_access_token || '',
         channel_secret: response.data.settings.channel_secret || '',
-        bot_basic_id: response.data.settings.bot_basic_id || '',
-        auto_reply_enabled: response.data.settings.auto_reply_enabled ?? true,
-        default_reply_message: response.data.settings.default_reply_message || '感謝您的訊息，專員將盡快回覆您。',
-        business_hours: {
-          enabled: response.data.settings.business_hours?.enabled ?? false,
-          start_time: response.data.settings.business_hours?.start_time || '09:00',
-          end_time: response.data.settings.business_hours?.end_time || '18:00',
-          out_of_hours_message: response.data.settings.business_hours?.out_of_hours_message || '目前為非營業時間，我們將在營業時間內盡快回覆您。營業時間：週一至週五 9:00-18:00'
-        }
+        bot_basic_id: response.data.settings.bot_basic_id || ''
       }
       originalSettings.value = JSON.parse(JSON.stringify(form.value))
     }
@@ -583,3 +491,28 @@ useHead({
   title: 'LINE 整合 - 貸款案件管理系統'
 })
 </script>
+
+<style scoped>
+/* LINE 整合頁面自定義樣式 */
+:deep(.line-input input) {
+  border: 1px solid #d1d5db !important; /* 淡灰色邊框 */
+  box-shadow: none !important;
+}
+
+:deep(.line-input input:focus) {
+  border-color: #d1d5db !important; /* focus 時保持淡灰色邊框 */
+  box-shadow: none !important;
+  ring: 0 !important;
+  outline: none !important;
+}
+
+:deep(.line-input input:hover) {
+  border-color: #9ca3af !important; /* hover 時稍微深一點的灰色 */
+}
+
+/* 移除預設的 focus ring */
+:deep(.line-input input:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+</style>
