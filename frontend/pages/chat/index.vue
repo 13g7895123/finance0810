@@ -764,7 +764,7 @@ const sendMessage = async (content) => {
     } else {
       // 對於內部用戶，使用原有的模擬邏輯
       const newMessage = {
-        id: Date.now(),
+        id: Math.floor(Math.random() * 1000000) + Date.now(), // Use consistent ID generation
         senderId: authStore.user?.id,
         content: content.trim(),
         timestamp: new Date(),
@@ -779,17 +779,18 @@ const sendMessage = async (content) => {
     }
     
     // 更新最後訊息
+    const currentTime = new Date()
     const userIndex = allUsers.value.findIndex(u => u.id === selectedUser.value.id)
     if (userIndex !== -1) {
       allUsers.value[userIndex].lastMessage = content.trim()
-      allUsers.value[userIndex].timestamp = new Date()
+      allUsers.value[userIndex].timestamp = currentTime
     }
     
     // 更新 API 對話列表中的對應項目
     const apiUserIndex = apiConversations.value.findIndex(u => u.id === selectedUser.value.id)
     if (apiUserIndex !== -1) {
       apiConversations.value[apiUserIndex].lastMessage = content.trim()
-      apiConversations.value[apiUserIndex].timestamp = new Date()
+      apiConversations.value[apiUserIndex].timestamp = currentTime
     }
     
   } catch (error) {

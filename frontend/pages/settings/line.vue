@@ -547,6 +547,13 @@ const copyWebhookUrl = async () => {
 
 const formatTime = (timestamp) => {
   if (!timestamp) return '未知'
+  
+  // Server-side: return static time to prevent hydration mismatch
+  if (process.server) {
+    return '2024/08/08 12:00:00'
+  }
+  
+  // Client-side: format actual time
   const date = new Date(timestamp)
   return date.toLocaleString('zh-TW')
 }

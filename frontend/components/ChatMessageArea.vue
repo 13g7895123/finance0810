@@ -257,8 +257,14 @@ const getSenderName = (senderId) => {
   return 'Unknown User'
 }
 
-// 格式化訊息時間
+// 格式化訊息時間 - 防止 hydration mismatch
 const formatMessageTime = (timestamp) => {
+  // Server-side: return static time to prevent hydration mismatch
+  if (process.server) {
+    return '12:00'
+  }
+  
+  // Client-side: calculate actual time
   const time = new Date(timestamp)
   const now = new Date()
   

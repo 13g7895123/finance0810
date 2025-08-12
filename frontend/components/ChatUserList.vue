@@ -98,8 +98,14 @@ const props = defineProps({
 
 defineEmits(['userSelect'])
 
-// 時間格式化
+// 時間格式化 - 防止 hydration mismatch
 const formatTime = (timestamp) => {
+  // Server-side: return static time to prevent hydration mismatch
+  if (process.server) {
+    return '幾分鐘前'
+  }
+  
+  // Client-side: calculate relative time
   const now = new Date()
   const time = new Date(timestamp)
   const diffInHours = (now - time) / (1000 * 60 * 60)

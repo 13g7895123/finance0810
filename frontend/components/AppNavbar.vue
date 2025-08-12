@@ -464,15 +464,18 @@ const getNotificationIcon = (iconName) => {
 
 // Close dropdowns when clicking outside
 onMounted(() => {
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.relative')) {
-      showLanguage.value = false
-      showNotifications.value = false
-      showUserMenu.value = false
-    }
-  })
-  
-  // Start real-time notifications simulation
-  notificationsStore.simulateRealTimeNotifications()
+  // Only run on client to prevent hydration mismatch
+  if (process.client) {
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.relative')) {
+        showLanguage.value = false
+        showNotifications.value = false
+        showUserMenu.value = false
+      }
+    })
+    
+    // Start real-time notifications simulation only on client
+    notificationsStore.simulateRealTimeNotifications()
+  }
 })
 </script>
