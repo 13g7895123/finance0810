@@ -386,12 +386,10 @@ const integrationStatusColor = computed(() => {
 })
 
 const hasChanges = computed(() => {
-  if (!originalSettings.value) return false
-  
-  // 檢查是否有任何表單欄位被填寫
-  const hasFormData = form.value.channel_access_token || 
-                     form.value.channel_secret || 
-                     form.value.bot_basic_id
+  // 檢查是否有任何表單欄位被填寫（非空值）
+  const hasFormData = (form.value.channel_access_token && form.value.channel_access_token.trim()) || 
+                     (form.value.channel_secret && form.value.channel_secret.trim()) || 
+                     (form.value.bot_basic_id && form.value.bot_basic_id.trim())
   
   return hasFormData
 })

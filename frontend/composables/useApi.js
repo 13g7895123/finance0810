@@ -7,7 +7,28 @@ export const useApi = () => {
   const config = useRuntimeConfig()
   const router = useRouter()
   
-  const baseURL = config.public.apiBaseUrl || '/api'
+  // 智能環境檢測
+  const getApiBaseUrl = () => {
+    // 優先使用環境變數設定
+    if (config.public.apiBaseUrl) {
+      return config.public.apiBaseUrl
+    }
+    
+    // 開發環境自動檢測
+    if (process.dev) {
+      // 檢查是否在本地 Docker 環境 (finance.local)
+      if (process.client && window.location.hostname === 'finance.local') {
+        return 'http://finance.local/api'
+      }
+      // 開發環境預設使用本地 Docker API
+      return 'http://finance.local/api'
+    }
+    
+    // 生產環境預設
+    return 'https://dev-finance.mercylife.cc/api'
+  }
+  
+  const baseURL = getApiBaseUrl()
 
   /**
    * 通用API請求方法

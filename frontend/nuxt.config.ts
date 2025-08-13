@@ -8,16 +8,22 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
-      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || 'http://localhost:9221/api'
+      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || (
+        process.env.NODE_ENV === 'development' 
+          ? 'http://finance.local/api' 
+          : 'https://dev-finance.mercylife.cc/api'
+      )
     }
+  },
+  // Development server configuration
+  devServer: {
+    port: 3000,
+    host: 'localhost'
   },
   // Development configuration
   vite: {
     server: {
-      hmr: {
-        port: 24678 // Different port for HMR to avoid conflicts
-      },
-      allowedHosts: ['finance.local']
+      allowedHosts: ['finance.local', 'localhost']
     }
   },
   // Enable hot module replacement in development
@@ -25,9 +31,5 @@ export default defineNuxtConfig({
     experimental: {
       wasm: true
     }
-  },
-  devServer: {
-    host: 'frontend.localhost',
-    port: 3000
   },
 })

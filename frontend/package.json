@@ -4,7 +4,10 @@
   "type": "module",
   "scripts": {
     "build": "nuxt build",
-    "dev": "nuxt dev",
+    "dev": "cross-env NODE_ENV=development nuxt dev --port 3000 --host localhost",
+    "dev:local": "cross-env NODE_ENV=development NUXT_PUBLIC_API_BASE_URL=http://finance.local/api nuxt dev --port 3000 --host localhost",
+    "dev:prod-api": "cross-env NODE_ENV=development NUXT_PUBLIC_API_BASE_URL=https://dev-finance.mercylife.cc/api nuxt dev --port 3000 --host localhost",
+    "build:prod": "cross-env NODE_ENV=production nuxt build",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
@@ -26,6 +29,7 @@
     "@nuxt/kit": "^3.13.0",
     "@vitejs/plugin-vue": "^6.0.1",
     "@vue/test-utils": "^2.4.6",
+    "cross-env": "^7.0.3",
     "happy-dom": "^18.0.1",
     "typescript": "^5.6.3",
     "vitest": "^3.2.4"
