@@ -36,13 +36,19 @@
         <div class="bg-white rounded-lg shadow-sm p-6">
           <div class="flex items-center justify-between mb-6">
             <h2 class="text-xl font-semibold text-gray-900">基本設定</h2>
-            <UButton 
-              @click="saveSettings" 
-              :loading="saving"
-              :disabled="!hasChanges"
-            >
-              儲存設定
-            </UButton>
+            <div class="flex items-center gap-3">
+              <UButton 
+                @click="saveSettings" 
+                :loading="saving"
+                :disabled="!hasChanges"
+              >
+                儲存設定
+              </UButton>
+              <!-- 調試信息 -->
+              <div class="text-xs text-gray-500" v-if="$config.public.dev">
+                Debug: hasChanges = {{ hasChanges }}
+              </div>
+            </div>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -386,10 +392,32 @@ const integrationStatusColor = computed(() => {
 })
 
 const hasChanges = computed(() => {
+  // 確保 form.value 存在
+  if (!form.value) return false
+  
   // 檢查是否有任何表單欄位被填寫（非空值）
-  const hasFormData = (form.value.channel_access_token && form.value.channel_access_token.trim()) || 
-                     (form.value.channel_secret && form.value.channel_secret.trim()) || 
-                     (form.value.bot_basic_id && form.value.bot_basic_id.trim())
+  const tokenValue = form.value.channel_access_token || ''
+  const secretValue = form.value.channel_secret || ''
+  const basicIdValue = form.value.bot_basic_id || ''
+  
+  const hasToken = tokenValue.trim().length > 0
+  const hasSecret = secretValue.trim().length > 0 
+  const hasBasicId = basicIdValue.trim().length > 0
+  
+  const hasFormData = hasToken || hasSecret || hasBasicId
+  
+  // 調試輸出（開發環境）
+  if (process.dev) {
+    console.log('hasChanges debug:', {
+      tokenValue: tokenValue.length > 10 ? tokenValue.substring(0, 10) + '...' : tokenValue,
+      secretValue: secretValue.length > 10 ? secretValue.substring(0, 10) + '...' : secretValue,
+      basicIdValue,
+      hasToken,
+      hasSecret,
+      hasBasicId,
+      hasFormData
+    })
+  }
   
   return hasFormData
 })
