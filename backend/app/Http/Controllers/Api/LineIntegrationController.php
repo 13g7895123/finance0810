@@ -331,6 +331,11 @@ class LineIntegrationController extends Controller
         if (!$token) return '';
         if (strlen($token) <= 10) return str_repeat('*', strlen($token));
         
+        // For longer tokens, use a more concise display format
+        if (strlen($token) > 20) {
+            return substr($token, 0, 4) . '...' . substr($token, -4);
+        }
+        
         return substr($token, 0, 6) . str_repeat('*', strlen($token) - 10) . substr($token, -4);
     }
 

@@ -567,6 +567,10 @@ const toggleTokenVisibility = (tokenType) => {
 const maskedValue = (value) => {
   if (!value) return ''
   if (value.length <= 8) return '*'.repeat(value.length)
+  // 對於較長的token，使用更簡潔的顯示方式
+  if (value.length > 20) {
+    return value.substring(0, 4) + '...' + value.substring(value.length - 4)
+  }
   return value.substring(0, 4) + '*'.repeat(value.length - 8) + value.substring(value.length - 4)
 }
 
