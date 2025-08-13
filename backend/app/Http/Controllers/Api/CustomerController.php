@@ -357,4 +357,152 @@ class CustomerController extends Controller
 
         return response()->json($activities);
     }
+
+    /**
+     * Link customer with LINE user ID
+     */
+    public function linkLineUser(Request $request, Customer $customer)
+    {
+        $validator = Validator::make($request->all(), [
+            'line_user_id' => 'required|string|max:100',
+            'line_display_name' => 'nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Check if LINE user ID is already linked to another customer
+        $existingCustomer = Customer::where('line_user_id', $request->line_user_id)
+            ->where('id', '!=', $customer->id)
+            ->first();
+
+        if ($existingCustomer) {
+            return response()->json([
+                'error' => 'LINE 用戶已綁定到其他客戶',
+                'existing_customer' => $existingCustomer->name
+            ], 409);
+        }
+
+        $oldLineUserId = $customer->line_user_id;
+        $customer->update([
+            'line_user_id' => $request->line_user_id,
+            'line_display_name' => $request->line_display_name,
+        ]);
+
+        // Log activity
+        CustomerActivity::create([
+            'customer_id' => $customer->id,
+            'user_id' => Auth::id(),
+            'activity_type' => 'line_linked',
+            'description' => $oldLineUserId 
+                ? "LINE 用戶更新: {$request->line_display_name} ({$request->line_user_id})"
+                : "LINE 用戶綁定: {$request->line_display_name} ({$request->line_user_id})",
+            'ip_address' => request()->ip(),
+        ]);
+
+        return response()->json([
+            'message' => 'LINE 用戶綁定成功',
+            'customer' => $customer->load(['assignedUser', 'creator'])
+        ]);
+    }
+
+    /**
+     * Unlink customer from LINE user
+     */
+    public function unlinkLineUser(Customer $customer)
+    {
+        $oldLineUserId = $customer->line_user_id;
+        $oldDisplayName = $customer->line_display_name;
+
+        if (!$oldLineUserId) {
+            return response()->json(['error' => '客戶未綁定 LINE 用戶'], 400);
+        }
+
+        $customer->update([
+            'line_user_id' => null,
+            'line_display_name' => null,
+        ]);
+
+        // Log activity
+        CustomerActivity::create([
+            'customer_id' => $customer->id,
+            'user_id' => Auth::id(),
+            'activity_type' => 'line_unlinked',
+            'description' => "LINE 用戶解除綁定: {$oldDisplayName} ({$oldLineUserId})",
+            'ip_address' => request()->ip(),
+        ]);
+
+        return response()->json([
+            'message' => 'LINE 用戶解除綁定成功',
+            'customer' => $customer->load(['assignedUser', 'creator'])
+        ]);
+    }
+
+    /**
+     * Check LINE friend status
+     */
+    public function checkLineFriendStatus(Customer $customer)
+    {
+        if (!$customer->line_user_id) {
+            return response()->json([
+                'is_friend' => false,
+                'message' => '客戶未綁定 LINE 用戶'
+            ]);
+        }
+
+        try {
+            // Get LINE settings
+            $settings = \Cache::get('line_integration_settings', []);
+            $token = $settings['channel_access_token'] ?? config('services.line.channel_access_token');
+
+            if (!$token) {
+                return response()->json([
+                    'is_friend' => null,
+                    'message' => 'LINE 整合未設定'
+                ]);
+            }
+
+            // Check friend status via LINE API
+            $client = new \GuzzleHttp\Client();
+            $response = $client->get("https://api.line.me/v2/bot/profile/{$customer->line_user_id}", [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $token,
+                ],
+                'timeout' => 10,
+            ]);
+
+            $profileData = json_decode($response->getBody()->getContents(), true);
+
+            // Update display name if different
+            if ($profileData['displayName'] !== $customer->line_display_name) {
+                $customer->update(['line_display_name' => $profileData['displayName']]);
+            }
+
+            return response()->json([
+                'is_friend' => true,
+                'profile' => $profileData,
+                'message' => '已建立好友關係'
+            ]);
+
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            // 404 means user is not a friend or LINE user ID is invalid
+            if ($e->getResponse()->getStatusCode() === 404) {
+                return response()->json([
+                    'is_friend' => false,
+                    'message' => '未建立好友關係或 LINE 用戶 ID 無效'
+                ]);
+            }
+
+            return response()->json([
+                'is_friend' => null,
+                'message' => 'LINE API 錯誤: ' . $e->getMessage()
+            ], 500);
+        } catch (\Exception $e) {
+            return response()->json([
+                'is_friend' => null,
+                'message' => '檢查好友狀態時發生錯誤: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

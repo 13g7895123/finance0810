@@ -88,16 +88,34 @@
               class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">所有狀態</option>
-              <option value="active">活躍</option>
-              <option value="inactive">非活躍</option>
-              <option value="potential">潛在客戶</option>
+              <option v-for="(label, value) in getStatusOptions()" :key="value" :value="value">
+                {{ label }}
+              </option>
             </select>
           </div>
         </div>
       </div>
 
       <div class="overflow-x-auto">
-        <table class="w-full">
+        <!-- Loading state -->
+        <div v-if="loading" class="p-8 text-center">
+          <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p class="mt-2 text-gray-600 dark:text-gray-400">載入中...</p>
+        </div>
+        
+        <!-- Error state -->
+        <div v-else-if="error" class="p-8 text-center">
+          <p class="text-red-600 dark:text-red-400">{{ error }}</p>
+          <button 
+            @click="loadCustomers"
+            class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            重試
+          </button>
+        </div>
+        
+        <!-- Data table -->
+        <table v-else class="w-full">
           <thead class="bg-gray-50 dark:bg-gray-700">
             <tr>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -108,6 +126,9 @@
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 狀態
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                LINE 狀態
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 最後聯絡
@@ -130,7 +151,7 @@
                 <div class="flex items-center">
                   <div class="flex-shrink-0 w-10 h-10">
                     <img 
-                      :src="customer.avatar" 
+                      :src="`https://ui-avatars.com/api/?name=${customer.name}&background=6366f1&color=fff`" 
                       :alt="customer.name"
                       class="w-10 h-10 rounded-full"
                     />
@@ -140,7 +161,7 @@
                       {{ customer.name }}
                     </div>
                     <div class="text-base text-gray-500 dark:text-gray-400">
-                      {{ customer.company }}
+                      {{ customer.region || '未填寫地區' }}
                     </div>
                   </div>
                 </div>
@@ -160,12 +181,33 @@
                 </span>
               </td>
               
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center space-x-2">
+                  <div v-if="customer.line_user_id" class="flex items-center space-x-1">
+                    <div class="w-2 h-2 bg-green-400 rounded-full"></div>
+                    <span class="text-xs text-green-600 dark:text-green-400">已綁定</span>
+                  </div>
+                  <div v-else class="flex items-center space-x-1">
+                    <div class="w-2 h-2 bg-gray-300 rounded-full"></div>
+                    <span class="text-xs text-gray-500">未綁定</span>
+                  </div>
+                  <button 
+                    v-if="customer.line_user_id"
+                    @click="checkLineFriend(customer)"
+                    class="text-xs text-blue-600 hover:text-blue-800"
+                    title="檢查好友狀態"
+                  >
+                    檢查
+                  </button>
+                </div>
+              </td>
+              
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500 dark:text-gray-400">
-                {{ formatDate(customer.lastContact) }}
+                {{ customer.updated_at ? formatDate(customer.updated_at) : '無記錄' }}
               </td>
               
               <td v-if="!authStore.isSales" class="px-6 py-4 whitespace-nowrap text-base text-gray-500 dark:text-gray-400">
-                {{ customer.assignedSales }}
+                {{ customer.assigned_user?.name || '未分配' }}
               </td>
               
               <td class="px-6 py-4 whitespace-nowrap text-right text-base font-medium space-x-2">
@@ -173,7 +215,7 @@
                   查看
                 </button>
                 <button 
-                  v-if="authStore.hasPermission('customer_management') || customer.assignedSalesId === authStore.user?.id"
+                  v-if="authStore.hasPermission('customer_management') || customer.assigned_to === authStore.user?.id"
                   class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
                 >
                   編輯
@@ -274,107 +316,100 @@ definePageMeta({
 })
 
 const authStore = useAuthStore()
+const { 
+  getCustomers, 
+  checkLineFriendStatus, 
+  getStatusOptions,
+  createCustomer,
+  updateCustomer,
+  deleteCustomer
+} = useCustomers()
 
 // 搜尋和篩選
 const searchQuery = ref('')
 const statusFilter = ref('')
 
-// 客戶統計
+// 載入狀態
+const loading = ref(false)
+const error = ref(null)
+
+// 客戶數據
+const customers = ref([])
 const customerStats = ref({
-  total: 156,
-  active: 89,
-  new: 12,
-  conversionRate: 65
+  total: 0,
+  active: 0,
+  new: 0,
+  conversionRate: 0
 })
 
-// 模擬客戶數據
-const customers = ref([
-  {
-    id: 1,
-    name: '王志明',
-    company: '台北資訊科技',
-    email: 'wang@taipei-tech.com',
-    phone: '02-1234-5678',
-    status: 'active',
-    lastContact: new Date('2024-08-07'),
-    assignedSales: '李小姐',
-    assignedSalesId: 3,
-    avatar: 'https://ui-avatars.com/api/?name=王志明&background=6366f1&color=fff'
-  },
-  {
-    id: 2,
-    name: '陳美玲',
-    company: '高雄建設公司',
-    email: 'chen@kaohsiung-build.com',
-    phone: '07-9876-5432',
-    status: 'potential',
-    lastContact: new Date('2024-08-06'),
-    assignedSales: '陳先生',
-    assignedSalesId: 4,
-    avatar: 'https://ui-avatars.com/api/?name=陳美玲&background=22c55e&color=fff'
-  },
-  {
-    id: 3,
-    name: '林建國',
-    company: '新竹電子',
-    email: 'lin@hsinchu-electronics.com',
-    phone: '03-5555-1234',
-    status: 'active',
-    lastContact: new Date('2024-08-05'),
-    assignedSales: '李小姐',
-    assignedSalesId: 3,
-    avatar: 'https://ui-avatars.com/api/?name=林建國&background=f97316&color=fff'
-  },
-  {
-    id: 4,
-    name: '黃淑芬',
-    company: '桃園醫療集團',
-    email: 'huang@taoyuan-medical.com',
-    phone: '03-3333-7890',
-    status: 'inactive',
-    lastContact: new Date('2024-07-28'),
-    assignedSales: '陳先生',
-    assignedSalesId: 4,
-    avatar: 'https://ui-avatars.com/api/?name=黃淑芬&background=8b5cf6&color=fff'
-  },
-  {
-    id: 5,
-    name: '劉志強',
-    company: '台中製造業',
-    email: 'liu@taichung-manufacturing.com',
-    phone: '04-2222-4567',
-    status: 'active',
-    lastContact: new Date('2024-08-08'),
-    assignedSales: '李小姐',
-    assignedSalesId: 3,
-    avatar: 'https://ui-avatars.com/api/?name=劉志強&background=06b6d4&color=fff'
+// 模態窗口狀態
+const showCreateModal = ref(false)
+const showEditModal = ref(false)
+const editingCustomer = ref(null)
+
+// 表單數據
+const customerForm = ref({
+  name: '',
+  phone: '',
+  email: '',
+  region: '',
+  website_source: '',
+  channel: '',
+  notes: '',
+  assigned_to: null
+})
+
+// 載入客戶數據
+const loadCustomers = async () => {
+  loading.value = true
+  error.value = null
+  
+  try {
+    const params = {}
+    
+    // 添加搜尋參數
+    if (searchQuery.value.trim()) {
+      params.search = searchQuery.value.trim()
+    }
+    
+    // 添加狀態過濾
+    if (statusFilter.value) {
+      params.status = statusFilter.value
+    }
+    
+    const { data, error: apiError } = await getCustomers(params)
+    
+    if (apiError) {
+      error.value = apiError.message
+      return
+    }
+    
+    customers.value = data.data || []
+    
+    // 計算統計數據
+    const total = customers.value.length
+    const activeCount = customers.value.filter(c => ['new', 'contacted', 'interested'].includes(c.status)).length
+    const newCount = customers.value.filter(c => c.status === 'new').length
+    const convertedCount = customers.value.filter(c => c.status === 'converted').length
+    
+    customerStats.value = {
+      total,
+      active: activeCount,
+      new: newCount,
+      conversionRate: total > 0 ? Math.round((convertedCount / total) * 100) : 0
+    }
+    
+  } catch (err) {
+    error.value = '載入客戶數據失敗'
+    console.error('Load customers error:', err)
+  } finally {
+    loading.value = false
   }
-])
+}
 
 // 過濾客戶列表
 const filteredCustomers = computed(() => {
-  let result = customers.value
-
-  // 業務人員只能看到自己負責的客戶
-  if (authStore.isSales) {
-    result = result.filter(customer => customer.assignedSalesId === authStore.user?.id)
-  }
-
-  // 搜尋過濾
-  if (searchQuery.value.trim()) {
-    result = result.filter(customer =>
-      customer.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      customer.company.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      customer.email.toLowerCase().includes(searchQuery.value.toLowerCase())
-    )
-  }
-
-  // 狀態過濾
-  if (statusFilter.value) {
-    result = result.filter(customer => customer.status === statusFilter.value)
-  }
-
-  return result
+  return customers.value
 })
 
 // Pagination
@@ -444,24 +479,53 @@ const getVisiblePages = () => {
   return pages
 }
 
+// 檢查LINE好友狀態
+const checkLineFriend = async (customer) => {
+  try {
+    const { data, error: apiError } = await checkLineFriendStatus(customer.id)
+    
+    if (apiError) {
+      console.error('檢查LINE好友狀態失敗:', apiError.message)
+      return
+    }
+    
+    // 顯示結果 - 使用簡單的 alert 或可以替換為更好的通知系統
+    if (data.is_friend === true) {
+      alert('已建立好友關係')
+    } else if (data.is_friend === false) {
+      alert('未建立好友關係')
+    } else {
+      alert(data.message || 'LINE整合未設定')
+    }
+    
+  } catch (err) {
+    console.error('檢查LINE好友狀態錯誤:', err)
+  }
+}
+
+// 監聽搜尋和篩選變化，自動重新載入數據
+watch([searchQuery, statusFilter], () => {
+  loadCustomers()
+}, { debounce: 300 })
+
 // 狀態樣式
 const getStatusClass = (status) => {
+  const statusOptions = getStatusOptions()
   const classes = {
-    'active': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
-    'inactive': 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
-    'potential': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+    'new': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+    'contacted': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+    'interested': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+    'not_interested': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+    'invalid': 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+    'converted': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300'
   }
-  return classes[status] || classes.inactive
+  return classes[status] || classes.new
 }
 
 // 狀態文字
 const getStatusText = (status) => {
-  const texts = {
-    'active': '活躍',
-    'inactive': '非活躍',
-    'potential': '潛在客戶'
-  }
-  return texts[status] || '未知'
+  const statusOptions = getStatusOptions()
+  return statusOptions[status] || '未知'
 }
 
 // 日期格式化
@@ -473,8 +537,13 @@ const formatDate = (date) => {
   })
 }
 
+// 頁面載入時獲取數據
+onMounted(() => {
+  loadCustomers()
+})
+
 // 設定頁面標題
 useHead({
-  title: '客戶管理 - 金融管理系統'
+  title: '客戶管理 - 貸款案件管理系統'
 })
 </script>

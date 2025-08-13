@@ -111,8 +111,18 @@ class ChatController extends Controller
             'status' => 'sent',
         ]);
 
-        // TODO: Send actual message via LINE Bot API
-        // This would integrate with LINE Bot API to send the message
+        // Send message via LINE Bot API
+        $lineSuccess = $this->sendLineMessage($userId, $request->message);
+        
+        if (!$lineSuccess) {
+            // Update conversation status to failed
+            $conversation->update(['status' => 'failed']);
+            
+            return response()->json([
+                'error' => '送出LINE訊息失敗，請檢查LINE整合設定',
+                'conversation' => $conversation->load(['customer', 'user', 'replier'])
+            ], 500);
+        }
 
         return response()->json([
             'message' => '訊息已送出',
@@ -636,13 +646,14 @@ class ChatController extends Controller
             $customer = Customer::create([
                 'name' => $profile['displayName'] ?? '來自LINE的客戶',
                 'line_user_id' => $lineUserId,
+                'line_display_name' => $profile['displayName'] ?? null,
                 'channel' => 'line',
-                'status' => 'NEW', // Use constants from Customer model if available
-                'tracking_status' => 'PENDING',
+                'status' => Customer::STATUS_NEW,
+                'tracking_status' => Customer::TRACKING_PENDING,
                 'created_by' => 1, // System user
                 'region' => '未知',
-                'source' => 'LINE Bot',
-                'metadata' => [
+                'website_source' => 'LINE Bot',
+                'source_data' => [
                     'line_profile' => $profile,
                     'first_contact' => now()->toISOString(),
                 ],

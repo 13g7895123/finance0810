@@ -448,8 +448,8 @@ class LineIntegrationController extends Controller
             return ['valid' => false, 'reason' => 'Token too short (should be >100 characters)'];
         }
         
-        // Basic format check - LINE tokens usually contain alphanumeric and some special chars
-        if (!preg_match('/^[a-zA-Z0-9+\/=]+$/', $token)) {
+        // Basic format check - LINE tokens can contain alphanumeric, +, /, =, -, _, and .
+        if (!preg_match('/^[a-zA-Z0-9+\/=\-_.]+$/', $token)) {
             return ['valid' => false, 'reason' => 'Token contains invalid characters'];
         }
         

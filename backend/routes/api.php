@@ -65,6 +65,11 @@ Route::middleware(['auth:api'])->group(function () {
     Route::post('/customers/{customer}/status', [CustomerController::class, 'updateStatus']);
     Route::post('/customers/{customer}/assign', [CustomerController::class, 'assignToUser']);
     Route::get('/customers/{customer}/history', [CustomerController::class, 'getHistory']);
+    
+    // LINE Integration for Customers
+    Route::post('/customers/{customer}/line/link', [CustomerController::class, 'linkLineUser']);
+    Route::delete('/customers/{customer}/line/unlink', [CustomerController::class, 'unlinkLineUser']);
+    Route::get('/customers/{customer}/line/friend-status', [CustomerController::class, 'checkLineFriendStatus']);
 
     // Blacklist Management
     Route::post('/customers/{customer}/blacklist/report', [\App\Http\Controllers\Api\BlacklistController::class, 'report']);
