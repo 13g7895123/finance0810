@@ -39,6 +39,16 @@ class Customer extends Model
         'next_contact_date',
         'priority_level',
         'invalid_reason',
+        'is_blacklisted',
+        'blacklist_status',
+        'blacklist_reason',
+        'blacklist_reported_by',
+        'blacklist_reported_at',
+        'blacklist_approved_by',
+        'blacklist_approved_at',
+        'is_hidden',
+        'line_display_name_original',
+        'latest_case_at',
     ];
 
     /**
@@ -52,6 +62,11 @@ class Customer extends Model
         'source_data' => 'array',
         'approved_amount' => 'decimal:2',
         'disbursed_amount' => 'decimal:2',
+        'is_blacklisted' => 'boolean',
+        'is_hidden' => 'boolean',
+        'blacklist_reported_at' => 'datetime',
+        'blacklist_approved_at' => 'datetime',
+        'latest_case_at' => 'datetime',
     ];
 
     /**

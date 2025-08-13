@@ -140,7 +140,9 @@ class LineIntegrationController extends Controller
             'cached_settings_exists' => !empty($settings),
             'has_cached_token' => !empty($settings['channel_access_token']),
             'has_config_token' => !empty(config('services.line.channel_access_token')),
-            'final_token_length' => $token ? strlen($token) : 0
+            'final_token_length' => $token ? strlen($token) : 0,
+            'token_sample' => $token ? substr($token, 0, 20) . '...' . substr($token, -10) : null,
+            'token_contains_invalid_chars' => $token ? (preg_match('/[^a-zA-Z0-9+\/=\-_.]/', $token) ? 'YES' : 'NO') : null
         ]);
 
         if (!$token) {
@@ -177,8 +179,22 @@ class LineIntegrationController extends Controller
             'php_version' => PHP_VERSION,
             'guzzle_exists' => class_exists('\GuzzleHttp\Client'),
             'cache_driver' => config('cache.default'),
-            'app_env' => config('app.env')
+            'app_env' => config('app.env'),
+            'token_debug' => $token ? [
+                'first_20_chars' => substr($token, 0, 20),
+                'last_10_chars' => substr($token, -10),
+                'contains_spaces' => strpos($token, ' ') !== false,
+                'contains_newlines' => (strpos($token, "\n") !== false || strpos($token, "\r") !== false),
+                'regex_valid' => preg_match('/^[a-zA-Z0-9+\/=\-_.]+$/', $token) ? true : false,
+                'invalid_chars' => []
+            ] : null
         ];
+
+        // Add detailed character analysis if token exists
+        if ($token) {
+            preg_match_all('/[^a-zA-Z0-9+\/=\-_.]/', $token, $matches);
+            $debugInfo['token_debug']['invalid_chars'] = array_unique($matches[0]);
+        }
 
         if (!$token) {
             return response()->json([
@@ -439,20 +455,46 @@ class LineIntegrationController extends Controller
      */
     private function validateTokenFormat($token)
     {
+        // Debug logging to help troubleshoot
+        Log::info('Token validation debug', [
+            'token_provided' => !empty($token),
+            'token_length' => $token ? strlen($token) : 0,
+            'token_first_20_chars' => $token ? substr($token, 0, 20) : null,
+            'token_last_10_chars' => $token ? substr($token, -10) : null,
+            'token_type' => $token ? gettype($token) : null,
+            'contains_spaces' => $token ? (strpos($token, ' ') !== false ? 'YES' : 'NO') : null,
+            'contains_newlines' => $token ? (strpos($token, "\n") !== false || strpos($token, "\r") !== false ? 'YES' : 'NO') : null,
+        ]);
+        
         // LINE Channel Access Token format validation
         if (empty($token)) {
+            Log::warning('Token validation failed: empty token');
             return ['valid' => false, 'reason' => 'Token is empty'];
         }
         
         if (strlen($token) < 100) {
+            Log::warning('Token validation failed: too short', ['length' => strlen($token)]);
             return ['valid' => false, 'reason' => 'Token too short (should be >100 characters)'];
         }
         
-        // Basic format check - LINE tokens can contain alphanumeric, +, /, =, -, _, and .
+        // Check for invalid characters and log which ones
         if (!preg_match('/^[a-zA-Z0-9+\/=\-_.]+$/', $token)) {
-            return ['valid' => false, 'reason' => 'Token contains invalid characters'];
+            // Find the invalid characters
+            preg_match_all('/[^a-zA-Z0-9+\/=\-_.]/', $token, $matches);
+            $invalidChars = array_unique($matches[0]);
+            
+            Log::warning('Token validation failed: invalid characters found', [
+                'invalid_characters' => $invalidChars,
+                'invalid_char_positions' => array_keys(str_split($token), $invalidChars[0] ?? '')
+            ]);
+            
+            return [
+                'valid' => false, 
+                'reason' => 'Token contains invalid characters: ' . implode(', ', $invalidChars)
+            ];
         }
         
+        Log::info('Token validation passed');
         return ['valid' => true, 'reason' => 'Token format appears valid'];
     }
 
