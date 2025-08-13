@@ -55,17 +55,18 @@
               <div class="relative">
                 <UInput 
                   v-model="form.channel_access_token"
-                  :type="showTokens.access_token ? 'text' : 'password'"
-                  :placeholder="originalSettings?.channel_access_token ? '已設定 (點擊眼睛圖示查看)' : '輸入 Channel Access Token'"
+                  type="text"
+                  :placeholder="originalSettings?.channel_access_token ? '輸入新的 Channel Access Token 或留空保持現有設定' : '輸入 Channel Access Token'"
                   class="line-input pr-10"
                 />
                 <button
                   type="button"
-                  @click="toggleTokenVisibility('access_token')"
+                  @click="showCurrentToken('access_token')"
                   class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  v-if="form.channel_access_token"
+                  v-if="originalSettings?.channel_access_token && !form.channel_access_token"
+                  title="查看當前設定值"
                 >
-                  <UIcon :name="showTokens.access_token ? 'i-heroicons-eye-slash' : 'i-heroicons-eye'" class="w-4 h-4" />
+                  <UIcon name="i-heroicons-eye" class="w-4 h-4" />
                 </button>
               </div>
               <template #help v-if="originalSettings?.channel_access_token && !form.channel_access_token">
@@ -85,17 +86,18 @@
               <div class="relative">
                 <UInput 
                   v-model="form.channel_secret"
-                  :type="showTokens.channel_secret ? 'text' : 'password'"
-                  :placeholder="originalSettings?.channel_secret ? '已設定 (點擊眼睛圖示查看)' : '輸入 Channel Secret'"
+                  type="text"
+                  :placeholder="originalSettings?.channel_secret ? '輸入新的 Channel Secret 或留空保持現有設定' : '輸入 Channel Secret'"
                   class="line-input pr-10"
                 />
                 <button
                   type="button"
-                  @click="toggleTokenVisibility('channel_secret')"
+                  @click="showCurrentToken('channel_secret')"
                   class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  v-if="form.channel_secret"
+                  v-if="originalSettings?.channel_secret && !form.channel_secret"
+                  title="查看當前設定值"
                 >
-                  <UIcon :name="showTokens.channel_secret ? 'i-heroicons-eye-slash' : 'i-heroicons-eye'" class="w-4 h-4" />
+                  <UIcon name="i-heroicons-eye" class="w-4 h-4" />
                 </button>
               </div>
               <template #help v-if="originalSettings?.channel_secret && !form.channel_secret">
@@ -338,11 +340,7 @@ const statsLoading = ref(false)
 const botInfoLoading = ref(false)
 const conversationsLoading = ref(false)
 
-// Token 顯示狀態
-const showTokens = ref({
-  access_token: false,
-  channel_secret: false
-})
+// 載入中狀態
 
 // 資料狀態
 const settings = ref(null)
@@ -434,11 +432,30 @@ const loadSettings = async () => {
 const saveSettings = async () => {
   saving.value = true
   try {
-    // 合併現有設定和新設定
-    const settingsToSave = {
-      channel_access_token: form.value.channel_access_token || originalSettings.value?.channel_access_token || '',
-      channel_secret: form.value.channel_secret || originalSettings.value?.channel_secret || '',
-      bot_basic_id: form.value.bot_basic_id || originalSettings.value?.bot_basic_id || ''
+    // 只發送用戶實際輸入的新值，不要發送遮罩值
+    const settingsToSave = {}
+    
+    // 只有當用戶實際輸入了新值時才添加到要保存的設定中
+    if (form.value.channel_access_token && form.value.channel_access_token.trim()) {
+      settingsToSave.channel_access_token = form.value.channel_access_token.trim()
+    }
+    
+    if (form.value.channel_secret && form.value.channel_secret.trim()) {
+      settingsToSave.channel_secret = form.value.channel_secret.trim()
+    }
+    
+    if (form.value.bot_basic_id && form.value.bot_basic_id.trim()) {
+      settingsToSave.bot_basic_id = form.value.bot_basic_id.trim()
+    }
+    
+    // 如果沒有任何新值要保存，顯示提示
+    if (Object.keys(settingsToSave).length === 0) {
+      toast.add({
+        title: '沒有變更',
+        description: '請輸入要更新的設定值',
+        color: 'yellow'
+      })
+      return
     }
     
     const response = await updateSettings(settingsToSave)
@@ -449,8 +466,15 @@ const saveSettings = async () => {
         color: 'green'
       })
       
-      // 重新載入設定
+      // 重新載入設定並清空表單以顯示遮罩狀態
       await loadSettings()
+      
+      // 清空表單，讓用戶看到已保存的遮罩提示
+      form.value = {
+        channel_access_token: '',
+        channel_secret: '',
+        bot_basic_id: ''
+      }
     }
   } catch (error) {
     toast.add({
@@ -558,9 +582,21 @@ const formatTime = (timestamp) => {
   return date.toLocaleString('zh-TW')
 }
 
-// Token 顯示切換
-const toggleTokenVisibility = (tokenType) => {
-  showTokens.value[tokenType] = !showTokens.value[tokenType]
+// 顯示當前設定的 token 值
+const showCurrentToken = (tokenType) => {
+  const key = tokenType === 'access_token' ? 'channel_access_token' : 'channel_secret'
+  const currentValue = originalSettings.value?.[key]
+  
+  if (currentValue) {
+    // 暫時填入表單以便用戶查看或編輯
+    form.value[key] = currentValue
+    
+    toast.add({
+      title: '已載入當前設定值',
+      description: '您可以查看或修改當前設定',
+      color: 'blue'
+    })
+  }
 }
 
 // 遮罩顯示敏感資料

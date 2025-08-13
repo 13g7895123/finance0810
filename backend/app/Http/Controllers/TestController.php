@@ -459,4 +459,132 @@ class TestController extends Controller
             'environment' => app()->environment(),
         ]);
     }
+
+    /**
+     * Test customers basic functionality without middleware
+     */
+    public function testCustomersBasic(Request $request)
+    {
+        try {
+            $debug = [
+                'status' => 'testing',
+                'timestamp' => now()->toISOString(),
+                'tests' => []
+            ];
+
+            // Test 1: Customer model access
+            try {
+                $customerCount = \App\Models\Customer::count();
+                $debug['tests']['customer_model'] = [
+                    'status' => 'ok',
+                    'count' => $customerCount,
+                    'message' => 'Customer model accessible'
+                ];
+            } catch (\Exception $e) {
+                $debug['tests']['customer_model'] = [
+                    'status' => 'error',
+                    'error' => $e->getMessage(),
+                    'message' => 'Customer model failed'
+                ];
+            }
+
+            // Test 2: Customer table structure
+            try {
+                $columns = \Schema::getColumnListing('customers');
+                $debug['tests']['customer_table'] = [
+                    'status' => 'ok',
+                    'columns' => $columns,
+                    'message' => 'Customer table structure accessible'
+                ];
+            } catch (\Exception $e) {
+                $debug['tests']['customer_table'] = [
+                    'status' => 'error',
+                    'error' => $e->getMessage(),
+                    'message' => 'Customer table structure failed'
+                ];
+            }
+
+            // Test 3: Customer with relationships
+            try {
+                $customer = \App\Models\Customer::with(['assignedUser', 'creator'])->first();
+                $debug['tests']['customer_relationships'] = [
+                    'status' => 'ok',
+                    'has_data' => !is_null($customer),
+                    'sample_customer' => $customer ? [
+                        'id' => $customer->id,
+                        'name' => $customer->name,
+                        'assigned_user' => $customer->assignedUser ? $customer->assignedUser->name : null,
+                        'creator' => $customer->creator ? $customer->creator->name : null
+                    ] : null,
+                    'message' => 'Customer relationships accessible'
+                ];
+            } catch (\Exception $e) {
+                $debug['tests']['customer_relationships'] = [
+                    'status' => 'error',
+                    'error' => $e->getMessage(),
+                    'message' => 'Customer relationships failed'
+                ];
+            }
+
+            // Test 4: User model and roles
+            try {
+                $userCount = \App\Models\User::count();
+                $roleCount = \Spatie\Permission\Models\Role::count();
+                $debug['tests']['user_roles'] = [
+                    'status' => 'ok',
+                    'user_count' => $userCount,
+                    'role_count' => $roleCount,
+                    'message' => 'User and role models accessible'
+                ];
+            } catch (\Exception $e) {
+                $debug['tests']['user_roles'] = [
+                    'status' => 'error',
+                    'error' => $e->getMessage(),
+                    'message' => 'User and role models failed'
+                ];
+            }
+
+            // Test 5: Basic customer query similar to controller
+            try {
+                $customers = \App\Models\Customer::with(['assignedUser', 'creator'])
+                    ->orderByDesc('created_at')
+                    ->limit(5)
+                    ->get();
+                
+                $debug['tests']['customer_query'] = [
+                    'status' => 'ok',
+                    'count' => $customers->count(),
+                    'sample_data' => $customers->map(function($customer) {
+                        return [
+                            'id' => $customer->id,
+                            'name' => $customer->name,
+                            'phone' => $customer->phone,
+                            'status' => $customer->status,
+                            'assigned_to' => $customer->assigned_to,
+                            'assigned_user_name' => $customer->assignedUser ? $customer->assignedUser->name : null
+                        ];
+                    })->toArray(),
+                    'message' => 'Customer query successful'
+                ];
+            } catch (\Exception $e) {
+                $debug['tests']['customer_query'] = [
+                    'status' => 'error',
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                    'message' => 'Customer query failed'
+                ];
+            }
+
+            $debug['status'] = 'completed';
+            return response()->json($debug);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'message' => 'Test endpoint failed'
+            ], 500);
+        }
+    }
 }
