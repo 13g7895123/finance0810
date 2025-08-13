@@ -16,7 +16,7 @@
         <UButton 
           @click="handleTestConnection" 
           :loading="testing"
-          :disabled="!settings?.channel_access_token"
+          :disabled="!originalSettings?.channel_access_token && !form.channel_access_token"
           variant="outline"
         >
           測試連線
@@ -45,7 +45,7 @@
                 儲存設定
               </UButton>
               <!-- 調試信息 -->
-              <div class="text-xs text-gray-500" v-if="$config.public.dev">
+              <div class="text-xs text-gray-500" v-if="process.dev">
                 Debug: hasChanges = {{ hasChanges }}
               </div>
             </div>
@@ -241,7 +241,7 @@
             </div>
           </div>
 
-          <div v-else-if="!settings?.channel_access_token" class="text-center py-8">
+          <div v-else-if="!originalSettings?.channel_access_token && !form.channel_access_token" class="text-center py-8">
             <p class="text-gray-500">請先設定 Channel Access Token</p>
           </div>
         </div>
@@ -253,7 +253,7 @@
             size="sm"
             block
             :loading="botInfoLoading"
-            :disabled="!settings?.channel_access_token"
+            :disabled="!originalSettings?.channel_access_token && !form.channel_access_token"
           >
             重新載入 Bot 資訊
           </UButton>
@@ -639,9 +639,16 @@ const maskedValue = (value) => {
 // 生命週期
 onMounted(async () => {
   await loadSettings()
-  loadStats()
-  loadBotInfo()
-  loadRecentConversations()
+  // 只有在有 token 的情況下才載入需要認證的資訊
+  if (originalSettings.value?.channel_access_token) {
+    loadStats()
+    loadBotInfo()
+    loadRecentConversations()
+  } else {
+    // 即使沒有 token，也載入統計（可能顯示空資料）
+    loadStats()
+    loadRecentConversations()
+  }
 })
 
 useHead({
