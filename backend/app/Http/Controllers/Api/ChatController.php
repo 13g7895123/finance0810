@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use App\Models\ChatConversation;
 use App\Models\Customer;
 use App\Models\User;
+use App\Models\LineIntegrationSetting;
 
 class ChatController extends Controller
 {
@@ -298,6 +299,26 @@ class ChatController extends Controller
     }
 
     /**
+     * Get unmasked LINE settings for internal usage
+     */
+    private function getLineSettings()
+    {
+        $dbSettings = LineIntegrationSetting::getAllSettings(true);
+        $cachedSettings = Cache::get('line_integration_settings', []);
+        
+        return [
+            'channel_access_token' => $dbSettings['channel_access_token'] ?? $cachedSettings['channel_access_token'] ?? config('services.line.channel_access_token', ''),
+            'channel_secret' => $dbSettings['channel_secret'] ?? $cachedSettings['channel_secret'] ?? config('services.line.channel_secret', ''),
+            'auto_reply_enabled' => $dbSettings['auto_reply_enabled'] ?? $cachedSettings['auto_reply_enabled'] ?? config('services.line.auto_reply_enabled', true),
+            'default_reply_message' => $dbSettings['default_reply_message'] ?? $cachedSettings['default_reply_message'] ?? config('services.line.default_reply_message', '感謝您的訊息，專員將盡快回覆您。'),
+            'business_hours_enabled' => $dbSettings['business_hours_enabled'] ?? $cachedSettings['business_hours_enabled'] ?? config('services.line.business_hours_enabled', false),
+            'business_hours_start' => $dbSettings['business_hours_start'] ?? $cachedSettings['business_hours_start'] ?? config('services.line.business_hours_start', '09:00'),
+            'business_hours_end' => $dbSettings['business_hours_end'] ?? $cachedSettings['business_hours_end'] ?? config('services.line.business_hours_end', '18:00'),
+            'out_of_hours_message' => $dbSettings['out_of_hours_message'] ?? $cachedSettings['out_of_hours_message'] ?? config('services.line.out_of_hours_message', '目前為非營業時間'),
+        ];
+    }
+
+    /**
      * Verify LINE webhook signature
      */
     protected function verifySignature(Request $request)
@@ -309,9 +330,9 @@ class ChatController extends Controller
             return false;
         }
 
-        // Get channel secret from cache or config
-        $settings = Cache::get('line_integration_settings', []);
-        $channelSecret = $settings['channel_secret'] ?? config('services.line.channel_secret');
+        // Get channel secret from database
+        $settings = $this->getLineSettings();
+        $channelSecret = $settings['channel_secret'];
         
         if (!$channelSecret) {
             Log::warning('LINE Channel Secret not configured for webhook verification');
@@ -675,8 +696,8 @@ class ChatController extends Controller
     protected function getLineUserProfile($lineUserId)
     {
         try {
-            $settings = Cache::get('line_integration_settings', []);
-            $token = $settings['channel_access_token'] ?? config('services.line.channel_access_token');
+            $settings = $this->getLineSettings();
+            $token = $settings['channel_access_token'];
 
             if (!$token) {
                 return [];
@@ -705,8 +726,8 @@ class ChatController extends Controller
      */
     protected function sendAutoReply($lineUserId, $messageText, $customer)
     {
-        $settings = Cache::get('line_integration_settings', []);
-        $autoReplyEnabled = $settings['auto_reply_enabled'] ?? config('services.line.auto_reply_enabled', true);
+        $settings = $this->getLineSettings();
+        $autoReplyEnabled = $settings['auto_reply_enabled'];
         
         if (!$autoReplyEnabled) {
             return;
@@ -714,9 +735,9 @@ class ChatController extends Controller
 
         // Check business hours
         if ($this->isOutOfBusinessHours()) {
-            $message = $settings['out_of_hours_message'] ?? config('services.line.out_of_hours_message', '目前為非營業時間，我們將在營業時間內盡快回覆您。');
+            $message = $settings['out_of_hours_message'];
         } else {
-            $message = $settings['default_reply_message'] ?? config('services.line.default_reply_message', '感謝您的訊息，專員將盡快回覆您。');
+            $message = $settings['default_reply_message'];
         }
 
         // Send the auto-reply
@@ -747,16 +768,16 @@ class ChatController extends Controller
      */
     protected function isOutOfBusinessHours()
     {
-        $settings = Cache::get('line_integration_settings', []);
-        $businessHoursEnabled = $settings['business_hours_enabled'] ?? config('services.line.business_hours_enabled', false);
+        $settings = $this->getLineSettings();
+        $businessHoursEnabled = $settings['business_hours_enabled'];
         
         if (!$businessHoursEnabled) {
             return false;
         }
 
         $now = now();
-        $startTime = $settings['business_hours_start'] ?? config('services.line.business_hours_start', '09:00');
-        $endTime = $settings['business_hours_end'] ?? config('services.line.business_hours_end', '18:00');
+        $startTime = $settings['business_hours_start'];
+        $endTime = $settings['business_hours_end'];
         
         $currentTime = $now->format('H:i');
         
@@ -774,8 +795,8 @@ class ChatController extends Controller
     protected function sendLineMessage($lineUserId, $message)
     {
         try {
-            $settings = Cache::get('line_integration_settings', []);
-            $token = $settings['channel_access_token'] ?? config('services.line.channel_access_token');
+            $settings = $this->getLineSettings();
+            $token = $settings['channel_access_token'];
 
             if (!$token) {
                 Log::error('LINE Channel Access Token not configured');

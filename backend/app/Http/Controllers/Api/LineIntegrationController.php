@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\User;
 use App\Models\ChatConversation;
 use App\Models\Customer;
+use App\Models\LineIntegrationSetting;
 
 class LineIntegrationController extends Controller
 {
@@ -27,21 +28,26 @@ class LineIntegrationController extends Controller
     {
         $user = Auth::user();
         
-        // Get cached settings first, then fall back to config
+        // Get settings from database, fall back to cache, then config
+        $dbSettings = LineIntegrationSetting::getAllSettings(true);
         $cachedSettings = Cache::get('line_integration_settings', []);
         
+        // Get raw values (unmasked) for actual use
+        $channelAccessToken = $dbSettings['channel_access_token'] ?? $cachedSettings['channel_access_token'] ?? config('services.line.channel_access_token', '');
+        $channelSecret = $dbSettings['channel_secret'] ?? $cachedSettings['channel_secret'] ?? config('services.line.channel_secret', '');
+        
         $settings = [
-            'channel_access_token' => $this->getMaskedToken($cachedSettings['channel_access_token'] ?? config('services.line.channel_access_token', '')),
-            'channel_secret' => $this->getMaskedSecret($cachedSettings['channel_secret'] ?? config('services.line.channel_secret', '')),
+            'channel_access_token' => $this->getMaskedToken($channelAccessToken),
+            'channel_secret' => $this->getMaskedSecret($channelSecret),
             'webhook_url' => url('/api/line/webhook'),
-            'bot_basic_id' => $cachedSettings['bot_basic_id'] ?? config('services.line.bot_basic_id', ''),
-            'auto_reply_enabled' => $cachedSettings['auto_reply_enabled'] ?? config('services.line.auto_reply_enabled', true),
-            'default_reply_message' => $cachedSettings['default_reply_message'] ?? config('services.line.default_reply_message', '感謝您的訊息，專員將盡快回覆您。'),
+            'bot_basic_id' => $dbSettings['bot_basic_id'] ?? $cachedSettings['bot_basic_id'] ?? config('services.line.bot_basic_id', ''),
+            'auto_reply_enabled' => $dbSettings['auto_reply_enabled'] ?? $cachedSettings['auto_reply_enabled'] ?? config('services.line.auto_reply_enabled', true),
+            'default_reply_message' => $dbSettings['default_reply_message'] ?? $cachedSettings['default_reply_message'] ?? config('services.line.default_reply_message', '感謝您的訊息，專員將盡快回覆您。'),
             'business_hours' => [
-                'enabled' => $cachedSettings['business_hours_enabled'] ?? config('services.line.business_hours_enabled', false),
-                'start_time' => $cachedSettings['business_hours_start'] ?? config('services.line.business_hours_start', '09:00'),
-                'end_time' => $cachedSettings['business_hours_end'] ?? config('services.line.business_hours_end', '18:00'),
-                'out_of_hours_message' => $cachedSettings['out_of_hours_message'] ?? config('services.line.out_of_hours_message', '目前為非營業時間，我們將在營業時間內盡快回覆您。營業時間：週一至週五 9:00-18:00')
+                'enabled' => $dbSettings['business_hours_enabled'] ?? $cachedSettings['business_hours_enabled'] ?? config('services.line.business_hours_enabled', false),
+                'start_time' => $dbSettings['business_hours_start'] ?? $cachedSettings['business_hours_start'] ?? config('services.line.business_hours_start', '09:00'),
+                'end_time' => $dbSettings['business_hours_end'] ?? $cachedSettings['business_hours_end'] ?? config('services.line.business_hours_end', '18:00'),
+                'out_of_hours_message' => $dbSettings['out_of_hours_message'] ?? $cachedSettings['out_of_hours_message'] ?? config('services.line.out_of_hours_message', '目前為非營業時間，我們將在營業時間內盡快回覆您。營業時間：週一至週五 9:00-18:00')
             ],
             'webhook_status' => $this->getWebhookStatus(),
             'integration_status' => $this->getIntegrationStatus(),
@@ -68,8 +74,7 @@ class LineIntegrationController extends Controller
         ]);
 
         try {
-            // Update configuration (in a real app, this would be saved to database or .env file)
-            // For now, we'll store in cache as a temporary solution
+            // Save settings to database
             $settings = [
                 'channel_access_token' => $request->input('channel_access_token'),
                 'channel_secret' => $request->input('channel_secret'),
@@ -82,7 +87,17 @@ class LineIntegrationController extends Controller
                 'out_of_hours_message' => $request->input('business_hours.out_of_hours_message', '目前為非營業時間'),
             ];
 
-            // Store in cache for 24 hours (in production, this should be in database)
+            // Save each setting to database
+            foreach ($settings as $key => $value) {
+                if ($value !== null) { // Only save non-null values
+                    $isSensitive = in_array($key, ['channel_access_token', 'channel_secret']);
+                    $type = is_bool($value) ? 'boolean' : 'string';
+                    
+                    LineIntegrationSetting::setValue($key, $value, $type, null, $isSensitive);
+                }
+            }
+
+            // Also store in cache for faster access
             Cache::put('line_integration_settings', $settings, now()->addHours(24));
 
             // Test connection if access token is provided
@@ -129,12 +144,33 @@ class LineIntegrationController extends Controller
     }
 
     /**
+     * Get unmasked settings for internal API usage
+     */
+    private function getUnmaskedSettings()
+    {
+        $dbSettings = LineIntegrationSetting::getAllSettings(true);
+        $cachedSettings = Cache::get('line_integration_settings', []);
+        
+        return [
+            'channel_access_token' => $dbSettings['channel_access_token'] ?? $cachedSettings['channel_access_token'] ?? config('services.line.channel_access_token', ''),
+            'channel_secret' => $dbSettings['channel_secret'] ?? $cachedSettings['channel_secret'] ?? config('services.line.channel_secret', ''),
+            'bot_basic_id' => $dbSettings['bot_basic_id'] ?? $cachedSettings['bot_basic_id'] ?? config('services.line.bot_basic_id', ''),
+            'auto_reply_enabled' => $dbSettings['auto_reply_enabled'] ?? $cachedSettings['auto_reply_enabled'] ?? config('services.line.auto_reply_enabled', true),
+            'default_reply_message' => $dbSettings['default_reply_message'] ?? $cachedSettings['default_reply_message'] ?? config('services.line.default_reply_message', '感謝您的訊息，專員將盡快回覆您。'),
+            'business_hours_enabled' => $dbSettings['business_hours_enabled'] ?? $cachedSettings['business_hours_enabled'] ?? config('services.line.business_hours_enabled', false),
+            'business_hours_start' => $dbSettings['business_hours_start'] ?? $cachedSettings['business_hours_start'] ?? config('services.line.business_hours_start', '09:00'),
+            'business_hours_end' => $dbSettings['business_hours_end'] ?? $cachedSettings['business_hours_end'] ?? config('services.line.business_hours_end', '18:00'),
+            'out_of_hours_message' => $dbSettings['out_of_hours_message'] ?? $cachedSettings['out_of_hours_message'] ?? config('services.line.out_of_hours_message', '目前為非營業時間'),
+        ];
+    }
+
+    /**
      * Test LINE Bot connection
      */
     public function testConnection()
     {
-        $settings = Cache::get('line_integration_settings', []);
-        $token = $settings['channel_access_token'] ?? config('services.line.channel_access_token');
+        $settings = $this->getUnmaskedSettings();
+        $token = $settings['channel_access_token'];
 
         Log::info('Test connection requested', [
             'cached_settings_exists' => !empty($settings),
@@ -166,9 +202,9 @@ class LineIntegrationController extends Controller
      */
     public function debugConnection()
     {
-        $settings = Cache::get('line_integration_settings', []);
+        $settings = $this->getUnmaskedSettings();
         $configToken = config('services.line.channel_access_token');
-        $token = $settings['channel_access_token'] ?? $configToken;
+        $token = $settings['channel_access_token'];
 
         $debugInfo = [
             'cache_settings' => $settings,
