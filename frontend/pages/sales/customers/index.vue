@@ -13,6 +13,7 @@
       <div class="flex space-x-3">
         <button
           v-if="authStore.hasPermission('customer_management')"
+          @click="openCreateModal"
           class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
         >
           <PlusIcon class="w-5 h-5" />
@@ -211,11 +212,15 @@
               </td>
               
               <td class="px-6 py-4 whitespace-nowrap text-right text-base font-medium space-x-2">
-                <button class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
+                <button 
+                  @click="viewCustomer(customer)"
+                  class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                >
                   查看
                 </button>
                 <button 
                   v-if="authStore.hasPermission('customer_management') || customer.assigned_to === authStore.user?.id"
+                  @click="editCustomer(customer)"
                   class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
                 >
                   編輯
@@ -296,6 +301,281 @@
         </div>
       </div>
     </div>
+
+    <!-- 新增客戶模態窗口 -->
+    <div 
+      v-if="showCreateModal" 
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      @click.self="closeCreateModal"
+    >
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">新增客戶</h3>
+          <button 
+            @click="closeCreateModal"
+            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            ✕
+          </button>
+        </div>
+        
+        <form @submit.prevent="submitCreateForm" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              客戶姓名 *
+            </label>
+            <input
+              v-model="customerForm.name"
+              type="text"
+              required
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              電話 *
+            </label>
+            <input
+              v-model="customerForm.phone"
+              type="tel"
+              required
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              電子郵件
+            </label>
+            <input
+              v-model="customerForm.email"
+              type="email"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              地區
+            </label>
+            <input
+              v-model="customerForm.region"
+              type="text"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              備註
+            </label>
+            <textarea
+              v-model="customerForm.notes"
+              rows="3"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            ></textarea>
+          </div>
+          
+          <div class="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              @click="closeCreateModal"
+              class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              :disabled="creating"
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {{ creating ? '創建中...' : '創建客戶' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 編輯客戶模態窗口 -->
+    <div 
+      v-if="showEditModal" 
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      @click.self="closeEditModal"
+    >
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">編輯客戶</h3>
+          <button 
+            @click="closeEditModal"
+            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            ✕
+          </button>
+        </div>
+        
+        <form @submit.prevent="submitEditForm" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              客戶姓名 *
+            </label>
+            <input
+              v-model="customerForm.name"
+              type="text"
+              required
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              電話 *
+            </label>
+            <input
+              v-model="customerForm.phone"
+              type="tel"
+              required
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              電子郵件
+            </label>
+            <input
+              v-model="customerForm.email"
+              type="email"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              地區
+            </label>
+            <input
+              v-model="customerForm.region"
+              type="text"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              狀態
+            </label>
+            <select
+              v-model="customerForm.status"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option v-for="(label, value) in getStatusOptions()" :key="value" :value="value">
+                {{ label }}
+              </option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              備註
+            </label>
+            <textarea
+              v-model="customerForm.notes"
+              rows="3"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            ></textarea>
+          </div>
+          
+          <div class="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              @click="closeEditModal"
+              class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              :disabled="updating"
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {{ updating ? '更新中...' : '更新客戶' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 客戶詳情模態窗口 -->
+    <div 
+      v-if="showViewModal" 
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      @click.self="closeViewModal"
+    >
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">客戶詳情</h3>
+          <button 
+            @click="closeViewModal"
+            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            ✕
+          </button>
+        </div>
+        
+        <div v-if="selectedCustomer" class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">客戶姓名</label>
+              <p class="text-gray-900 dark:text-white">{{ selectedCustomer.name }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">電話</label>
+              <p class="text-gray-900 dark:text-white">{{ selectedCustomer.phone }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">電子郵件</label>
+              <p class="text-gray-900 dark:text-white">{{ selectedCustomer.email || '未提供' }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">地區</label>
+              <p class="text-gray-900 dark:text-white">{{ selectedCustomer.region || '未填寫' }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">狀態</label>
+              <span 
+                class="inline-flex px-2 py-1 text-sm font-semibold rounded-full"
+                :class="getStatusClass(selectedCustomer.status)"
+              >
+                {{ getStatusText(selectedCustomer.status) }}
+              </span>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">負責業務</label>
+              <p class="text-gray-900 dark:text-white">{{ selectedCustomer.assigned_user?.name || '未分配' }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">LINE 用戶</label>
+              <p class="text-gray-900 dark:text-white">
+                {{ selectedCustomer.line_display_name || '未綁定' }}
+                <span v-if="selectedCustomer.line_user_id" class="text-xs text-gray-500">
+                  ({{ selectedCustomer.line_user_id }})
+                </span>
+              </p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">建立時間</label>
+              <p class="text-gray-900 dark:text-white">{{ formatDate(selectedCustomer.created_at) }}</p>
+            </div>
+          </div>
+          
+          <div v-if="selectedCustomer.notes">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">備註</label>
+            <p class="text-gray-900 dark:text-white whitespace-pre-wrap">{{ selectedCustomer.notes }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -345,7 +625,13 @@ const customerStats = ref({
 // 模態窗口狀態
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
+const showViewModal = ref(false)
 const editingCustomer = ref(null)
+const selectedCustomer = ref(null)
+
+// 表單提交狀態
+const creating = ref(false)
+const updating = ref(false)
 
 // 表單數據
 const customerForm = ref({
@@ -356,7 +642,8 @@ const customerForm = ref({
   website_source: '',
   channel: '',
   notes: '',
-  assigned_to: null
+  assigned_to: null,
+  status: 'new'
 })
 
 // 載入客戶數據
@@ -503,10 +790,120 @@ const checkLineFriend = async (customer) => {
   }
 }
 
-// 監聽搜尋和篩選變化，自動重新載入數據
+// 搜尋防抖動
+let searchTimeout = null
 watch([searchQuery, statusFilter], () => {
-  loadCustomers()
-}, { debounce: 300 })
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+  }
+  searchTimeout = setTimeout(() => {
+    loadCustomers()
+  }, 300)
+})
+
+// 模態窗口控制函數
+const openCreateModal = () => {
+  // 重置表單
+  customerForm.value = {
+    name: '',
+    phone: '',
+    email: '',
+    region: '',
+    website_source: '',
+    channel: '',
+    notes: '',
+    assigned_to: null,
+    status: 'new'
+  }
+  showCreateModal.value = true
+}
+
+const closeCreateModal = () => {
+  showCreateModal.value = false
+}
+
+const openEditModal = (customer) => {
+  editingCustomer.value = customer
+  // 填充表單數據
+  customerForm.value = {
+    name: customer.name || '',
+    phone: customer.phone || '',
+    email: customer.email || '',
+    region: customer.region || '',
+    website_source: customer.website_source || '',
+    channel: customer.channel || '',
+    notes: customer.notes || '',
+    assigned_to: customer.assigned_to,
+    status: customer.status || 'new'
+  }
+  showEditModal.value = true
+}
+
+const closeEditModal = () => {
+  showEditModal.value = false
+  editingCustomer.value = null
+}
+
+const viewCustomer = (customer) => {
+  selectedCustomer.value = customer
+  showViewModal.value = true
+}
+
+const editCustomer = (customer) => {
+  openEditModal(customer)
+}
+
+const closeViewModal = () => {
+  showViewModal.value = false
+  selectedCustomer.value = null
+}
+
+// 表單提交函數
+const submitCreateForm = async () => {
+  creating.value = true
+  try {
+    const { data, error: apiError } = await createCustomer(customerForm.value)
+    
+    if (apiError) {
+      alert('創建客戶失敗：' + apiError.message)
+      return
+    }
+    
+    alert('客戶創建成功')
+    closeCreateModal()
+    loadCustomers() // 重新載入列表
+    
+  } catch (err) {
+    console.error('Create customer error:', err)
+    alert('創建客戶時發生錯誤')
+  } finally {
+    creating.value = false
+  }
+}
+
+const submitEditForm = async () => {
+  if (!editingCustomer.value) return
+  
+  updating.value = true
+  try {
+    const { data, error: apiError } = await updateCustomer(editingCustomer.value.id, customerForm.value)
+    
+    if (apiError) {
+      alert('更新客戶失敗：' + apiError.message)
+      return
+    }
+    
+    alert('客戶更新成功')
+    closeEditModal()
+    loadCustomers() // 重新載入列表
+    
+  } catch (err) {
+    console.error('Update customer error:', err)
+    alert('更新客戶時發生錯誤')
+  } finally {
+    updating.value = false
+  }
+}
 
 // 狀態樣式
 const getStatusClass = (status) => {
