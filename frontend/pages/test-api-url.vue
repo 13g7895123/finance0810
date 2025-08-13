@@ -54,9 +54,9 @@ const { apiRequest } = useApi()
 
 // 環境資訊
 const nodeEnv = process.env.NODE_ENV || 'unknown'
-const isDev = process.dev
-const isClient = process.client
-const currentHostname = process.client ? window.location.hostname : 'server-side'
+const isDev = import.meta.dev
+const isClient = import.meta.client
+const currentHostname = import.meta.client ? window.location.hostname : 'server-side'
 
 // 取得檢測到的 API URL
 const config = useRuntimeConfig()

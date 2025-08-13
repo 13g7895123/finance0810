@@ -131,14 +131,14 @@ const getErrorMessage = () => {
 // Navigation handlers
 const handleGoHome = async () => {
   try {
-    if (process.client) {
+    if (import.meta.client) {
       // 使用 window.location 代替 navigateTo 避免權限問題
       window.location.href = '/'
     }
   } catch (error) {
     console.error('Navigation error:', error)
     // 降級處理：直接使用 window.location
-    if (process.client) {
+    if (import.meta.client) {
       window.location.href = '/'
     }
   }
@@ -146,7 +146,7 @@ const handleGoHome = async () => {
 
 const handleGoBack = () => {
   try {
-    if (process.client && window.history.length > 1) {
+    if (import.meta.client && window.history.length > 1) {
       window.history.back()
     } else {
       handleGoHome()
@@ -159,7 +159,7 @@ const handleGoBack = () => {
 
 const handleRefresh = () => {
   try {
-    if (process.client) {
+    if (import.meta.client) {
       window.location.reload()
     }
   } catch (error) {

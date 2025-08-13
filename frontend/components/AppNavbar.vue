@@ -474,7 +474,7 @@ const getNotificationIcon = (iconName) => {
 // Close dropdowns when clicking outside
 onMounted(() => {
   // Only run on client to prevent hydration mismatch
-  if (process.client) {
+  if (import.meta.client) {
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.relative')) {
         showLanguage.value = false

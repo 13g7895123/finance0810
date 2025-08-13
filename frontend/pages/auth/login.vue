@@ -205,7 +205,7 @@ const handleLogin = async () => {
 
 // SweetAlert 插件檢查（開發模式）
 onMounted(() => {
-  if (process.dev && !$swal) {
+  if (import.meta.dev && !$swal) {
     console.error('SweetAlert plugin not available')
   }
 })

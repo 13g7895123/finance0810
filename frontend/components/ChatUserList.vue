@@ -101,7 +101,7 @@ defineEmits(['userSelect'])
 // 時間格式化 - 防止 hydration mismatch
 const formatTime = (timestamp) => {
   // Server-side: return static time to prevent hydration mismatch
-  if (process.server) {
+  if (import.meta.server) {
     return '幾分鐘前'
   }
   

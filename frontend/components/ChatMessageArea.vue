@@ -260,7 +260,7 @@ const getSenderName = (senderId) => {
 // 格式化訊息時間 - 防止 hydration mismatch
 const formatMessageTime = (timestamp) => {
   // Server-side: return static time to prevent hydration mismatch
-  if (process.server) {
+  if (import.meta.server) {
     return '12:00'
   }
   

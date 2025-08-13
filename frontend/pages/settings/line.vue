@@ -45,7 +45,7 @@
                 儲存設定
               </UButton>
               <!-- 調試信息 -->
-              <div class="text-xs text-gray-500" v-if="process.dev">
+              <div class="text-xs text-gray-500" v-if="$dev">
                 Debug: hasChanges = {{ hasChanges }}
               </div>
             </div>
@@ -407,7 +407,7 @@ const hasChanges = computed(() => {
   const hasFormData = hasToken || hasSecret || hasBasicId
   
   // 調試輸出（開發環境）
-  if (process.dev) {
+  if (import.meta.dev) {
     console.log('hasChanges debug:', {
       tokenValue: tokenValue.length > 10 ? tokenValue.substring(0, 10) + '...' : tokenValue,
       secretValue: secretValue.length > 10 ? secretValue.substring(0, 10) + '...' : secretValue,
@@ -599,7 +599,7 @@ const formatTime = (timestamp) => {
   if (!timestamp) return '未知'
   
   // Server-side: return static time to prevent hydration mismatch
-  if (process.server) {
+  if (import.meta.server) {
     return '2024/08/08 12:00:00'
   }
   
