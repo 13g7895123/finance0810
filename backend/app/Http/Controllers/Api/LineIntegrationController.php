@@ -145,22 +145,25 @@ class LineIntegrationController extends Controller
 
     /**
      * Get unmasked settings for internal API usage
+     * Priority: Database > Cache > Config (fallback only)
      */
     private function getUnmaskedSettings()
     {
+        // 優先從資料庫讀取用戶設定的資料
         $dbSettings = LineIntegrationSetting::getAllSettings(true);
         $cachedSettings = Cache::get('line_integration_settings', []);
         
         return [
-            'channel_access_token' => $dbSettings['channel_access_token'] ?? $cachedSettings['channel_access_token'] ?? config('services.line.channel_access_token', ''),
-            'channel_secret' => $dbSettings['channel_secret'] ?? $cachedSettings['channel_secret'] ?? config('services.line.channel_secret', ''),
-            'bot_basic_id' => $dbSettings['bot_basic_id'] ?? $cachedSettings['bot_basic_id'] ?? config('services.line.bot_basic_id', ''),
-            'auto_reply_enabled' => $dbSettings['auto_reply_enabled'] ?? $cachedSettings['auto_reply_enabled'] ?? config('services.line.auto_reply_enabled', true),
-            'default_reply_message' => $dbSettings['default_reply_message'] ?? $cachedSettings['default_reply_message'] ?? config('services.line.default_reply_message', '感謝您的訊息，專員將盡快回覆您。'),
-            'business_hours_enabled' => $dbSettings['business_hours_enabled'] ?? $cachedSettings['business_hours_enabled'] ?? config('services.line.business_hours_enabled', false),
-            'business_hours_start' => $dbSettings['business_hours_start'] ?? $cachedSettings['business_hours_start'] ?? config('services.line.business_hours_start', '09:00'),
-            'business_hours_end' => $dbSettings['business_hours_end'] ?? $cachedSettings['business_hours_end'] ?? config('services.line.business_hours_end', '18:00'),
-            'out_of_hours_message' => $dbSettings['out_of_hours_message'] ?? $cachedSettings['out_of_hours_message'] ?? config('services.line.out_of_hours_message', '目前為非營業時間'),
+            // 優先使用資料庫設定，cache作為備份，config作為最後的預設值
+            'channel_access_token' => $dbSettings['channel_access_token'] ?? $cachedSettings['channel_access_token'] ?? '',
+            'channel_secret' => $dbSettings['channel_secret'] ?? $cachedSettings['channel_secret'] ?? '',
+            'bot_basic_id' => $dbSettings['bot_basic_id'] ?? $cachedSettings['bot_basic_id'] ?? '',
+            'auto_reply_enabled' => $dbSettings['auto_reply_enabled'] ?? $cachedSettings['auto_reply_enabled'] ?? true,
+            'default_reply_message' => $dbSettings['default_reply_message'] ?? $cachedSettings['default_reply_message'] ?? '感謝您的訊息，專員將盡快回覆您。',
+            'business_hours_enabled' => $dbSettings['business_hours_enabled'] ?? $cachedSettings['business_hours_enabled'] ?? false,
+            'business_hours_start' => $dbSettings['business_hours_start'] ?? $cachedSettings['business_hours_start'] ?? '09:00',
+            'business_hours_end' => $dbSettings['business_hours_end'] ?? $cachedSettings['business_hours_end'] ?? '18:00',
+            'out_of_hours_message' => $dbSettings['out_of_hours_message'] ?? $cachedSettings['out_of_hours_message'] ?? '目前為非營業時間',
         ];
     }
 
@@ -252,13 +255,28 @@ class LineIntegrationController extends Controller
      */
     public function getBotInfo()
     {
+        // Debug token sources
+        $dbSettings = LineIntegrationSetting::getAllSettings(true);
+        $cachedSettings = Cache::get('line_integration_settings', []);
+        $configToken = config('services.line.channel_access_token');
+        
+        $tokenFromDb = $dbSettings['channel_access_token'] ?? null;
+        $tokenFromCache = $cachedSettings['channel_access_token'] ?? null;
+        
         $settings = $this->getUnmaskedSettings();
         $token = $settings['channel_access_token'];
 
-        Log::info('getBotInfo called', [
+        Log::info('getBotInfo called - detailed token debug', [
             'has_token' => !empty($token),
             'token_length' => $token ? strlen($token) : 0,
-            'settings_keys' => array_keys($settings)
+            'token_source_db' => !empty($tokenFromDb) ? 'YES (length: ' . strlen($tokenFromDb) . ')' : 'NO',
+            'token_source_cache' => !empty($tokenFromCache) ? 'YES (length: ' . strlen($tokenFromCache) . ')' : 'NO',
+            'token_source_config' => !empty($configToken) ? 'YES (length: ' . strlen($configToken) . ')' : 'NO',
+            'final_token_first_10' => $token ? substr($token, 0, 10) : null,
+            'final_token_last_10' => $token ? substr($token, -10) : null,
+            'settings_keys' => array_keys($settings),
+            'db_settings_keys' => array_keys($dbSettings),
+            'cached_settings_keys' => array_keys($cachedSettings)
         ]);
 
         if (!$token) {
@@ -266,17 +284,35 @@ class LineIntegrationController extends Controller
                 'status' => 'error',
                 'message' => '請先設定 Channel Access Token',
                 'debug_info' => [
-                    'settings' => $settings,
-                    'config_token_exists' => !empty(config('services.line.channel_access_token'))
+                    'token_from_db' => $tokenFromDb ? '[MASKED - length: ' . strlen($tokenFromDb) . ']' : null,
+                    'token_from_cache' => $tokenFromCache ? '[MASKED - length: ' . strlen($tokenFromCache) . ']' : null,
+                    'token_from_config' => $configToken ? '[MASKED - length: ' . strlen($configToken) . ']' : null,
+                    'db_settings_count' => count($dbSettings),
+                    'cache_settings_count' => count($cachedSettings)
                 ]
             ], 400);
         }
 
+        // Validate token format before making request
+        $validation = $this->validateTokenFormat($token);
+        Log::info('getBotInfo token validation', $validation);
+
         try {
             $client = new \GuzzleHttp\Client();
+            
+            // Additional logging for the actual request
+            Log::info('Making LINE API request', [
+                'url' => 'https://api.line.me/v2/bot/info',
+                'token_prefix' => substr($token, 0, 20) . '...',
+                'token_suffix' => '...' . substr($token, -20),
+                'token_validation' => $validation,
+                'has_whitespace' => strpos($token, ' ') !== false || strpos($token, "\t") !== false,
+                'has_newlines' => strpos($token, "\n") !== false || strpos($token, "\r") !== false
+            ]);
+            
             $response = $client->get('https://api.line.me/v2/bot/info', [
                 'headers' => [
-                    'Authorization' => 'Bearer ' . $token,
+                    'Authorization' => 'Bearer ' . trim($token), // Ensure no whitespace
                 ],
                 'timeout' => 10,
             ]);
@@ -295,20 +331,47 @@ class LineIntegrationController extends Controller
 
         } catch (\GuzzleHttp\Exception\ClientException $e) {
             $responseBody = '';
+            $statusCode = null;
+            
             if ($e->hasResponse()) {
                 $responseBody = $e->getResponse()->getBody()->getContents();
+                $statusCode = $e->getResponse()->getStatusCode();
             }
             
             Log::error('getBotInfo failed - Client error', [
-                'status_code' => $e->getResponse() ? $e->getResponse()->getStatusCode() : 'unknown',
+                'status_code' => $statusCode,
                 'response_body' => $responseBody,
-                'token_length' => strlen($token)
+                'token_length' => strlen($token),
+                'token_first_10' => substr($token, 0, 10),
+                'token_last_10' => substr($token, -10),
+                'request_url' => 'https://api.line.me/v2/bot/info'
             ]);
+
+            // Parse LINE API error response
+            $lineErrorMessage = null;
+            if ($responseBody) {
+                $errorData = json_decode($responseBody, true);
+                if (isset($errorData['message'])) {
+                    $lineErrorMessage = $errorData['message'];
+                }
+            }
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'LINE API 錯誤：' . ($e->getResponse() ? 'HTTP ' . $e->getResponse()->getStatusCode() : $e->getMessage()),
-                'details' => $responseBody
+                'message' => '無法取得機器人資訊：' . ($statusCode === 401 ? 
+                    'Authentication failed. Confirm that the access token in the authorization header is valid.' :
+                    ($lineErrorMessage ?: $e->getMessage())
+                ),
+                'error_details' => [
+                    'http_status' => $statusCode,
+                    'line_error' => $lineErrorMessage,
+                    'raw_response' => $responseBody,
+                    'token_debug' => [
+                        'length' => strlen($token),
+                        'format_valid' => $validation['valid'] ?? false,
+                        'validation_reason' => $validation['reason'] ?? null
+                    ]
+                ]
             ], 500);
         } catch (\Exception $e) {
             Log::error('getBotInfo failed - General error', [
@@ -320,7 +383,12 @@ class LineIntegrationController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => '無法取得機器人資訊：' . $e->getMessage(),
-                'error_type' => get_class($e)
+                'error_type' => get_class($e),
+                'error_details' => [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ]
             ], 500);
         }
     }
@@ -592,13 +660,14 @@ class LineIntegrationController extends Controller
             Log::info('Testing LINE connection', [
                 'token_length' => strlen($token),
                 'token_prefix' => substr($token, 0, 10) . '...',
+                'token_suffix' => '...' . substr($token, -10),
                 'validation' => $validation
             ]);
 
             $client = new \GuzzleHttp\Client();
             $response = $client->get('https://api.line.me/v2/bot/info', [
                 'headers' => [
-                    'Authorization' => 'Bearer ' . $token,
+                    'Authorization' => 'Bearer ' . trim($token), // Ensure no whitespace
                 ],
                 'timeout' => 10,
             ]);
