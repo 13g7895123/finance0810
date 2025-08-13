@@ -252,13 +252,23 @@ class LineIntegrationController extends Controller
      */
     public function getBotInfo()
     {
-        $settings = Cache::get('line_integration_settings', []);
-        $token = $settings['channel_access_token'] ?? config('services.line.channel_access_token');
+        $settings = $this->getUnmaskedSettings();
+        $token = $settings['channel_access_token'];
+
+        Log::info('getBotInfo called', [
+            'has_token' => !empty($token),
+            'token_length' => $token ? strlen($token) : 0,
+            'settings_keys' => array_keys($settings)
+        ]);
 
         if (!$token) {
             return response()->json([
                 'status' => 'error',
-                'message' => '請先設定 Channel Access Token'
+                'message' => '請先設定 Channel Access Token',
+                'debug_info' => [
+                    'settings' => $settings,
+                    'config_token_exists' => !empty(config('services.line.channel_access_token'))
+                ]
             ], 400);
         }
 
@@ -273,15 +283,44 @@ class LineIntegrationController extends Controller
 
             $botInfo = json_decode($response->getBody()->getContents(), true);
 
+            Log::info('getBotInfo success', [
+                'response_code' => $response->getStatusCode(),
+                'bot_info' => $botInfo
+            ]);
+
             return response()->json([
                 'status' => 'success',
                 'bot_info' => $botInfo
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            $responseBody = '';
+            if ($e->hasResponse()) {
+                $responseBody = $e->getResponse()->getBody()->getContents();
+            }
+            
+            Log::error('getBotInfo failed - Client error', [
+                'status_code' => $e->getResponse() ? $e->getResponse()->getStatusCode() : 'unknown',
+                'response_body' => $responseBody,
+                'token_length' => strlen($token)
+            ]);
+
             return response()->json([
                 'status' => 'error',
-                'message' => '無法取得機器人資訊：' . $e->getMessage()
+                'message' => 'LINE API 錯誤：' . ($e->getResponse() ? 'HTTP ' . $e->getResponse()->getStatusCode() : $e->getMessage()),
+                'details' => $responseBody
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('getBotInfo failed - General error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'token_length' => $token ? strlen($token) : 0
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => '無法取得機器人資訊：' . $e->getMessage(),
+                'error_type' => get_class($e)
             ], 500);
         }
     }
@@ -473,9 +512,9 @@ class LineIntegrationController extends Controller
      */
     private function getIntegrationStatus()
     {
-        $settings = Cache::get('line_integration_settings', []);
-        $hasToken = !empty($settings['channel_access_token']) || !empty(config('services.line.channel_access_token'));
-        $hasSecret = !empty($settings['channel_secret']) || !empty(config('services.line.channel_secret'));
+        $settings = $this->getUnmaskedSettings();
+        $hasToken = !empty($settings['channel_access_token']);
+        $hasSecret = !empty($settings['channel_secret']);
         
         if ($hasToken && $hasSecret) {
             return 'configured';
@@ -652,10 +691,11 @@ class LineIntegrationController extends Controller
     private function sendLineMessage($lineUserId, $message)
     {
         try {
-            $settings = Cache::get('line_integration_settings', []);
-            $token = $settings['channel_access_token'] ?? config('services.line.channel_access_token');
+            $settings = $this->getUnmaskedSettings();
+            $token = $settings['channel_access_token'];
 
             if (!$token) {
+                Log::warning('sendLineMessage failed: no access token');
                 return ['success' => false, 'error' => 'Access Token 未設定'];
             }
 
@@ -677,9 +717,33 @@ class LineIntegrationController extends Controller
                 'timeout' => 10,
             ]);
 
+            Log::info('sendLineMessage success', [
+                'line_user_id' => $lineUserId,
+                'response_code' => $response->getStatusCode()
+            ]);
+
             return ['success' => true, 'response_code' => $response->getStatusCode()];
 
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            $responseBody = '';
+            if ($e->hasResponse()) {
+                $responseBody = $e->getResponse()->getBody()->getContents();
+            }
+            
+            Log::error('sendLineMessage failed - Client error', [
+                'line_user_id' => $lineUserId,
+                'status_code' => $e->getResponse() ? $e->getResponse()->getStatusCode() : 'unknown',
+                'response_body' => $responseBody
+            ]);
+
+            return ['success' => false, 'error' => 'LINE API 錯誤：' . ($e->getResponse() ? 'HTTP ' . $e->getResponse()->getStatusCode() : $e->getMessage())];
         } catch (\Exception $e) {
+            Log::error('sendLineMessage failed - General error', [
+                'line_user_id' => $lineUserId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
