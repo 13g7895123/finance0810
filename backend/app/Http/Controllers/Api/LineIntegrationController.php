@@ -136,14 +136,61 @@ class LineIntegrationController extends Controller
         $settings = Cache::get('line_integration_settings', []);
         $token = $settings['channel_access_token'] ?? config('services.line.channel_access_token');
 
+        Log::info('Test connection requested', [
+            'cached_settings_exists' => !empty($settings),
+            'has_cached_token' => !empty($settings['channel_access_token']),
+            'has_config_token' => !empty(config('services.line.channel_access_token')),
+            'final_token_length' => $token ? strlen($token) : 0
+        ]);
+
         if (!$token) {
             return response()->json([
                 'status' => 'error',
-                'message' => '請先設定 Channel Access Token'
+                'message' => '請先設定 Channel Access Token',
+                'debug_info' => [
+                    'cached_settings' => $settings,
+                    'config_token_exists' => !empty(config('services.line.channel_access_token'))
+                ]
             ], 400);
         }
 
         $result = $this->testLineConnection($token);
+
+        return response()->json($result);
+    }
+
+    /**
+     * Debug LINE Bot connection with detailed information
+     */
+    public function debugConnection()
+    {
+        $settings = Cache::get('line_integration_settings', []);
+        $configToken = config('services.line.channel_access_token');
+        $token = $settings['channel_access_token'] ?? $configToken;
+
+        $debugInfo = [
+            'cache_settings' => $settings,
+            'config_token_exists' => !empty($configToken),
+            'config_token_length' => $configToken ? strlen($configToken) : 0,
+            'final_token_exists' => !empty($token),
+            'final_token_length' => $token ? strlen($token) : 0,
+            'php_version' => PHP_VERSION,
+            'guzzle_exists' => class_exists('\GuzzleHttp\Client'),
+            'cache_driver' => config('cache.default'),
+            'app_env' => config('app.env')
+        ];
+
+        if (!$token) {
+            return response()->json([
+                'status' => 'error',
+                'message' => '無法找到 Channel Access Token',
+                'debug_info' => $debugInfo
+            ]);
+        }
+
+        // Test the connection with detailed error reporting
+        $result = $this->testLineConnection($token);
+        $result['debug_info'] = $debugInfo;
 
         return response()->json($result);
     }
@@ -388,11 +435,49 @@ class LineIntegrationController extends Controller
     }
 
     /**
+     * Validate LINE token format
+     */
+    private function validateTokenFormat($token)
+    {
+        // LINE Channel Access Token format validation
+        if (empty($token)) {
+            return ['valid' => false, 'reason' => 'Token is empty'];
+        }
+        
+        if (strlen($token) < 100) {
+            return ['valid' => false, 'reason' => 'Token too short (should be >100 characters)'];
+        }
+        
+        // Basic format check - LINE tokens usually contain alphanumeric and some special chars
+        if (!preg_match('/^[a-zA-Z0-9+\/=]+$/', $token)) {
+            return ['valid' => false, 'reason' => 'Token contains invalid characters'];
+        }
+        
+        return ['valid' => true, 'reason' => 'Token format appears valid'];
+    }
+
+    /**
      * Test LINE connection
      */
     private function testLineConnection($token)
     {
+        // First validate token format
+        $validation = $this->validateTokenFormat($token);
+        if (!$validation['valid']) {
+            return [
+                'status' => 'error',
+                'message' => 'Token 格式錯誤：' . $validation['reason'],
+                'validation' => $validation
+            ];
+        }
+
         try {
+            Log::info('Testing LINE connection', [
+                'token_length' => strlen($token),
+                'token_prefix' => substr($token, 0, 10) . '...',
+                'validation' => $validation
+            ]);
+
             $client = new \GuzzleHttp\Client();
             $response = $client->get('https://api.line.me/v2/bot/info', [
                 'headers' => [
@@ -401,22 +486,60 @@ class LineIntegrationController extends Controller
                 'timeout' => 10,
             ]);
 
+            $responseData = json_decode($response->getBody()->getContents(), true);
+            
+            Log::info('LINE connection test successful', [
+                'response_code' => $response->getStatusCode(),
+                'bot_info' => $responseData
+            ]);
+
             return [
                 'status' => 'success',
                 'message' => 'LINE Bot 連線測試成功',
-                'response_code' => $response->getStatusCode()
+                'response_code' => $response->getStatusCode(),
+                'bot_info' => $responseData
             ];
 
         } catch (\GuzzleHttp\Exception\ClientException $e) {
+            $responseBody = '';
+            if ($e->hasResponse()) {
+                $responseBody = $e->getResponse()->getBody()->getContents();
+            }
+            
+            Log::error('LINE connection test failed - Client error', [
+                'status_code' => $e->getResponse() ? $e->getResponse()->getStatusCode() : 'unknown',
+                'response_body' => $responseBody,
+                'token_length' => strlen($token)
+            ]);
+
             return [
                 'status' => 'error',
-                'message' => 'LINE Bot 連線失敗：權限驗證錯誤',
-                'response_code' => $e->getResponse()->getStatusCode()
+                'message' => 'LINE Bot 連線失敗：權限驗證錯誤 (HTTP ' . ($e->getResponse() ? $e->getResponse()->getStatusCode() : 'unknown') . ')',
+                'response_code' => $e->getResponse() ? $e->getResponse()->getStatusCode() : null,
+                'details' => $responseBody
+            ];
+        } catch (\GuzzleHttp\Exception\RequestException $e) {
+            Log::error('LINE connection test failed - Request error', [
+                'error' => $e->getMessage(),
+                'token_length' => strlen($token)
+            ]);
+
+            return [
+                'status' => 'error',
+                'message' => 'LINE Bot 連線失敗：網路連線錯誤 - ' . $e->getMessage(),
+                'details' => $e->getMessage()
             ];
         } catch (\Exception $e) {
+            Log::error('LINE connection test failed - General error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'token_length' => strlen($token)
+            ]);
+
             return [
                 'status' => 'error',
-                'message' => 'LINE Bot 連線失敗：' . $e->getMessage()
+                'message' => 'LINE Bot 連線失敗：' . $e->getMessage(),
+                'details' => $e->getMessage()
             ];
         }
     }

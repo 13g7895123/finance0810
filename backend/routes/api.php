@@ -122,6 +122,7 @@ Route::middleware(['auth:api'])->group(function () {
             Route::get('/settings', [LineIntegrationController::class, 'getSettings']);
             Route::post('/settings', [LineIntegrationController::class, 'updateSettings']);
             Route::post('/test-connection', [LineIntegrationController::class, 'testConnection']);
+            Route::get('/debug-connection', [LineIntegrationController::class, 'debugConnection']);
             Route::get('/bot-info', [LineIntegrationController::class, 'getBotInfo']);
             Route::get('/stats', [LineIntegrationController::class, 'getStats']);
             Route::get('/recent-conversations', [LineIntegrationController::class, 'getRecentConversations']);
