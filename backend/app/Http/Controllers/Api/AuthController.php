@@ -66,7 +66,7 @@ class AuthController extends Controller
         // 根據環境設定 domain 和 sameSite
         $isProduction = app()->environment('production');
         $domain = $isProduction ? '.mercylife.cc' : null; // 生產環境使用子域名通用設定
-        $sameSite = $isProduction ? 'Lax' : 'None'; // 生產環境使用 Lax，開發環境使用 None
+        $sameSite = 'Lax';
         
         $cookie = cookie(
             'auth-token',           // cookie 名稱
