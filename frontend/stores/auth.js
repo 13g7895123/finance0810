@@ -92,8 +92,7 @@ export const useAuthStore = defineStore('auth', () => {
         console.log('設定後的 user.value:', user.value)
         console.log('設定後的 isLoggedIn:', !!user.value)
         
-        // 使用 HTTP-Only Cookie 儲存 token（後端已設定）
-        // 只需儲存用戶資料到 sessionStorage（較安全）
+        // 儲存包含 JWT token 的用戶資料到 sessionStorage
         if (process.client) {
           sessionStorage.setItem('user-profile', JSON.stringify({
             id: userData.id,
@@ -101,11 +100,13 @@ export const useAuthStore = defineStore('auth', () => {
             email: userData.email,
             name: userData.name,
             roles: userData.roles,
+            permissions: userData.permissions,
             is_admin: userData.is_admin,
-            is_manager: userData.is_manager
+            is_manager: userData.is_manager,
+            token: userData.token  // 儲存 JWT token
           }))
         }
-        console.log('登入成功，使用 HTTP-Only Cookie + SessionStorage')
+        console.log('登入成功，使用 JWT Token + SessionStorage')
         
         return { success: true, user: userData }
       } else {
@@ -202,15 +203,25 @@ export const useAuthStore = defineStore('auth', () => {
         if (storedProfile) {
           try {
             const userProfile = JSON.parse(storedProfile)
-            // 驗證 cookie 中是否有有效 token（通過 API 呼叫測試）
+            
+            // 檢查是否有 JWT token
+            if (!userProfile.token) {
+              console.log('No JWT token found in stored profile')
+              sessionStorage.removeItem('user-profile')
+              user.value = null
+              return false
+            }
+            
+            // 驗證 JWT token 是否有效（通過 API 呼叫測試）
             try {
               const { get } = useApi()
               const { data: userData, error } = await get('/auth/me')
               
               if (!error && userData?.user) {
-                // Token 有效，恢復用戶狀態
+                // Token 有效，恢復用戶狀態，保留 token
                 user.value = {
                   ...userData.user,
+                  token: userProfile.token,  // 保留原始 token
                   role: Array.isArray(userData.user.roles) 
                     ? userData.user.roles[0] 
                     : (userData.user.roles && userData.user.roles[0]) || null
@@ -219,6 +230,7 @@ export const useAuthStore = defineStore('auth', () => {
                 return true // 成功恢復登入狀態
               } else {
                 // Token 無效，清除資料
+                console.log('JWT token is invalid')
                 sessionStorage.removeItem('user-profile')
                 user.value = null
                 return false

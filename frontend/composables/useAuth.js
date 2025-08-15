@@ -17,9 +17,13 @@ export const useAuth = () => {
       return { success: false, error }
     }
 
-    // 登入成功，保存用戶資料到 sessionStorage
-    if (process.client && data.user) {
-      sessionStorage.setItem('user-profile', JSON.stringify(data.user))
+    // 登入成功，保存用戶資料和 JWT token 到 sessionStorage
+    if (process.client && data.user && data.access_token) {
+      const userWithToken = {
+        ...data.user,
+        token: data.access_token
+      }
+      sessionStorage.setItem('user-profile', JSON.stringify(userWithToken))
     }
 
     return { 
@@ -61,9 +65,24 @@ export const useAuth = () => {
       return { success: false, error, user: null }
     }
 
-    // 更新本地儲存的用戶資料
+    // 更新本地儲存的用戶資料，保留現有的 token
     if (process.client && data.user) {
-      sessionStorage.setItem('user-profile', JSON.stringify(data.user))
+      const currentProfile = sessionStorage.getItem('user-profile')
+      let token = null
+      if (currentProfile) {
+        try {
+          const parsed = JSON.parse(currentProfile)
+          token = parsed.token
+        } catch (e) {
+          console.error('Failed to parse current profile:', e)
+        }
+      }
+      
+      const updatedProfile = {
+        ...data.user,
+        ...(token ? { token } : {})
+      }
+      sessionStorage.setItem('user-profile', JSON.stringify(updatedProfile))
     }
 
     return { success: true, user: data.user }
@@ -79,9 +98,24 @@ export const useAuth = () => {
       return { success: false, error }
     }
 
-    // 更新本地儲存的用戶資料
+    // 更新本地儲存的用戶資料，保留現有的 token
     if (process.client && data.user) {
-      sessionStorage.setItem('user-profile', JSON.stringify(data.user))
+      const currentProfile = sessionStorage.getItem('user-profile')
+      let token = null
+      if (currentProfile) {
+        try {
+          const parsed = JSON.parse(currentProfile)
+          token = parsed.token
+        } catch (e) {
+          console.error('Failed to parse current profile:', e)
+        }
+      }
+      
+      const updatedProfile = {
+        ...data.user,
+        ...(token ? { token } : {})
+      }
+      sessionStorage.setItem('user-profile', JSON.stringify(updatedProfile))
     }
 
     return { 
@@ -99,6 +133,15 @@ export const useAuth = () => {
     
     if (error) {
       return { success: false, error }
+    }
+
+    // 更新本地儲存的 token 和用戶資料
+    if (process.client && data.access_token && data.user) {
+      const userWithToken = {
+        ...data.user,
+        token: data.access_token
+      }
+      sessionStorage.setItem('user-profile', JSON.stringify(userWithToken))
     }
 
     return { 

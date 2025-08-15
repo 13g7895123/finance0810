@@ -34,6 +34,20 @@ export const useApi = () => {
    * 通用API請求方法
    */
   const apiRequest = async (method, endpoint, data = null, options = {}) => {
+    // 獲取 JWT token
+    let token = null
+    if (process.client) {
+      const userProfile = sessionStorage.getItem('user-profile')
+      if (userProfile) {
+        try {
+          const parsedProfile = JSON.parse(userProfile)
+          token = parsedProfile.token
+        } catch (error) {
+          console.error('Failed to parse user profile:', error)
+        }
+      }
+    }
+
     // Define requestOptions outside try block so it's accessible in catch
     const requestOptions = {
       method: method.toUpperCase(),
@@ -41,9 +55,9 @@ export const useApi = () => {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         ...options.headers
       },
-      credentials: 'include', // 允許發送 HTTP-Only Cookie
       ...options
     }
 
