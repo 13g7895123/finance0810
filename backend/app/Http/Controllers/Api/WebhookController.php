@@ -15,7 +15,7 @@ class WebhookController extends Controller
     public function wp(Request $request)
     {
         /**
-         * monk curl -X POST "http://localhost:9221/api/webhook/wp" \
+         * mock curl -X POST "http://localhost:9221/api/webhook/wp" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "姓名=我你媽" \
   --data-urlencode "手機號碼=0908121645" \

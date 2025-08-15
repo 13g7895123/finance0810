@@ -153,6 +153,80 @@ class AuthController extends Controller
     }
 
     /**
+     * Update the authenticated user's profile.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function updateProfile(Request $request)
+    {
+        $user = Auth::user();
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'sometimes|string|between:2,100',
+            'email' => 'sometimes|string|email|max:100|unique:users,email,' . $user->id,
+            'phone' => 'nullable|string|max:20',
+            'current_password' => 'required_with:password|string',
+            'password' => 'nullable|string|min:6|confirmed',
+        ], [
+            'name.required' => '請輸入姓名',
+            'email.unique' => '電子郵件已被使用',
+            'current_password.required_with' => '更改密碼時需要輸入當前密碼',
+            'password.min' => '新密碼至少需要6個字元',
+            'password.confirmed' => '新密碼確認不符合',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $updateData = [];
+
+        // 更新基本資料
+        if ($request->has('name')) {
+            $updateData['name'] = $request->name;
+        }
+        if ($request->has('email')) {
+            $updateData['email'] = $request->email;
+        }
+        if ($request->has('phone')) {
+            $updateData['phone'] = $request->phone;
+        }
+
+        // 處理密碼更新
+        if ($request->filled('password')) {
+            // 驗證當前密碼
+            if (!Hash::check($request->current_password, $user->password)) {
+                return response()->json([
+                    'errors' => ['current_password' => ['當前密碼不正確']]
+                ], 422);
+            }
+            
+            $updateData['password'] = Hash::make($request->password);
+            $updateData['password_changed_at'] = now();
+        }
+
+        // 更新用戶資料
+        $user->update($updateData);
+
+        return response()->json([
+            'message' => '個人資料更新成功',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'username' => $user->username,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'avatar' => $user->avatar,
+                'status' => $user->status,
+                'roles' => $user->getRoleNames(),
+                'permissions' => $user->getAllPermissions()->pluck('name'),
+                'last_login_at' => $user->last_login_at,
+                'preferences' => $user->preferences,
+            ]
+        ]);
+    }
+
+    /**
      * Log the user out (Invalidate the token).
      *
      * @return \Illuminate\Http\JsonResponse

@@ -12,7 +12,10 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\WebhookController;
+use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\LineIntegrationController;
+use App\Http\Controllers\Api\CaseController;
+use App\Http\Controllers\Api\BankRecordController;
 
 /*
 |--------------------------------------------------------------------------
@@ -53,6 +56,7 @@ Route::middleware(['auth:api'])->group(function () {
     // Authentication
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
     
     // Dashboard - Available to all authenticated users
     Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
@@ -66,6 +70,7 @@ Route::middleware(['auth:api'])->group(function () {
     Route::post('/customers/{customer}/status', [CustomerController::class, 'updateStatus']);
     Route::post('/customers/{customer}/assign', [CustomerController::class, 'assignToUser']);
     Route::get('/customers/{customer}/history', [CustomerController::class, 'getHistory']);
+    Route::get('/customers/submittable', [CustomerController::class, 'submittable']);
     
     // LINE Integration for Customers
     Route::post('/customers/{customer}/line/link', [CustomerController::class, 'linkLineUser']);
@@ -108,6 +113,23 @@ Route::middleware(['auth:api'])->group(function () {
         Route::delete('/roles/{role}/permissions/{permissionName}', [PermissionController::class, 'removePermissionFromRole']);
     });
     
+    // Leads (pending cases)
+    Route::get('/leads', [LeadController::class, 'index']);
+    Route::get('/leads/{lead}', [LeadController::class, 'show']);
+    Route::put('/leads/{lead}', [LeadController::class, 'update']);
+    Route::delete('/leads/{lead}', [LeadController::class, 'destroy']);
+
+    // Cases
+    Route::get('/cases', [CaseController::class, 'index']);
+    Route::get('/cases/{case}', [CaseController::class, 'show']);
+    Route::put('/cases/{case}', [CaseController::class, 'update']);
+    Route::post('/customers/{customer}/cases', [CaseController::class, 'storeForCustomer']);
+
+    // Bank Records (for negotiated cases view)
+    Route::get('/bank-records', [BankRecordController::class, 'index']);
+    Route::post('/bank-records', [BankRecordController::class, 'store']);
+    Route::put('/bank-records/{record}', [BankRecordController::class, 'update']);
+
     // Reports (Manager, Admin and Executive only)
     Route::middleware(['role:admin|executive|manager'])->group(function () {
         Route::get('/reports/daily', [ReportController::class, 'dailyReport']);

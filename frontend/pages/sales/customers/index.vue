@@ -19,6 +19,87 @@
           <PlusIcon class="w-5 h-5" />
           <span>新增客戶</span>
         </button>
+        <UModal v-model="createModalOpen">
+          <CustomerForm :model-value="editing || {}" @save="handleSave" @cancel="closeCreateModal" />
+        </UModal>
+        
+        <!-- Blacklist Modal -->
+        <UModal v-model="blacklistModalOpen">
+          <div class="p-4 space-y-4">
+            <h3 class="text-lg font-semibold">{{ blacklistMode === 'report' ? '提報疑似黑名單' : (blacklistMode === 'approve' ? '黑名單審核' : '切換隱藏狀態') }}</h3>
+            <div v-if="blacklistTarget" class="space-y-3">
+              <div class="text-sm text-gray-600 dark:text-gray-300">
+                目標客戶：<span class="font-medium">{{ blacklistTarget.name }}</span>（#{{ blacklistTarget.id }}）
+              </div>
+              
+              <!-- 黑名單歷程摘要 -->
+              <div class="p-3 bg-gray-50 dark:bg-gray-700 rounded border">
+                <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-2">當前黑名單狀態</h4>
+                <div class="space-y-1 text-xs text-gray-600 dark:text-gray-300">
+                  <div class="flex justify-between">
+                    <span>狀態：</span>
+                    <span class="font-medium" :class="{
+                      'text-red-600': blacklistTarget.is_blacklisted,
+                      'text-yellow-600': blacklistTarget.blacklist_status === 'pending_review',
+                      'text-orange-600': blacklistTarget.blacklist_status === 'suspected',
+                      'text-green-600': blacklistTarget.blacklist_status === 'cleared'
+                    }">
+                      {{ getBlacklistStatusText(blacklistTarget) }}
+                    </span>
+                  </div>
+                  <div v-if="blacklistTarget.blacklist_reason" class="flex justify-between">
+                    <span>原因：</span>
+                    <span class="font-medium">{{ blacklistTarget.blacklist_reason }}</span>
+                  </div>
+                  <div v-if="blacklistTarget.blacklist_reported_at" class="flex justify-between">
+                    <span>提報時間：</span>
+                    <span>{{ formatDateTime(blacklistTarget.blacklist_reported_at) }}</span>
+                  </div>
+                  <div v-if="blacklistTarget.blacklist_approved_at" class="flex justify-between">
+                    <span>審核時間：</span>
+                    <span>{{ formatDateTime(blacklistTarget.blacklist_approved_at) }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span>是否隱藏：</span>
+                    <span class="font-medium">{{ blacklistTarget.is_hidden ? '是' : '否' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div v-if="blacklistMode === 'report'" class="space-y-3">
+              <label class="block text-sm">提報原因</label>
+              <textarea v-model="blacklistForm.reason" rows="3" class="w-full px-3 py-2 border rounded"></textarea>
+              <div class="flex items-center space-x-2">
+                <input id="bl-hide" type="checkbox" v-model="blacklistForm.hide" />
+                <label for="bl-hide" class="text-sm">提報後隱藏於清單</label>
+              </div>
+            </div>
+
+            <div v-else-if="blacklistMode === 'approve'" class="space-y-3">
+              <label class="block text-sm">審核決定</label>
+              <select v-model="blacklistForm.decision" class="w-full px-3 py-2 border rounded">
+                <option value="approve">核准列入黑名單</option>
+                <option value="reject">駁回</option>
+              </select>
+              <label class="block text-sm">審核理由（可選）</label>
+              <textarea v-model="blacklistForm.reason" rows="2" class="w-full px-3 py-2 border rounded"></textarea>
+              <div class="flex items-center space-x-2">
+                <input id="bl-hide-approve" type="checkbox" v-model="blacklistForm.hide" />
+                <label for="bl-hide-approve" class="text-sm">隱藏於清單</label>
+              </div>
+            </div>
+
+            <div v-else class="text-sm text-gray-600 dark:text-gray-300">
+              是否切換此客戶的黑名單隱藏狀態（目前：{{ blacklistTarget?.is_hidden ? '隱藏' : '顯示' }}）？
+            </div>
+
+            <div class="flex justify-end space-x-2 pt-2">
+              <UButton variant="soft" @click="blacklistModalOpen = false">取消</UButton>
+              <UButton color="primary" :loading="blacklistSaving" @click="submitBlacklist">確定</UButton>
+            </div>
+          </div>
+        </UModal>
       </div>
     </div>
 
@@ -105,8 +186,8 @@
         </div>
         
         <!-- Error state -->
-        <div v-else-if="error" class="p-8 text-center">
-          <p class="text-red-600 dark:text-red-400">{{ error }}</p>
+        <div v-else-if="loadError" class="p-8 text-center">
+          <p class="text-red-600 dark:text-red-400">{{ loadError }}</p>
           <button 
             @click="loadCustomers"
             class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -123,10 +204,16 @@
                 客戶資訊
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                黑名單
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 聯絡方式
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 狀態
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                案件狀態
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 LINE 狀態
@@ -169,6 +256,20 @@
               </td>
               
               <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm">
+                  <span v-if="customer.is_blacklisted" class="px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">已列入</span>
+                  <span v-else-if="customer.blacklist_status === 'pending_review'" class="px-2 py-1 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300">待審</span>
+                  <span v-else-if="customer.blacklist_status === 'suspected'" class="px-2 py-1 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">疑似</span>
+                  <span v-else-if="customer.blacklist_status === 'cleared'" class="px-2 py-1 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">已清除</span>
+                  <span v-else class="px-2 py-1 rounded bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">-</span>
+                </div>
+                <div class="mt-2 flex items-center space-x-2">
+                  <UButton size="xs" color="orange" variant="soft" @click="openReportBlacklist(customer)">提報</UButton>
+                  <UButton size="xs" color="green" variant="soft" :disabled="!authStore.isAdmin && !authStore.isManager && !authStore.isExecutive" @click="approveBlacklist(customer)">核准</UButton>
+                  <UButton size="xs" color="gray" variant="soft" :disabled="!authStore.isAdmin && !authStore.isManager && !authStore.isExecutive" @click="toggleHideBlacklist(customer)">{{ customer.is_hidden ? '顯示' : '隱藏' }}</UButton>
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-base text-gray-900 dark:text-white">{{ customer.email }}</div>
                 <div class="text-base text-gray-500 dark:text-gray-400">{{ customer.phone }}</div>
               </td>
@@ -180,6 +281,14 @@
                 >
                   {{ getStatusText(customer.status) }}
                 </span>
+              </td>
+              
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span v-if="customer.case_status" class="inline-flex px-2 py-1 text-xs font-semibold rounded-full" 
+                      :class="getCaseStatusClass(customer.case_status)">
+                  {{ getCaseStatusText(customer.case_status) }}
+                </span>
+                <span v-else class="text-xs text-gray-400">無案件</span>
               </td>
               
               <td class="px-6 py-4 whitespace-nowrap">
@@ -590,6 +699,7 @@ import {
 
 // 明確匯入 StatsCard 組件
 import StatsCard from '~/components/StatsCard.vue'
+import CustomerForm from '~/components/CustomerForm.vue'
 
 definePageMeta({
   middleware: ['auth', 'role']
@@ -602,7 +712,11 @@ const {
   getStatusOptions,
   createCustomer,
   updateCustomer,
-  deleteCustomer
+  deleteCustomer,
+  // blacklist
+  blacklistReport,
+  blacklistApprove,
+  blacklistToggleHide
 } = useCustomers()
 
 // 搜尋和篩選
@@ -611,7 +725,7 @@ const statusFilter = ref('')
 
 // 載入狀態
 const loading = ref(false)
-const error = ref(null)
+const loadError = ref(null)
 
 // 客戶數據
 const customers = ref([])
@@ -633,6 +747,96 @@ const selectedCustomer = ref(null)
 const creating = ref(false)
 const updating = ref(false)
 
+// 黑名單操作（改為彈窗）
+const blacklistModalOpen = ref(false)
+const blacklistMode = ref('report') // report | approve | toggle
+const blacklistTarget = ref(null)
+const blacklistSaving = ref(false)
+const blacklistForm = reactive({ reason: '', decision: 'approve', hide: true })
+
+const openReportBlacklist = (customer) => {
+  blacklistMode.value = 'report'
+  blacklistTarget.value = customer
+  Object.assign(blacklistForm, { reason: '', decision: 'approve', hide: true })
+  blacklistModalOpen.value = true
+}
+
+const approveBlacklist = (customer) => {
+  blacklistMode.value = 'approve'
+  blacklistTarget.value = customer
+  Object.assign(blacklistForm, { reason: '', decision: 'approve', hide: true })
+  blacklistModalOpen.value = true
+}
+  const decision = confirm('核准列入黑名單？按 確認=核准 / 取消=駁回') ? 'approve' : 'reject'
+  const reason = prompt('請輸入審核理由（可選）：')
+  const { error: blacklistError } = await blacklistApprove(customer.id, { decision, reason, hide: true })
+  if (!blacklistError) {
+    await loadCustomers()
+  }
+
+const toggleHideBlacklist = async (customer) => {
+  const { error: toggleError } = await blacklistToggleHide(customer.id)
+  if (!toggleError) {
+    await loadCustomers()
+  }
+}
+
+const getBlacklistStatusText = (customer) => {
+  if (customer.is_blacklisted) return '已列入黑名單'
+  switch (customer.blacklist_status) {
+    case 'pending_review': return '待審核'
+    case 'suspected': return '疑似黑名單'
+    case 'cleared': return '已清除'
+    default: return '無'
+  }
+}
+
+const formatDateTime = (d) => {
+  if (!d) return ''
+  return new Date(d).toLocaleString('zh-TW', { 
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  })
+}
+
+const getCaseStatusText = (status) => {
+  switch (status) {
+    case 'submitted': return '已送件'
+    case 'approved': return '已核准'
+    case 'rejected': return '已婉拒'
+    case 'disbursed': return '已撥款'
+    default: return status
+  }
+}
+
+const getCaseStatusClass = (status) => {
+  switch (status) {
+    case 'submitted': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+    case 'approved': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+    case 'rejected': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+    case 'disbursed': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+    default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300'
+  }
+}
+
+const submitBlacklist = async () => {
+  if (!blacklistTarget.value) return
+  blacklistSaving.value = true
+  let resp
+  if (blacklistMode.value === 'report') {
+    resp = await blacklistReport(blacklistTarget.value.id, { action: 'suspect', reason: blacklistForm.reason, hide: !!blacklistForm.hide })
+  } else if (blacklistMode.value === 'approve') {
+    resp = await blacklistApprove(blacklistTarget.value.id, { decision: blacklistForm.decision, reason: blacklistForm.reason || undefined, hide: !!blacklistForm.hide })
+  } else {
+    resp = await blacklistToggleHide(blacklistTarget.value.id)
+  }
+  blacklistSaving.value = false
+  if (!resp?.error) {
+    blacklistModalOpen.value = false
+    await loadCustomers()
+  }
+}
+
 // 表單數據
 const customerForm = ref({
   name: '',
@@ -649,7 +853,7 @@ const customerForm = ref({
 // 載入客戶數據
 const loadCustomers = async () => {
   loading.value = true
-  error.value = null
+  loadError.value = null
   
   try {
     const params = {}
@@ -667,7 +871,7 @@ const loadCustomers = async () => {
     const { data, error: apiError } = await getCustomers(params)
     
     if (apiError) {
-      error.value = apiError.message
+      loadError.value = apiError.message
       return
     }
     
@@ -687,7 +891,7 @@ const loadCustomers = async () => {
     }
     
   } catch (err) {
-    error.value = '載入客戶數據失敗'
+    loadError.value = '載入客戶數據失敗'
     console.error('Load customers error:', err)
   } finally {
     loading.value = false

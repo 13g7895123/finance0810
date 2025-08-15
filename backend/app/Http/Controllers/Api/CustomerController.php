@@ -10,6 +10,8 @@ use App\Models\Customer;
 use App\Models\CustomerActivity;
 use App\Models\User;
 
+use Illuminate\Support\Facades\DB;
+
 class CustomerController extends Controller
 {
     public function __construct()
@@ -313,6 +315,32 @@ class CustomerController extends Controller
     /**
      * Update customer status.
      */
+    public function submittable(Request $request)
+    {
+        $user = Auth::user();
+        $query = Customer::query()
+            ->whereNull('case_status')
+            ->whereIn('status', [Customer::STATUS_INTERESTED, Customer::STATUS_CONTACTED]);
+
+        // Staff 僅能看到自己的客戶
+        if ($user->isStaff()) {
+            $query->where('assigned_to', $user->id);
+        }
+
+        if ($request->has('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('name', 'like', "%$s%")
+                  ->orWhere('phone', 'like', "%$s%")
+                  ->orWhere('email', 'like', "%$s%\");
+            });
+        }
+
+        $perPage = (int)($request->get('per_page', 15));
+        $customers = $query->orderByDesc('created_at')->paginate($perPage);
+        return response()->json($customers);
+    }
+
     public function updateStatus(Request $request, Customer $customer)
     {
         $validator = Validator::make($request->all(), [

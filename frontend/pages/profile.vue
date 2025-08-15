@@ -214,12 +214,58 @@ const isUpdating = ref(false)
 const updateProfile = async () => {
   isUpdating.value = true
   try {
-    // TODO: 實際的 API 調用
-    await new Promise(resolve => setTimeout(resolve, 1000)) // 模擬 API 延遲
+    const { put } = useApi()
     
-    // 模擬成功更新
-    console.log('Profile updated:', profileForm.value)
-    console.log('Password updated:', passwordForm.value)
+    // 準備更新資料
+    const updateData = {
+      name: profileForm.value.name,
+      email: profileForm.value.email,
+      phone: profileForm.value.phone
+    }
+    
+    // 如果有密碼更新，加入密碼資料
+    if (passwordForm.value.new_password) {
+      if (passwordForm.value.new_password !== passwordForm.value.new_password_confirmation) {
+        alert('新密碼與確認密碼不符')
+        return
+      }
+      
+      updateData.current_password = passwordForm.value.current_password
+      updateData.password = passwordForm.value.new_password
+      updateData.password_confirmation = passwordForm.value.new_password_confirmation
+    }
+    
+    // 使用專門的個人資料更新 API
+    const { data, error } = await put('/auth/profile', updateData)
+    
+    if (error) {
+      console.error('Update failed:', error)
+      
+      // 處理表單驗證錯誤
+      if (error.errors) {
+        let errorMessage = '表單驗證失敗：\n'
+        Object.keys(error.errors).forEach(field => {
+          errorMessage += `${error.errors[field].join(', ')}\n`
+        })
+        alert(errorMessage)
+      } else {
+        alert(error.message || '更新失敗，請重試')
+      }
+      return
+    }
+    
+    // 更新成功，刷新用戶資料
+    if (data && data.user) {
+      // 更新本地用戶資料
+      Object.assign(userInfo.value, data.user)
+      
+      // 更新表單資料
+      profileForm.value = {
+        name: data.user.name,
+        email: data.user.email,
+        phone: data.user.phone
+      }
+    }
     
     // 清除密碼欄位
     passwordForm.value = {
@@ -230,6 +276,7 @@ const updateProfile = async () => {
     
     // 顯示成功訊息
     alert('個人資料更新成功！')
+    
   } catch (error) {
     console.error('Update failed:', error)
     alert('更新失敗，請重試')
