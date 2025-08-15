@@ -120,14 +120,6 @@
               <label class="block text-sm mb-1">網站來源</label>
               <input v-model="form.source" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
             </div>
-            <div class="md:col-span-2 flex items-center space-x-2">
-              <input id="suspect" type="checkbox" v-model="form.is_suspected_blacklist" />
-              <label for="suspect" class="text-sm">疑似黑名單</label>
-            </div>
-            <div class="md:col-span-2" v-if="form.is_suspected_blacklist">
-              <label class="block text-sm mb-1">疑似原因</label>
-              <textarea v-model="form.suspected_reason" rows="2" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"></textarea>
-            </div>
           </div>
           <div class="flex justify-end space-x-3 pt-2">
             <button type="button" class="px-4 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" @click="closeEdit">取消</button>
