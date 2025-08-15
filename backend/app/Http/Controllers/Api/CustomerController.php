@@ -332,7 +332,7 @@ class CustomerController extends Controller
             $query->where(function ($q) use ($s) {
                 $q->where('name', 'like', "%$s%")
                   ->orWhere('phone', 'like', "%$s%")
-                  ->orWhere('email', 'like', "%$s%\");
+                  ->orWhere('email', 'like', "%$s%");
             });
         }
 
