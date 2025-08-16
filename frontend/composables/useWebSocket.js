@@ -20,6 +20,7 @@ export const useWebSocket = () => {
     // 檢測當前環境
     const isProduction = !import.meta.dev
     const currentHost = process.client ? window.location.hostname : 'localhost'
+    const isHTTPS = process.client ? window.location.protocol === 'https:' : false
     
     if (isProduction || currentHost !== 'localhost') {
       // 生產環境或非本地開發環境
@@ -27,11 +28,11 @@ export const useWebSocket = () => {
         key: 'laravel-websockets-key',
         cluster: 'mt1',
         wsHost: currentHost,
-        wsPort: 6001,
-        forceTLS: false,
-        encrypted: false,
+        wsPort: isHTTPS ? 443 : 6001,
+        forceTLS: isHTTPS,
+        encrypted: isHTTPS,
         disableStats: true,
-        enabledTransports: ['ws', 'wss'],
+        enabledTransports: isHTTPS ? ['wss'] : ['ws'],
       }
     } else {
       // 本地開發環境
@@ -43,7 +44,7 @@ export const useWebSocket = () => {
         forceTLS: false,
         encrypted: false,
         disableStats: true,
-        enabledTransports: ['ws', 'wss'],
+        enabledTransports: ['ws'],
       }
     }
   }

@@ -15,7 +15,9 @@
                   {
                     'bg-green-400': chatConnectionStatus === 'connected',
                     'bg-yellow-400': chatConnectionStatus === 'connecting',
-                    'bg-red-400': chatConnectionStatus === 'failed' || chatConnectionStatus === 'disconnected'
+                    'bg-blue-400': chatConnectionStatus === 'ready',
+                    'bg-red-400': chatConnectionStatus === 'failed',
+                    'bg-gray-400': chatConnectionStatus === 'disconnected'
                   }
                 ]"
               ></div>
@@ -23,6 +25,7 @@
                 {{ 
                   chatConnectionStatus === 'connected' ? '實時' : 
                   chatConnectionStatus === 'connecting' ? '連線中' :
+                  chatConnectionStatus === 'ready' ? '準備' :
                   chatConnectionStatus === 'failed' ? '連線失敗' : '離線'
                 }}
               </span>
@@ -85,14 +88,8 @@
 
       <!-- 用戶列表 -->
       <div class="flex-1 overflow-y-auto custom-scrollbar-left">
-        <!-- 聊天室初始化載入狀態 -->
-        <div v-if="initializingChat && chatConnectionStatus === 'connecting'" class="p-4 text-center">
-          <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
-          <p class="text-sm text-gray-500">正在初始化聊天室...</p>
-        </div>
-        
         <!-- 搜尋中載入狀態 -->
-        <div v-else-if="isSearching" class="p-4 text-center">
+        <div v-if="isSearching" class="p-4 text-center">
           <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
           <p class="text-sm text-gray-500">搜尋中...</p>
         </div>
@@ -196,7 +193,7 @@ const selectedUser = ref(null)
 const loading = ref(false)
 const conversationsLoading = ref(false)
 const initializingChat = ref(false)
-const chatConnectionStatus = ref('disconnected') // 'disconnected', 'connecting', 'connected', 'failed'
+const chatConnectionStatus = ref('ready') // 'ready', 'connecting', 'connected', 'failed', 'disconnected'
 
 // API 數據狀態
 const apiConversations = ref([])
@@ -527,18 +524,34 @@ const selectUserWithRealtime = async (user) => {
     console.log('Loading conversation messages for LINE bot user:', user.lineUserId)
     await loadConversationMessages(user.lineUserId)
     
-    // 加入實時聊天房間 (直接使用 lineUserId)
-    currentRoomId.value = user.lineUserId
+    // 在選擇用戶時才初始化WebSocket連線
+    if (!isWebSocketConnected.value && chatConnectionStatus.value !== 'connected') {
+      console.log('初始化WebSocket連線 (用戶選擇觸發)')
+      await initializeChatConnection()
+    }
     
-    // 加入房間並設置訊息回調
-    joinRoom(user.lineUserId, (data) => {
-      handleRealtimeMessage(data, user)
-    })
-    
-    // 設置對話列表更新回調
-    onConversationUpdate(user.lineUserId, (update) => {
-      handleConversationUpdate(update, user)
-    })
+    // 如果WebSocket連線成功，才加入聊天房間
+    if (isWebSocketConnected.value) {
+      // 加入實時聊天房間 (直接使用 lineUserId)
+      currentRoomId.value = user.lineUserId
+      
+      // 加入房間並設置訊息回調
+      const joinSuccess = joinRoom(user.lineUserId, (data) => {
+        handleRealtimeMessage(data, user)
+      })
+      
+      if (joinSuccess) {
+        // 設置對話列表更新回調
+        onConversationUpdate(user.lineUserId, (update) => {
+          handleConversationUpdate(update, user)
+        })
+        console.log('成功加入聊天房間:', user.lineUserId)
+      } else {
+        console.warn('加入聊天房間失敗:', user.lineUserId)
+      }
+    } else {
+      console.warn('WebSocket未連線，無法加入實時聊天房間')
+    }
   } else {
     console.log('User is not a LINE bot user, using mock messages')
   }
@@ -684,22 +697,24 @@ const initializeChatConnection = async () => {
     if (!authStore.isLoggedIn || !authStore.token) {
       chatConnectionStatus.value = 'failed'
       console.warn('用戶未登入或無有效token，聊天室連線失敗')
+      showError('請先登入才能使用實時聊天功能')
       return false
     }
     
     const success = await initializeRealTimeChat()
     if (success) {
       chatConnectionStatus.value = 'connected'
-      console.log('Real-time chat initialized successfully')
+      console.log('WebSocket連線成功')
       return true
     } else {
       chatConnectionStatus.value = 'failed'
-      console.warn('Real-time chat initialization failed')
+      console.warn('WebSocket連線失敗')
       return false
     }
   } catch (error) {
     chatConnectionStatus.value = 'failed'
-    console.error('Error initializing real-time chat:', error)
+    console.error('WebSocket連線發生錯誤:', error)
+    // 只在重複連線失敗時才顯示錯誤提示
     return false
   } finally {
     initializingChat.value = false
@@ -720,8 +735,8 @@ onMounted(async () => {
   // 載入對話列表
   loadConversations()
   
-  // 初始化實時聊天連線
-  await initializeChatConnection()
+  // 不再自動初始化WebSocket連線，改為在選擇用戶時才連線
+  console.log('聊天室載入完成，WebSocket將在選擇用戶時才建立連線')
 })
 
 // 頁面標題
