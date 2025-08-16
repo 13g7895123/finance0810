@@ -587,35 +587,61 @@ class ChatController extends Controller
     protected function handleFollow($event)
     {
         $lineUserId = $event['source']['userId'] ?? null;
+        $timestamp = $event['timestamp'] ?? null;
         
         if (!$lineUserId) {
+            Log::warning('LINE follow event missing user ID', ['event' => $event]);
             return;
         }
 
         Log::info('Processing LINE follow event', ['line_user_id' => $lineUserId]);
 
-        // Find or create customer record
-        $customer = $this->findOrCreateCustomer($lineUserId, $event);
-        
-        // Save follow event as conversation
-        ChatConversation::create([
-            'customer_id' => $customer->id,
-            'user_id' => $customer->assigned_to,
-            'line_user_id' => $lineUserId,
-            'platform' => 'line',
-            'message_type' => 'text',
-            'message_content' => '加入好友',
-            'message_timestamp' => now(),
-            'is_from_customer' => true,
-            'status' => 'unread',
-            'metadata' => [
-                'event_type' => 'follow',
-            ],
-        ]);
+        try {
+            // Find or create customer record
+            $customer = $this->findOrCreateCustomer($lineUserId, $event);
+            
+            // Update customer status to indicate they are a LINE friend
+            $customer->update([
+                'channel' => 'line',
+                'status' => $customer->status === Customer::STATUS_NEW ? Customer::STATUS_NEW : $customer->status,
+                'tracking_status' => Customer::TRACKING_PENDING,
+                'next_contact_date' => now()->addDay(), // Schedule follow-up for next day
+            ]);
+            
+            // Save follow event as conversation
+            $conversation = ChatConversation::create([
+                'customer_id' => $customer->id,
+                'user_id' => $customer->assigned_to,
+                'line_user_id' => $lineUserId,
+                'platform' => 'line',
+                'message_type' => 'text',
+                'message_content' => '加入好友',
+                'message_timestamp' => $timestamp ? \Carbon\Carbon::createFromTimestamp($timestamp / 1000) : now(),
+                'is_from_customer' => true,
+                'status' => 'unread',
+                'metadata' => [
+                    'event_type' => 'follow',
+                    'timestamp' => $timestamp,
+                ],
+            ]);
 
-        // Send welcome message
-        $welcomeMessage = $this->getWelcomeMessage();
-        $this->sendLineMessage($lineUserId, $welcomeMessage);
+            Log::info('LINE follow event processed successfully', [
+                'line_user_id' => $lineUserId,
+                'customer_id' => $customer->id,
+                'conversation_id' => $conversation->id
+            ]);
+
+            // Send welcome message
+            $welcomeMessage = $this->getWelcomeMessage();
+            $this->sendLineMessage($lineUserId, $welcomeMessage);
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to process LINE follow event', [
+                'line_user_id' => $lineUserId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
     }
 
     /**
@@ -624,31 +650,60 @@ class ChatController extends Controller
     protected function handleUnfollow($event)
     {
         $lineUserId = $event['source']['userId'] ?? null;
+        $timestamp = $event['timestamp'] ?? null;
         
         if (!$lineUserId) {
+            Log::warning('LINE unfollow event missing user ID', ['event' => $event]);
             return;
         }
 
         Log::info('Processing LINE unfollow event', ['line_user_id' => $lineUserId]);
 
-        // Find customer record
-        $customer = Customer::where('line_user_id', $lineUserId)->first();
-        
-        if ($customer) {
-            // Save unfollow event as conversation
-            ChatConversation::create([
-                'customer_id' => $customer->id,
-                'user_id' => $customer->assigned_to,
+        try {
+            // Find customer record
+            $customer = Customer::where('line_user_id', $lineUserId)->first();
+            
+            if ($customer) {
+                // Update customer status to reflect they unfollowed
+                $customer->update([
+                    'status' => $customer->status === Customer::STATUS_NEW ? Customer::STATUS_NOT_INTERESTED : $customer->status,
+                    'tracking_status' => Customer::TRACKING_COMPLETED,
+                    'notes' => ($customer->notes ? $customer->notes . "\n" : '') . '客戶於 ' . now()->format('Y-m-d H:i:s') . ' 取消LINE好友',
+                ]);
+                
+                // Save unfollow event as conversation
+                $conversation = ChatConversation::create([
+                    'customer_id' => $customer->id,
+                    'user_id' => $customer->assigned_to,
+                    'line_user_id' => $lineUserId,
+                    'platform' => 'line',
+                    'message_type' => 'text',
+                    'message_content' => '取消好友',
+                    'message_timestamp' => $timestamp ? \Carbon\Carbon::createFromTimestamp($timestamp / 1000) : now(),
+                    'is_from_customer' => true,
+                    'status' => 'read', // Mark as read since it's a system event
+                    'metadata' => [
+                        'event_type' => 'unfollow',
+                        'timestamp' => $timestamp,
+                    ],
+                ]);
+
+                Log::info('LINE unfollow event processed successfully', [
+                    'line_user_id' => $lineUserId,
+                    'customer_id' => $customer->id,
+                    'conversation_id' => $conversation->id
+                ]);
+            } else {
+                Log::warning('LINE unfollow event for unknown customer', [
+                    'line_user_id' => $lineUserId
+                ]);
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to process LINE unfollow event', [
                 'line_user_id' => $lineUserId,
-                'platform' => 'line',
-                'message_type' => 'text',
-                'message_content' => '取消好友',
-                'message_timestamp' => now(),
-                'is_from_customer' => true,
-                'status' => 'unread',
-                'metadata' => [
-                    'event_type' => 'unfollow',
-                ],
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
         }
     }
@@ -661,30 +716,70 @@ class ChatController extends Controller
         $customer = Customer::where('line_user_id', $lineUserId)->first();
         
         if (!$customer) {
-            // Try to get LINE user profile
-            $profile = $this->getLineUserProfile($lineUserId);
-            
-            $customer = Customer::create([
-                'name' => $profile['displayName'] ?? '來自LINE的客戶',
-                'line_user_id' => $lineUserId,
-                'line_display_name' => $profile['displayName'] ?? null,
-                'channel' => 'line',
-                'status' => Customer::STATUS_NEW,
-                'tracking_status' => Customer::TRACKING_PENDING,
-                'created_by' => 1, // System user
-                'region' => '未知',
-                'website_source' => 'LINE Bot',
-                'source_data' => [
-                    'line_profile' => $profile,
-                    'first_contact' => now()->toISOString(),
-                ],
-            ]);
+            try {
+                // Try to get LINE user profile
+                $profile = $this->getLineUserProfile($lineUserId);
+                
+                $customer = Customer::create([
+                    'name' => $profile['displayName'] ?? '來自LINE的客戶',
+                    'phone' => '', // Required field, will be empty for now
+                    'line_user_id' => $lineUserId,
+                    'line_display_name' => $profile['displayName'] ?? null,
+                    'channel' => 'line',
+                    'status' => Customer::STATUS_NEW,
+                    'tracking_status' => Customer::TRACKING_PENDING,
+                    'created_by' => 1, // System user
+                    'assigned_to' => 1, // Assign to admin by default
+                    'region' => '未知',
+                    'website_source' => 'LINE Bot',
+                    'source_data' => [
+                        'line_profile' => $profile,
+                        'first_contact' => now()->toISOString(),
+                        'event_type' => $event['type'] ?? 'unknown',
+                    ],
+                ]);
 
-            Log::info('Created new customer from LINE', [
-                'customer_id' => $customer->id,
-                'line_user_id' => $lineUserId,
-                'name' => $customer->name
-            ]);
+                Log::info('Created new customer from LINE', [
+                    'customer_id' => $customer->id,
+                    'line_user_id' => $lineUserId,
+                    'name' => $customer->name,
+                    'display_name' => $profile['displayName'] ?? null
+                ]);
+                
+            } catch (\Exception $e) {
+                Log::error('Failed to create customer from LINE user', [
+                    'line_user_id' => $lineUserId,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                throw $e;
+            }
+        } else {
+            // Update existing customer's LINE profile if available
+            try {
+                $profile = $this->getLineUserProfile($lineUserId);
+                if (!empty($profile['displayName']) && $customer->line_display_name !== $profile['displayName']) {
+                    $customer->update([
+                        'line_display_name' => $profile['displayName'],
+                        'source_data' => array_merge($customer->source_data ?? [], [
+                            'line_profile_updated' => $profile,
+                            'last_profile_update' => now()->toISOString(),
+                        ]),
+                    ]);
+                    
+                    Log::info('Updated customer LINE profile', [
+                        'customer_id' => $customer->id,
+                        'line_user_id' => $lineUserId,
+                        'new_display_name' => $profile['displayName']
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to update customer LINE profile', [
+                    'customer_id' => $customer->id,
+                    'line_user_id' => $lineUserId,
+                    'error' => $e->getMessage()
+                ]);
+            }
         }
 
         return $customer;
