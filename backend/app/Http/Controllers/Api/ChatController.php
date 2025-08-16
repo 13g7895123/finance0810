@@ -132,57 +132,105 @@ class ChatController extends Controller
      */
     public function reply(Request $request, $userId)
     {
-        $request->validate([
-            'message' => 'required|string|max:1000',
-        ]);
+        try {
+            // Log request details for debugging
+            Log::info('Chat reply request', [
+                'user_id' => Auth::id(),
+                'line_user_id' => $userId,
+                'message' => $request->message
+            ]);
 
-        $user = Auth::user();
-        
-        // Find the customer associated with this LINE user
-        $customer = Customer::where('line_user_id', $userId)->first();
-        
-        if (!$customer) {
-            return response()->json(['error' => '找不到對應的客戶'], 404);
-        }
+            $request->validate([
+                'message' => 'required|string|max:1000',
+            ]);
 
-        // Check if staff user has access to this customer
-        if ($user->isStaff() && $customer->assigned_to !== $user->id) {
-            return response()->json(['error' => '您沒有權限回覆此對話'], 403);
-        }
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json(['error' => '使用者未驗證'], 401);
+            }
+            
+            // Find the customer associated with this LINE user
+            $customer = Customer::where('line_user_id', $userId)->first();
+            
+            if (!$customer) {
+                Log::warning('Customer not found for LINE user', ['line_user_id' => $userId]);
+                return response()->json(['error' => '找不到對應的客戶'], 404);
+            }
 
-        // Create reply message record
-        $conversation = ChatConversation::create([
-            'customer_id' => $customer->id,
-            'user_id' => $customer->assigned_to,
-            'line_user_id' => $userId,
-            'platform' => 'line',
-            'message_type' => 'text',
-            'message_content' => $request->message,
-            'message_timestamp' => now(),
-            'is_from_customer' => false,
-            'reply_content' => $request->message,
-            'replied_at' => now(),
-            'replied_by' => $user->id,
-            'status' => 'sent',
-        ]);
+            // Check if staff user has access to this customer
+            if ($user->isStaff() && $customer->assigned_to !== $user->id) {
+                Log::warning('Staff user unauthorized for customer', [
+                    'user_id' => $user->id,
+                    'customer_id' => $customer->id,
+                    'assigned_to' => $customer->assigned_to
+                ]);
+                return response()->json(['error' => '您沒有權限回覆此對話'], 403);
+            }
 
-        // Send message via LINE Bot API
-        $lineSuccess = $this->sendLineMessage($userId, $request->message);
-        
-        if (!$lineSuccess) {
-            // Update conversation status to failed
-            $conversation->update(['status' => 'failed']);
+            // Create reply message record
+            $conversation = ChatConversation::create([
+                'customer_id' => $customer->id,
+                'user_id' => $user->id, // Use current user instead of assigned_to
+                'line_user_id' => $userId,
+                'platform' => 'line',
+                'message_type' => 'text',
+                'message_content' => $request->message,
+                'message_timestamp' => now(),
+                'is_from_customer' => false,
+                'reply_content' => $request->message,
+                'replied_at' => now(),
+                'replied_by' => $user->id,
+                'status' => 'pending', // Set to pending initially
+            ]);
+
+            Log::info('Conversation record created', ['conversation_id' => $conversation->id]);
+
+            // Send message via LINE Bot API
+            $lineSuccess = $this->sendLineMessage($userId, $request->message);
+            
+            if (!$lineSuccess) {
+                // Update conversation status to failed
+                $conversation->update(['status' => 'failed']);
+                
+                Log::error('LINE message send failed', [
+                    'conversation_id' => $conversation->id,
+                    'line_user_id' => $userId
+                ]);
+                
+                return response()->json([
+                    'error' => '送出LINE訊息失敗，請檢查LINE整合設定',
+                    'conversation' => $conversation->load(['customer', 'user', 'replier'])
+                ], 500);
+            }
+
+            // Update conversation status to sent
+            $conversation->update(['status' => 'sent']);
+            
+            Log::info('Chat reply successful', ['conversation_id' => $conversation->id]);
+
+            return response()->json([
+                'message' => '訊息已送出',
+                'conversation' => $conversation->load(['customer', 'user', 'replier'])
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Chat reply validation error', ['errors' => $e->errors()]);
+            return response()->json([
+                'error' => '輸入資料驗證失敗',
+                'details' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Chat reply unexpected error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             
             return response()->json([
-                'error' => '送出LINE訊息失敗，請檢查LINE整合設定',
-                'conversation' => $conversation->load(['customer', 'user', 'replier'])
+                'error' => '系統錯誤，請稍後再試',
+                'message' => $e->getMessage()
             ], 500);
         }
-
-        return response()->json([
-            'message' => '訊息已送出',
-            'conversation' => $conversation->load(['customer', 'user', 'replier'])
-        ]);
     }
 
     /**
@@ -1206,11 +1254,39 @@ class ChatController extends Controller
             $token = $settings['channel_access_token'];
 
             if (!$token) {
-                Log::error('LINE Channel Access Token not configured');
+                Log::error('LINE Channel Access Token not configured', [
+                    'line_user_id' => $lineUserId,
+                    'settings' => array_keys($settings)
+                ]);
+                return false;
+            }
+
+            // Validate LINE User ID format
+            if (empty($lineUserId) || !is_string($lineUserId)) {
+                Log::error('Invalid LINE User ID format', [
+                    'line_user_id' => $lineUserId,
+                    'type' => gettype($lineUserId)
+                ]);
+                return false;
+            }
+
+            // Validate message content
+            if (empty($message) || !is_string($message)) {
+                Log::error('Invalid message content', [
+                    'message' => $message,
+                    'type' => gettype($message)
+                ]);
                 return false;
             }
 
             $client = new \GuzzleHttp\Client();
+            
+            Log::info('Sending LINE message', [
+                'line_user_id' => $lineUserId,
+                'message_length' => strlen($message),
+                'token_length' => strlen($token)
+            ]);
+
             $response = $client->post('https://api.line.me/v2/bot/message/push', [
                 'headers' => [
                     'Authorization' => 'Bearer ' . $token,
@@ -1228,17 +1304,56 @@ class ChatController extends Controller
                 'timeout' => 10,
             ]);
 
+            $statusCode = $response->getStatusCode();
+            $responseBody = $response->getBody()->getContents();
+
             Log::info('LINE message sent successfully', [
                 'line_user_id' => $lineUserId,
-                'response_code' => $response->getStatusCode()
+                'response_code' => $statusCode,
+                'response_body' => $responseBody
             ]);
 
-            return true;
+            // Check if response indicates success
+            if ($statusCode >= 200 && $statusCode < 300) {
+                return true;
+            } else {
+                Log::error('LINE API returned error status', [
+                    'status_code' => $statusCode,
+                    'response_body' => $responseBody
+                ]);
+                return false;
+            }
+
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            $response = $e->getResponse();
+            $responseBody = $response ? $response->getBody()->getContents() : 'No response body';
+            
+            Log::error('LINE API client error', [
+                'line_user_id' => $lineUserId,
+                'message' => $message,
+                'status_code' => $response ? $response->getStatusCode() : 'unknown',
+                'error' => $e->getMessage(),
+                'response_body' => $responseBody
+            ]);
+            return false;
+        } catch (\GuzzleHttp\Exception\ServerException $e) {
+            $response = $e->getResponse();
+            $responseBody = $response ? $response->getBody()->getContents() : 'No response body';
+            
+            Log::error('LINE API server error', [
+                'line_user_id' => $lineUserId,
+                'message' => $message,
+                'status_code' => $response ? $response->getStatusCode() : 'unknown',
+                'error' => $e->getMessage(),
+                'response_body' => $responseBody
+            ]);
+            return false;
         } catch (\Exception $e) {
             Log::error('Failed to send LINE message', [
                 'line_user_id' => $lineUserId,
                 'message' => $message,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             return false;
         }
