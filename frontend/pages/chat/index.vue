@@ -430,71 +430,106 @@ watch(searchQuery, (newQuery) => {
 
 // 根據權限過濾用戶列表
 const filteredUsers = computed(() => {
-  // 如果有搜尋結果，優先顯示搜尋結果
-  if (searchQuery.value.trim() && searchResults.value.length > 0) {
-    return searchResults.value
-  }
-  
-  let users = combinedUsers.value
+  try {
+    // 如果有搜尋結果，優先顯示搜尋結果
+    if (searchQuery.value && searchQuery.value.trim() && searchResults.value && searchResults.value.length > 0) {
+      return Array.isArray(searchResults.value) ? searchResults.value : []
+    }
+    
+    let users = combinedUsers.value
+    
+    // 確保 users 是陣列
+    if (!Array.isArray(users)) {
+      console.warn('combinedUsers 不是陣列:', users)
+      return []
+    }
 
-  // 權限過濾 - 業務人員只能看到自己相關的對話和BOT
-  if (authStore.isSales && !authStore.hasPermission('all_access')) {
-    users = users.filter(user => 
-      user.id === authStore.user?.id || 
-      user.isBot || 
-      user.role === 'dealer_executive' ||
-      user.role === 'admin_manager'
-    )
-  }
+    // 權限過濾 - 業務人員只能看到自己相關的對話和BOT
+    if (authStore && authStore.isSales && typeof authStore.hasPermission === 'function' && !authStore.hasPermission('all_access')) {
+      users = users.filter(user => {
+        if (!user || typeof user !== 'object') return false
+        return user.id === authStore.user?.id || 
+               user.isBot || 
+               user.role === 'dealer_executive' ||
+               user.role === 'admin_manager'
+      })
+    }
 
-  // 本地搜尋過濾（如果沒有遠端搜尋結果）
-  if (searchQuery.value.trim() && searchResults.value.length === 0 && !isSearching.value) {
-    const query = searchQuery.value.toLowerCase()
-    users = users.filter(user =>
-      user.name.toLowerCase().includes(query) ||
-      (user.customerInfo?.phone && user.customerInfo.phone.includes(searchQuery.value)) ||
-      (user.customerInfo?.region && user.customerInfo.region.toLowerCase().includes(query))
-    )
-  }
+    // 本地搜尋過濾（如果沒有遠端搜尋結果）
+    if (searchQuery.value && searchQuery.value.trim() && 
+        searchResults.value && searchResults.value.length === 0 && 
+        !isSearching.value) {
+      const query = searchQuery.value.toLowerCase()
+      users = users.filter(user => {
+        if (!user || typeof user !== 'object') return false
+        return (user.name && user.name.toLowerCase().includes(query)) ||
+               (user.customerInfo?.phone && user.customerInfo.phone.includes(searchQuery.value)) ||
+               (user.customerInfo?.region && user.customerInfo.region.toLowerCase().includes(query))
+      })
+    }
 
-  // 狀態過濾
-  switch (activeFilter.value) {
-    case 'unread':
-      users = users.filter(user => user.unreadCount > 0)
-      break
-    case 'favorites':
-      users = users.filter(user => user.isFavorite)
-      break
-    case 'archived':
-      users = users.filter(user => user.isArchived)
-      break
-  }
+    // 狀態過濾
+    if (activeFilter.value) {
+      switch (activeFilter.value) {
+        case 'unread':
+          users = users.filter(user => user && user.unreadCount > 0)
+          break
+        case 'favorites':
+          users = users.filter(user => user && user.isFavorite)
+          break
+        case 'archived':
+          users = users.filter(user => user && user.isArchived)
+          break
+      }
+    }
 
-  // 穩定的時間排序：確保一致性
-  return sortByTime(users)
+    // 穩定的時間排序：確保一致性
+    if (typeof sortByTime === 'function') {
+      return sortByTime(users)
+    } else {
+      console.error('sortByTime 不是函數:', typeof sortByTime, sortByTime)
+      return users
+    }
+  } catch (error) {
+    console.error('filteredUsers computed 發生錯誤:', error)
+    return []
+  }
 })
 
 // 移除所有模擬訊息數據，只使用 API 數據
 
 // 當前聊天訊息 - 只使用 API 數據
 const currentMessages = computed(() => {
-  if (!selectedUser.value) return []
-  
-  // 只使用 API 數據，LINE BOT 用戶使用 lineUserId 查找
-  if (selectedUser.value.isBot && selectedUser.value.lineUserId) {
-    const apiMsgs = apiMessages.value[selectedUser.value.lineUserId]
-    if (apiMsgs && apiMsgs.length > 0) {
-      // 按時間排序訊息（舊的在前面，新的在後面）
-      return apiMsgs.sort((a, b) => {
-        const timeA = new Date(a.timestamp).getTime()
-        const timeB = new Date(b.timestamp).getTime()
-        return timeA - timeB
-      })
+  try {
+    if (!selectedUser.value || typeof selectedUser.value !== 'object') {
+      return []
     }
+    
+    // 只使用 API 數據，LINE BOT 用戶使用 lineUserId 查找
+    if (selectedUser.value.isBot && selectedUser.value.lineUserId) {
+      const apiMsgs = apiMessages.value[selectedUser.value.lineUserId]
+      if (Array.isArray(apiMsgs) && apiMsgs.length > 0) {
+        // 按時間排序訊息（舊的在前面，新的在後面）
+        return apiMsgs.sort((a, b) => {
+          try {
+            if (!a || !b || !a.timestamp || !b.timestamp) return 0
+            const timeA = new Date(a.timestamp).getTime()
+            const timeB = new Date(b.timestamp).getTime()
+            return timeA - timeB
+          } catch (sortError) {
+            console.error('訊息排序錯誤:', sortError)
+            return 0
+          }
+        })
+      }
+    }
+    
+    // 沒有 API 數據時返回空陣列
+    return []
+  } catch (error) {
+    console.error('currentMessages computed 發生錯誤:', error)
+    return []
   }
-  
-  // 沒有 API 數據時返回空陣列
-  return []
 })
 
 // 選擇用戶功能已被 selectUserWithRealtime 取代
@@ -547,119 +582,169 @@ const sendMessage = async (content) => {
   }
 }
 
-// 選擇用戶功能（使用Long Polling）
+// 選擇用戶功能（使用高頻輪詢）
 const selectUserWithRealtime = async (user) => {
-  console.log('Selecting user:', user)
-  
-  // 執行原有的用戶選擇邏輯
-  selectedUser.value = user
-  activeUserId.value = user.id
-  
-  console.log('User selected, activeUserId set to:', user.id)
-  console.log('Is bot user?', user.isBot, 'Line User ID:', user.lineUserId)
-  
-  // 載入對話訊息 (如果是 LINE BOT 用戶)
-  if (user.isBot && user.lineUserId) {
-    console.log('Loading conversation messages for LINE bot user:', user.lineUserId)
-    await loadConversationMessages(user.lineUserId)
-  } else {
-    console.log('User is not a LINE bot user')
-  }
-  
-  // 標記為已讀，但不立即觸發更新避免排序跳動
-  if (user.unreadCount > 0) {
+  try {
+    if (!user || typeof user !== 'object') {
+      console.error('selectUserWithRealtime: 無效的用戶對象', user)
+      return
+    }
+    
+    console.log('Selecting user:', user)
+    
+    // 執行原有的用戶選擇邏輯
+    selectedUser.value = user
+    activeUserId.value = user.id
+    
+    console.log('User selected, activeUserId set to:', user.id)
+    console.log('Is bot user?', user.isBot, 'Line User ID:', user.lineUserId)
+    
+    // 載入對話訊息 (如果是 LINE BOT 用戶)
+    if (user.isBot && user.lineUserId) {
+      console.log('Loading conversation messages for LINE bot user:', user.lineUserId)
+      if (typeof loadConversationMessages === 'function') {
+        await loadConversationMessages(user.lineUserId)
+      } else {
+        console.error('loadConversationMessages 不是函數:', typeof loadConversationMessages)
+      }
+    } else {
+      console.log('User is not a LINE bot user')
+    }
+    
+    // 標記為已讀，但不立即觸發更新避免排序跳動
+    if (user.unreadCount > 0) {
+      nextTick(() => {
+        if (user && typeof user === 'object') {
+          user.unreadCount = 0
+        }
+      })
+    }
+    
+    // 調試：檢查當前訊息
     nextTick(() => {
-      user.unreadCount = 0
+      console.log('Current messages after user selection:', currentMessages.value)
     })
+  } catch (error) {
+    console.error('selectUserWithRealtime 發生錯誤:', error)
   }
-  
-  // 調試：檢查當前訊息
-  nextTick(() => {
-    console.log('Current messages after user selection:', currentMessages.value)
-  })
 }
 
 
 // 處理高頻輪詢訊息更新
 const handlePollingMessage = (update) => {
-  console.log('高頻輪詢收到新訊息:', update)
-  
-  if (update.type === 'new_message' && update.data && update.data.line_user_id) {
-    const lineUserId = update.data.line_user_id
+  try {
+    console.log('高頻輪詢收到新訊息:', update)
     
-    // 更新對應用戶的訊息列表
-    if (apiMessages.value[lineUserId]) {
-      const newMessage = {
-        id: update.data.id,
-        senderId: update.data.is_from_customer ? parseInt(lineUserId) : 'bot',
-        content: update.data.message_content,
-        timestamp: new Date(update.data.message_timestamp),
-        type: update.data.message_type || 'text',
-        isBot: true,
-        isCustomer: update.data.is_from_customer,
-        isAutoReply: !update.data.is_from_customer,
-        metadata: update.data.metadata || {}
+    if (!update || typeof update !== 'object') {
+      console.warn('handlePollingMessage: 無效的更新對象', update)
+      return
+    }
+    
+    if (update.type === 'new_message' && update.data && update.data.line_user_id) {
+      const lineUserId = update.data.line_user_id
+      
+      // 更新對應用戶的訊息列表
+      if (apiMessages.value && apiMessages.value[lineUserId]) {
+        const newMessage = {
+          id: update.data.id,
+          senderId: update.data.is_from_customer ? parseInt(lineUserId) : 'bot',
+          content: update.data.message_content,
+          timestamp: new Date(update.data.message_timestamp),
+          type: update.data.message_type || 'text',
+          isBot: true,
+          isCustomer: update.data.is_from_customer,
+          isAutoReply: !update.data.is_from_customer,
+          metadata: update.data.metadata || {}
+        }
+        
+        // 檢查是否已存在相同ID的訊息
+        if (Array.isArray(apiMessages.value[lineUserId])) {
+          const existingIndex = apiMessages.value[lineUserId].findIndex(msg => msg && msg.id === newMessage.id)
+          if (existingIndex === -1) {
+            apiMessages.value[lineUserId].push(newMessage)
+            console.log('新訊息已添加到對話:', newMessage)
+            
+            // 如果當前正在查看這個對話，滾動到底部
+            if (selectedUser.value && selectedUser.value.lineUserId === lineUserId) {
+              nextTick(() => {
+                // 可以在這裡添加滾動到底部的邏輯
+                console.log('當前對話有新訊息，可滾動到底部')
+              })
+            }
+          }
+        }
       }
       
-      // 檢查是否已存在相同ID的訊息
-      const existingIndex = apiMessages.value[lineUserId].findIndex(msg => msg.id === newMessage.id)
-      if (existingIndex === -1) {
-        apiMessages.value[lineUserId].push(newMessage)
-        console.log('新訊息已添加到對話:', newMessage)
-        
-        // 如果當前正在查看這個對話，滾動到底部
-        if (selectedUser.value && selectedUser.value.lineUserId === lineUserId) {
-          nextTick(() => {
-            // 可以在這裡添加滾動到底部的邏輯
-            console.log('當前對話有新訊息，可滾動到底部')
-          })
+      // 更新對話列表
+      if (Array.isArray(apiConversations.value)) {
+        const userIndex = apiConversations.value.findIndex(u => u && u.lineUserId === lineUserId)
+        if (userIndex !== -1) {
+          apiConversations.value[userIndex].lastMessage = update.data.message_content
+          apiConversations.value[userIndex].timestamp = new Date(update.data.message_timestamp)
+          if (update.data.is_from_customer) {
+            apiConversations.value[userIndex].unreadCount += 1
+          }
+          
+          // 重新排序對話列表
+          if (typeof sortByTime === 'function') {
+            apiConversations.value = sortByTime(apiConversations.value)
+          }
         }
       }
     }
-    
-    // 更新對話列表
-    const userIndex = apiConversations.value.findIndex(u => u.lineUserId === lineUserId)
-    if (userIndex !== -1) {
-      apiConversations.value[userIndex].lastMessage = update.data.message_content
-      apiConversations.value[userIndex].timestamp = new Date(update.data.message_timestamp)
-      if (update.data.is_from_customer) {
-        apiConversations.value[userIndex].unreadCount += 1
-      }
-      
-      // 重新排序對話列表
-      apiConversations.value = sortByTime(apiConversations.value)
-    }
+  } catch (error) {
+    console.error('handlePollingMessage 發生錯誤:', error)
   }
 }
 
 // 處理高頻輪詢對話更新
 const handlePollingConversationUpdate = (update) => {
-  console.log('高頻輪詢收到對話更新:', update)
-  
-  if (update.type === 'conversation_update' && update.data && update.data.line_user_id) {
-    const lineUserId = update.data.line_user_id
-    const userIndex = apiConversations.value.findIndex(u => u.lineUserId === lineUserId)
+  try {
+    console.log('高頻輪詢收到對話更新:', update)
     
-    if (userIndex !== -1) {
-      if (update.data.last_message_time) {
-        apiConversations.value[userIndex].timestamp = new Date(update.data.last_message_time)
-      }
-      
-      // 重新載入該對話的詳細資訊
-      loadConversationSummary(lineUserId).then(summary => {
-        if (summary) {
-          apiConversations.value[userIndex].lastMessage = summary.lastMessage
-          apiConversations.value[userIndex].unreadCount = summary.unreadCount
-        }
-      })
-      
-      // 重新排序對話列表
-      apiConversations.value = sortByTime(apiConversations.value)
-    } else {
-      // 如果是新對話，重新載入對話列表
-      console.log('檢測到新對話，重新載入對話列表')
-      loadConversations()
+    if (!update || typeof update !== 'object') {
+      console.warn('handlePollingConversationUpdate: 無效的更新對象', update)
+      return
     }
+    
+    if (update.type === 'conversation_update' && update.data && update.data.line_user_id) {
+      const lineUserId = update.data.line_user_id
+      
+      if (Array.isArray(apiConversations.value)) {
+        const userIndex = apiConversations.value.findIndex(u => u && u.lineUserId === lineUserId)
+        
+        if (userIndex !== -1) {
+          if (update.data.last_message_time) {
+            apiConversations.value[userIndex].timestamp = new Date(update.data.last_message_time)
+          }
+          
+          // 重新載入該對話的詳細資訊
+          if (typeof loadConversationSummary === 'function') {
+            loadConversationSummary(lineUserId).then(summary => {
+              if (summary && userIndex < apiConversations.value.length) {
+                apiConversations.value[userIndex].lastMessage = summary.lastMessage
+                apiConversations.value[userIndex].unreadCount = summary.unreadCount
+              }
+            }).catch(error => {
+              console.error('loadConversationSummary 錯誤:', error)
+            })
+          }
+          
+          // 重新排序對話列表
+          if (typeof sortByTime === 'function') {
+            apiConversations.value = sortByTime(apiConversations.value)
+          }
+        } else {
+          // 如果是新對話，重新載入對話列表
+          console.log('檢測到新對話，重新載入對話列表')
+          if (typeof loadConversations === 'function') {
+            loadConversations()
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('handlePollingConversationUpdate 發生錯誤:', error)
   }
 }
 
