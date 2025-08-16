@@ -252,12 +252,16 @@ export const useChat = () => {
   // 搜尋對話
   const searchConversations = async (query) => {
     try {
-      return await apiCall('/chats/search', {
+      console.log('useChat: searching for', query) // Debug log
+      const result = await apiCall('/chats/search', {
         query: { q: query }
       })
+      console.log('useChat: search result', result) // Debug log
+      return result
     } catch (error) {
       console.error('Failed to search conversations:', error)
-      return { data: [] }
+      // 在失敗時不要自動回退到mock數據，讓前端處理
+      throw error
     }
   }
 

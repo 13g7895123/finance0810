@@ -54,7 +54,20 @@
 
       <!-- 用戶列表 -->
       <div class="flex-1 overflow-y-auto custom-scrollbar-left">
+        <!-- 搜尋中載入狀態 -->
+        <div v-if="isSearching" class="p-4 text-center">
+          <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
+          <p class="text-sm text-gray-500">搜尋中...</p>
+        </div>
+        
+        <!-- 搜尋無結果 -->
+        <div v-else-if="searchQuery.trim() && filteredUsers.length === 0" class="p-4 text-center">
+          <p class="text-sm text-gray-500">沒有找到符合 "{{ searchQuery }}" 的對話</p>
+        </div>
+        
+        <!-- 用戶列表 -->
         <ChatUserList
+          v-else
           :users="filteredUsers"
           :activeUserId="activeUserId"
           @userSelect="selectUserWithRealtime"
@@ -316,7 +329,8 @@ const loadConversations = async () => {
         }
       }))
       
-      apiConversations.value = apiUsers
+      // 確保載入時就按時間排序
+      apiConversations.value = sortByTime(apiUsers)
     }
   } catch (error) {
     console.error('Failed to load conversations:', error)
@@ -356,14 +370,35 @@ const loadConversationMessages = async (userId) => {
   }
 }
 
+// 時間排序函數
+const sortByTime = (users) => {
+  return users.sort((a, b) => {
+    const timeA = new Date(a.timestamp).getTime()
+    const timeB = new Date(b.timestamp).getTime()
+    
+    // 按時間排序（最新的在前面）
+    if (timeA !== timeB) {
+      return timeB - timeA
+    }
+    
+    // 時間相同時按ID排序確保穩定性
+    return b.id - a.id
+  })
+}
+
 // 合併 API 數據和模擬數據
 const combinedUsers = computed(() => {
+  let users = []
+  
   // 如果有 API 數據，優先使用 API 數據
   if (apiConversations.value.length > 0) {
-    return [...allUsers.value, ...apiConversations.value]
+    users = [...allUsers.value, ...apiConversations.value]
+  } else {
+    users = [...allUsers.value]
   }
   
-  return allUsers.value
+  // 確保合併後的數據按時間排序
+  return sortByTime(users)
 })
 
 // 搜尋結果
@@ -379,9 +414,12 @@ const performSearch = async (query) => {
   
   try {
     isSearching.value = true
-    const response = await searchConversations(query.trim())
+    console.log('Searching for:', query.trim()) // Debug log
     
-    if (response?.data) {
+    const response = await searchConversations(query.trim())
+    console.log('Search response:', response) // Debug log
+    
+    if (response?.data && Array.isArray(response.data)) {
       // 轉換搜尋結果格式
       const searchUsers = response.data.map(conv => ({
         id: parseInt(conv.line_user_id),
@@ -402,11 +440,21 @@ const performSearch = async (query) => {
         }
       }))
       
-      searchResults.value = searchUsers
+      // 按時間排序搜尋結果，確保一致性
+      searchResults.value = sortByTime(searchUsers)
+      console.log('Search results processed:', searchUsers.length) // Debug log
+    } else {
+      console.log('No search results or invalid response format')
+      searchResults.value = []
     }
   } catch (error) {
     console.error('Search failed:', error)
+    
+    // 如果API搜尋失敗，清空搜尋結果讓本地搜尋接管
     searchResults.value = []
+    
+    // 可選：顯示錯誤提示
+    console.warn('搜尋API失敗，將使用本地搜尋功能')
   } finally {
     isSearching.value = false
   }
@@ -448,8 +496,11 @@ const filteredUsers = computed(() => {
 
   // 本地搜尋過濾（如果沒有遠端搜尋結果）
   if (searchQuery.value.trim() && searchResults.value.length === 0 && !isSearching.value) {
+    const query = searchQuery.value.toLowerCase()
     users = users.filter(user =>
-      user.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+      user.name.toLowerCase().includes(query) ||
+      (user.customerInfo?.phone && user.customerInfo.phone.includes(searchQuery.value)) ||
+      (user.customerInfo?.region && user.customerInfo.region.toLowerCase().includes(query))
     )
   }
 
@@ -466,19 +517,8 @@ const filteredUsers = computed(() => {
       break
   }
 
-  // 穩定的排序：按時間排序，但使用穩定的比較邏輯
-  return users.sort((a, b) => {
-    const timeA = new Date(a.timestamp).getTime()
-    const timeB = new Date(b.timestamp).getTime()
-    
-    // 先按時間排序
-    if (timeA !== timeB) {
-      return timeB - timeA
-    }
-    
-    // 時間相同時，按ID排序確保順序穩定
-    return a.id - b.id
-  })
+  // 穩定的時間排序：確保一致性
+  return sortByTime(users)
 })
 
 // 模擬訊息數據 - 包含豐富的 LINE BOT 對話記錄
