@@ -416,6 +416,17 @@ class ChatController extends Controller
         // Find or create customer record
         $customer = $this->findOrCreateCustomer($lineUserId, $event);
         
+        // Check if this is a referral code response
+        $isReferralCode = false;
+        if ($messageText === '跳過推薦碼') {
+            $isReferralCode = true;
+            $this->handleReferralCodeSkip($lineUserId, $customer);
+        } elseif (preg_match('/^[A-Za-z0-9]{3,10}$/', trim($messageText))) {
+            // Potential referral code (3-10 alphanumeric characters)
+            $isReferralCode = true;
+            $this->handleReferralCodeInput($lineUserId, $customer, trim($messageText));
+        }
+        
         // Save conversation
         $conversation = ChatConversation::create([
             'customer_id' => $customer->id,
@@ -431,11 +442,14 @@ class ChatController extends Controller
                 'message_id' => $messageId,
                 'timestamp' => $timestamp,
                 'event_type' => 'message',
+                'is_referral_code' => $isReferralCode,
             ],
         ]);
 
-        // Send auto-reply if enabled
-        $this->sendAutoReply($lineUserId, $messageText, $customer);
+        // Send auto-reply if enabled and not a referral code response
+        if (!$isReferralCode) {
+            $this->sendAutoReply($lineUserId, $messageText, $customer);
+        }
     }
 
     /**
@@ -633,7 +647,56 @@ class ChatController extends Controller
 
             // Send welcome message
             $welcomeMessage = $this->getWelcomeMessage();
-            $this->sendLineMessage($lineUserId, $welcomeMessage);
+            $messageSent = $this->sendLineMessage($lineUserId, $welcomeMessage);
+            
+            // Record welcome message in conversation if successfully sent
+            if ($messageSent) {
+                ChatConversation::create([
+                    'customer_id' => $customer->id,
+                    'user_id' => $customer->assigned_to,
+                    'line_user_id' => $lineUserId,
+                    'platform' => 'line',
+                    'message_type' => 'text',
+                    'message_content' => $welcomeMessage,
+                    'message_timestamp' => now(),
+                    'is_from_customer' => false,
+                    'reply_content' => $welcomeMessage,
+                    'replied_at' => now(),
+                    'replied_by' => 1, // System user
+                    'status' => 'sent',
+                    'metadata' => [
+                        'is_welcome_message' => true,
+                        'event_type' => 'welcome',
+                    ],
+                ]);
+                
+                // Send flex message for business referral code input
+                $referralFlexMessage = $this->createReferralCodeFlexMessage();
+                $flexMessageSent = $this->sendLineFlexMessage($lineUserId, $referralFlexMessage);
+                
+                // Record flex message in conversation if successfully sent
+                if ($flexMessageSent) {
+                    ChatConversation::create([
+                        'customer_id' => $customer->id,
+                        'user_id' => $customer->assigned_to,
+                        'line_user_id' => $lineUserId,
+                        'platform' => 'line',
+                        'message_type' => 'flex',
+                        'message_content' => '請輸入業務推薦碼',
+                        'message_timestamp' => now(),
+                        'is_from_customer' => false,
+                        'reply_content' => '請輸入業務推薦碼',
+                        'replied_at' => now(),
+                        'replied_by' => 1, // System user
+                        'status' => 'sent',
+                        'metadata' => [
+                            'is_flex_message' => true,
+                            'flex_type' => 'referral_code_input',
+                            'event_type' => 'welcome',
+                        ],
+                    ]);
+                }
+            }
             
         } catch (\Exception $e) {
             Log::error('Failed to process LINE follow event', [
@@ -926,6 +989,237 @@ class ChatController extends Controller
             Log::error('Failed to send LINE message', [
                 'line_user_id' => $lineUserId,
                 'message' => $message,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Handle referral code input from customer
+     */
+    protected function handleReferralCodeInput($lineUserId, $customer, $referralCode)
+    {
+        try {
+            // Update customer with referral code
+            $customer->update([
+                'source_data' => array_merge($customer->source_data ?? [], [
+                    'referral_code' => $referralCode,
+                    'referral_code_entered_at' => now()->toISOString(),
+                ]),
+                'notes' => ($customer->notes ? $customer->notes . "\n" : '') . "客戶輸入推薦碼：{$referralCode}",
+            ]);
+
+            // Send confirmation message
+            $confirmationMessage = "感謝您輸入推薦碼：{$referralCode}\n\n我們將為您提供更優惠的服務方案，專員將盡快與您聯繫！";
+            $this->sendLineMessage($lineUserId, $confirmationMessage);
+            
+            // Record confirmation message
+            ChatConversation::create([
+                'customer_id' => $customer->id,
+                'user_id' => $customer->assigned_to,
+                'line_user_id' => $lineUserId,
+                'platform' => 'line',
+                'message_type' => 'text',
+                'message_content' => $confirmationMessage,
+                'message_timestamp' => now(),
+                'is_from_customer' => false,
+                'reply_content' => $confirmationMessage,
+                'replied_at' => now(),
+                'replied_by' => 1, // System user
+                'status' => 'sent',
+                'metadata' => [
+                    'is_referral_confirmation' => true,
+                    'referral_code' => $referralCode,
+                ],
+            ]);
+
+            Log::info('Referral code processed successfully', [
+                'line_user_id' => $lineUserId,
+                'customer_id' => $customer->id,
+                'referral_code' => $referralCode
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to process referral code', [
+                'line_user_id' => $lineUserId,
+                'referral_code' => $referralCode,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Handle referral code skip from customer
+     */
+    protected function handleReferralCodeSkip($lineUserId, $customer)
+    {
+        try {
+            // Update customer to indicate they skipped referral code
+            $customer->update([
+                'source_data' => array_merge($customer->source_data ?? [], [
+                    'referral_code_skipped' => true,
+                    'referral_code_skipped_at' => now()->toISOString(),
+                ]),
+                'notes' => ($customer->notes ? $customer->notes . "\n" : '') . "客戶跳過推薦碼輸入",
+            ]);
+
+            // Send acknowledgment message
+            $skipMessage = "沒問題！您仍然可以享受我們優質的貸款服務。\n\n如有任何問題，歡迎隨時與我們聯繫！";
+            $this->sendLineMessage($lineUserId, $skipMessage);
+            
+            // Record skip message
+            ChatConversation::create([
+                'customer_id' => $customer->id,
+                'user_id' => $customer->assigned_to,
+                'line_user_id' => $lineUserId,
+                'platform' => 'line',
+                'message_type' => 'text',
+                'message_content' => $skipMessage,
+                'message_timestamp' => now(),
+                'is_from_customer' => false,
+                'reply_content' => $skipMessage,
+                'replied_at' => now(),
+                'replied_by' => 1, // System user
+                'status' => 'sent',
+                'metadata' => [
+                    'is_referral_skip_confirmation' => true,
+                ],
+            ]);
+
+            Log::info('Referral code skip processed successfully', [
+                'line_user_id' => $lineUserId,
+                'customer_id' => $customer->id
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to process referral code skip', [
+                'line_user_id' => $lineUserId,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Create referral code flex message
+     */
+    protected function createReferralCodeFlexMessage()
+    {
+        return [
+            'type' => 'bubble',
+            'header' => [
+                'type' => 'box',
+                'layout' => 'vertical',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => '業務推薦碼',
+                        'weight' => 'bold',
+                        'size' => 'lg',
+                        'color' => '#1DB446'
+                    ]
+                ],
+                'backgroundColor' => '#F0F8F0',
+                'paddingAll' => 'md'
+            ],
+            'body' => [
+                'type' => 'box',
+                'layout' => 'vertical',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => '請輸入業務推薦碼',
+                        'size' => 'md',
+                        'color' => '#666666',
+                        'margin' => 'sm'
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => '有推薦碼可享更優惠的利率和服務！',
+                        'size' => 'sm',
+                        'color' => '#999999',
+                        'wrap' => true,
+                        'margin' => 'sm'
+                    ]
+                ],
+                'spacing' => 'sm',
+                'paddingAll' => 'md'
+            ],
+            'footer' => [
+                'type' => 'box',
+                'layout' => 'vertical',
+                'contents' => [
+                    [
+                        'type' => 'button',
+                        'style' => 'primary',
+                        'height' => 'sm',
+                        'action' => [
+                            'type' => 'uri',
+                            'label' => '輸入推薦碼',
+                            'uri' => 'line://nv/compose'
+                        ],
+                        'color' => '#1DB446'
+                    ],
+                    [
+                        'type' => 'button',
+                        'style' => 'secondary',
+                        'height' => 'sm',
+                        'action' => [
+                            'type' => 'message',
+                            'label' => '暫時跳過',
+                            'text' => '跳過推薦碼'
+                        ],
+                        'margin' => 'sm'
+                    ]
+                ],
+                'spacing' => 'sm',
+                'paddingAll' => 'md'
+            ]
+        ];
+    }
+
+    /**
+     * Send LINE flex message
+     */
+    protected function sendLineFlexMessage($lineUserId, $flexMessage)
+    {
+        try {
+            $settings = $this->getLineSettings();
+            $token = $settings['channel_access_token'];
+
+            if (!$token) {
+                Log::error('LINE Channel Access Token not configured for flex message');
+                return false;
+            }
+
+            $client = new \GuzzleHttp\Client();
+            $response = $client->post('https://api.line.me/v2/bot/message/push', [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $token,
+                    'Content-Type' => 'application/json',
+                ],
+                'json' => [
+                    'to' => $lineUserId,
+                    'messages' => [
+                        [
+                            'type' => 'flex',
+                            'altText' => '請輸入業務推薦碼',
+                            'contents' => $flexMessage
+                        ]
+                    ]
+                ],
+                'timeout' => 10,
+            ]);
+
+            Log::info('LINE flex message sent successfully', [
+                'line_user_id' => $lineUserId,
+                'response_code' => $response->getStatusCode()
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error('Failed to send LINE flex message', [
+                'line_user_id' => $lineUserId,
                 'error' => $e->getMessage()
             ]);
             return false;
