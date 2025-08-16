@@ -12,13 +12,36 @@
               <div 
                 :class="[
                   'w-2 h-2 rounded-full',
-                  isWebSocketConnected ? 'bg-green-400' : 'bg-red-400'
+                  {
+                    'bg-green-400': chatConnectionStatus === 'connected',
+                    'bg-yellow-400': chatConnectionStatus === 'connecting',
+                    'bg-red-400': chatConnectionStatus === 'failed' || chatConnectionStatus === 'disconnected'
+                  }
                 ]"
               ></div>
               <span class="text-xs text-gray-500">
-                {{ isWebSocketConnected ? '實時' : '離線' }}
+                {{ 
+                  chatConnectionStatus === 'connected' ? '實時' : 
+                  chatConnectionStatus === 'connecting' ? '連線中' :
+                  chatConnectionStatus === 'failed' ? '連線失敗' : '離線'
+                }}
               </span>
+              <!-- Loading指示器 -->
+              <div 
+                v-if="initializingChat"
+                class="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"
+              ></div>
             </div>
+            <!-- 重新連線按鈕 (連線失敗時顯示) -->
+            <button 
+              v-if="chatConnectionStatus === 'failed'"
+              @click="initializeChatConnection"
+              :disabled="initializingChat"
+              class="text-xs px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 disabled:opacity-50"
+            >
+              重新連線
+            </button>
+            
             <!-- Debug: WebSocket 測試按鈕 (僅開發環境顯示) -->
             <button 
               v-if="$config.public.dev"
@@ -62,10 +85,34 @@
 
       <!-- 用戶列表 -->
       <div class="flex-1 overflow-y-auto custom-scrollbar-left">
+        <!-- 聊天室初始化載入狀態 -->
+        <div v-if="initializingChat && chatConnectionStatus === 'connecting'" class="p-4 text-center">
+          <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
+          <p class="text-sm text-gray-500">正在初始化聊天室...</p>
+        </div>
+        
         <!-- 搜尋中載入狀態 -->
-        <div v-if="isSearching" class="p-4 text-center">
+        <div v-else-if="isSearching" class="p-4 text-center">
           <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
           <p class="text-sm text-gray-500">搜尋中...</p>
+        </div>
+        
+        <!-- 連線失敗提示 -->
+        <div v-else-if="chatConnectionStatus === 'failed'" class="p-4 text-center">
+          <div class="text-red-500 mb-2">
+            <svg class="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.232 15.5c-.77.833.192 2.5 1.732 2.5z"></path>
+            </svg>
+          </div>
+          <p class="text-sm text-gray-600 mb-2">聊天室連線失敗</p>
+          <p class="text-xs text-gray-500 mb-3">請檢查網路連線或稍後再試</p>
+          <button 
+            @click="initializeChatConnection"
+            :disabled="initializingChat"
+            class="text-xs px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 disabled:opacity-50"
+          >
+            重新連線
+          </button>
         </div>
         
         <!-- 搜尋無結果 -->
@@ -148,6 +195,8 @@ const selectedUser = ref(null)
 // 載入狀態
 const loading = ref(false)
 const conversationsLoading = ref(false)
+const initializingChat = ref(false)
+const chatConnectionStatus = ref('disconnected') // 'disconnected', 'connecting', 'connected', 'failed'
 
 // API 數據狀態
 const apiConversations = ref([])
@@ -623,21 +672,56 @@ const testWebSocketConnection = () => {
 
 // Real-time chat functionality is now integrated
 
-// 初始化數據載入
-onMounted(async () => {
-  loadConversations()
+// 初始化實時聊天的輔助函數
+const initializeChatConnection = async () => {
+  initializingChat.value = true
+  chatConnectionStatus.value = 'connecting'
   
-  // 初始化實時聊天
   try {
+    // 確保認證已完成
+    await authStore.waitForInitialization()
+    
+    if (!authStore.isLoggedIn || !authStore.token) {
+      chatConnectionStatus.value = 'failed'
+      console.warn('用戶未登入或無有效token，聊天室連線失敗')
+      return false
+    }
+    
     const success = await initializeRealTimeChat()
     if (success) {
+      chatConnectionStatus.value = 'connected'
       console.log('Real-time chat initialized successfully')
+      return true
     } else {
+      chatConnectionStatus.value = 'failed'
       console.warn('Real-time chat initialization failed')
+      return false
     }
   } catch (error) {
+    chatConnectionStatus.value = 'failed'
     console.error('Error initializing real-time chat:', error)
+    return false
+  } finally {
+    initializingChat.value = false
   }
+}
+
+// 監聽WebSocket連線狀態變化
+watch(isWebSocketConnected, (newStatus) => {
+  if (newStatus && chatConnectionStatus.value === 'connecting') {
+    chatConnectionStatus.value = 'connected'
+  } else if (!newStatus && chatConnectionStatus.value === 'connected') {
+    chatConnectionStatus.value = 'disconnected'
+  }
+})
+
+// 初始化數據載入
+onMounted(async () => {
+  // 載入對話列表
+  loadConversations()
+  
+  // 初始化實時聊天連線
+  await initializeChatConnection()
 })
 
 // 頁面標題

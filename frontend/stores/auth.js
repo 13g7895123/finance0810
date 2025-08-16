@@ -1,7 +1,8 @@
 export const useAuthStore = defineStore('auth', () => {
   // 用戶狀態
   const user = ref(null)
-  const isLoggedIn = computed(() => !!user.value)
+  const isLoggedIn = computed(() => !!user.value && !!user.value.token)
+  const token = computed(() => user.value?.token || null)
   
   // 初始化狀態追蹤
   const _isInitializing = ref(false)
@@ -309,6 +310,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     // 狀態
     user: readonly(user),
+    token,
     isLoggedIn,
     isAdmin,
     isExecutive,
