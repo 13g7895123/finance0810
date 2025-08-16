@@ -790,7 +790,8 @@ class ChatController extends Controller
      */
     protected function findOrCreateCustomer($lineUserId, $event)
     {
-        $customer = Customer::where('line_user_id', $lineUserId)->first();
+        // First, check for existing customer including soft deleted ones
+        $customer = Customer::withTrashed()->where('line_user_id', $lineUserId)->first();
         
         if (!$customer) {
             try {
@@ -832,6 +833,25 @@ class ChatController extends Controller
                 throw $e;
             }
         } else {
+            // Check if the customer was soft deleted and restore if needed
+            if ($customer->trashed()) {
+                $customer->restore();
+                
+                // Reset customer status to new when they re-add as friend
+                $customer->update([
+                    'status' => Customer::STATUS_NEW,
+                    'tracking_status' => Customer::TRACKING_PENDING,
+                    'channel' => 'line',
+                    'notes' => ($customer->notes ? $customer->notes . "\n" : '') . '客戶於 ' . now()->format('Y-m-d H:i:s') . ' 重新加入LINE好友',
+                ]);
+                
+                Log::info('Restored soft-deleted customer on LINE re-follow', [
+                    'customer_id' => $customer->id,
+                    'line_user_id' => $lineUserId,
+                    'name' => $customer->name
+                ]);
+            }
+            
             // Update existing customer's LINE profile if available
             try {
                 $profile = $this->getLineUserProfile($lineUserId);
