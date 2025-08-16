@@ -431,7 +431,8 @@ const sortByTime = (users) => {
 // 只使用 API 數據
 const combinedUsers = computed(() => {
   // 只使用 API 對話數據，移除所有模擬數據
-  return sortByTime(apiConversations.value)
+  // 不重新排序，保持 loadConversations 中設定的初始順序
+  return apiConversations.value
 })
 
 // 搜尋結果
@@ -563,13 +564,8 @@ const filteredUsers = computed(() => {
       }
     }
 
-    // 穩定的時間排序：確保一致性
-    if (typeof sortByTime === 'function') {
-      return sortByTime(users)
-    } else {
-      console.error('sortByTime 不是函數:', typeof sortByTime, sortByTime)
-      return users
-    }
+    // 保持初始排序順序，不重新排序避免選擇用戶後順序改變
+    return users
   } catch (error) {
     console.error('filteredUsers computed 發生錯誤:', error)
     return []
@@ -781,7 +777,7 @@ onMounted(async () => {
   updateChatConnectionStatus()
   
   // 默認啟動輪詢（可選擇）
-  // startPolling(1000) // 1秒間隔，用戶可手動啟動
+  startPolling(1000) // 1秒間隔，自動啟動輪詢
   
   console.log('聊天室初始化完成')
   console.log('可使用「啟動輪詢」按鈕啟動定時更新')
