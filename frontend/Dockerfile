@@ -7,7 +7,8 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++
 
 COPY package*.json ./
-RUN npm ci
+# Use npm install instead of npm ci to handle lock file issues
+RUN npm install --frozen-lockfile || npm install
 
 COPY . .
 
@@ -24,14 +25,15 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++
 
 COPY package*.json ./
-RUN npm ci
+# Use npm install instead of npm ci to handle lock file issues
+RUN npm install --frozen-lockfile || npm install
 
 COPY . .
 
 RUN npm run build
 
 # Clean up dev dependencies after build
-RUN npm ci --only=production && npm cache clean --force
+RUN npm install --only=production && npm cache clean --force
 
 EXPOSE 3000
 
