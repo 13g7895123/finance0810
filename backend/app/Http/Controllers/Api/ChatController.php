@@ -805,64 +805,13 @@ class ChatController extends Controller
                 ],
             ]);
 
-            Log::info('LINE follow event processed successfully', [
+            Log::info('LINE follow event processed successfully (no auto-welcome messages)', [
                 'line_user_id' => $lineUserId,
                 'customer_id' => $customer->id,
                 'conversation_id' => $conversation->id
             ]);
 
-            // Send welcome message
-            $welcomeMessage = $this->getWelcomeMessage();
-            $messageSent = $this->sendLineMessage($lineUserId, $welcomeMessage);
-            
-            // Record welcome message in conversation if successfully sent
-            if ($messageSent) {
-                $this->safeCreateConversation([
-                    'customer_id' => $customer->id,
-                    'user_id' => $customer->assigned_to,
-                    'line_user_id' => $lineUserId,
-                    'platform' => 'line',
-                    'message_type' => 'text',
-                    'message_content' => $welcomeMessage,
-                    'message_timestamp' => now(),
-                    'is_from_customer' => false,
-                    'reply_content' => $welcomeMessage,
-                    'replied_at' => now(),
-                    'replied_by' => 1, // System user
-                    'status' => 'sent',
-                    'metadata' => [
-                        'is_welcome_message' => true,
-                        'event_type' => 'welcome',
-                    ],
-                ]);
-                
-                // Send flex message for business referral code input
-                $referralFlexMessage = $this->createReferralCodeFlexMessage();
-                $flexMessageSent = $this->sendLineFlexMessage($lineUserId, $referralFlexMessage);
-                
-                // Record flex message in conversation if successfully sent
-                if ($flexMessageSent) {
-                    $this->safeCreateConversation([
-                        'customer_id' => $customer->id,
-                        'user_id' => $customer->assigned_to,
-                        'line_user_id' => $lineUserId,
-                        'platform' => 'line',
-                        'message_type' => 'flex',
-                        'message_content' => '請輸入業務推薦碼',
-                        'message_timestamp' => now(),
-                        'is_from_customer' => false,
-                        'reply_content' => '請輸入業務推薦碼',
-                        'replied_at' => now(),
-                        'replied_by' => 1, // System user
-                        'status' => 'sent',
-                        'metadata' => [
-                            'is_flex_message' => true,
-                            'flex_type' => 'referral_code_input',
-                            'event_type' => 'welcome',
-                        ],
-                    ]);
-                }
-            }
+            // Auto-reply functionality removed - no welcome message or flex message sent
             
         } catch (\Exception $e) {
             Log::error('Failed to process LINE follow event', [
@@ -1298,6 +1247,7 @@ class ChatController extends Controller
 
     /**
      * Handle referral code input from customer
+     * Auto-reply removed as per Point 128
      */
     protected function handleReferralCodeInput($lineUserId, $customer, $referralCode)
     {
@@ -1311,31 +1261,9 @@ class ChatController extends Controller
                 'notes' => ($customer->notes ? $customer->notes . "\n" : '') . "客戶輸入推薦碼：{$referralCode}",
             ]);
 
-            // Send confirmation message
-            $confirmationMessage = "感謝您輸入推薦碼：{$referralCode}\n\n我們將為您提供更優惠的服務方案，專員將盡快與您聯繫！";
-            $this->sendLineMessage($lineUserId, $confirmationMessage);
+            // Auto-reply functionality removed - no confirmation message sent
             
-            // Record confirmation message
-            $this->safeCreateConversation([
-                'customer_id' => $customer->id,
-                'user_id' => $customer->assigned_to,
-                'line_user_id' => $lineUserId,
-                'platform' => 'line',
-                'message_type' => 'text',
-                'message_content' => $confirmationMessage,
-                'message_timestamp' => now(),
-                'is_from_customer' => false,
-                'reply_content' => $confirmationMessage,
-                'replied_at' => now(),
-                'replied_by' => 1, // System user
-                'status' => 'sent',
-                'metadata' => [
-                    'is_referral_confirmation' => true,
-                    'referral_code' => $referralCode,
-                ],
-            ]);
-
-            Log::info('Referral code processed successfully', [
+            Log::info('Referral code processed successfully (no auto-reply)', [
                 'line_user_id' => $lineUserId,
                 'customer_id' => $customer->id,
                 'referral_code' => $referralCode
@@ -1352,6 +1280,7 @@ class ChatController extends Controller
 
     /**
      * Handle referral code skip from customer
+     * Auto-reply removed as per Point 128
      */
     protected function handleReferralCodeSkip($lineUserId, $customer)
     {
@@ -1365,30 +1294,9 @@ class ChatController extends Controller
                 'notes' => ($customer->notes ? $customer->notes . "\n" : '') . "客戶跳過推薦碼輸入",
             ]);
 
-            // Send acknowledgment message
-            $skipMessage = "沒問題！您仍然可以享受我們優質的貸款服務。\n\n如有任何問題，歡迎隨時與我們聯繫！";
-            $this->sendLineMessage($lineUserId, $skipMessage);
+            // Auto-reply functionality removed - no acknowledgment message sent
             
-            // Record skip message
-            $this->safeCreateConversation([
-                'customer_id' => $customer->id,
-                'user_id' => $customer->assigned_to,
-                'line_user_id' => $lineUserId,
-                'platform' => 'line',
-                'message_type' => 'text',
-                'message_content' => $skipMessage,
-                'message_timestamp' => now(),
-                'is_from_customer' => false,
-                'reply_content' => $skipMessage,
-                'replied_at' => now(),
-                'replied_by' => 1, // System user
-                'status' => 'sent',
-                'metadata' => [
-                    'is_referral_skip_confirmation' => true,
-                ],
-            ]);
-
-            Log::info('Referral code skip processed successfully', [
+            Log::info('Referral code skip processed successfully (no auto-reply)', [
                 'line_user_id' => $lineUserId,
                 'customer_id' => $customer->id
             ]);

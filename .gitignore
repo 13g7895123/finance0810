@@ -60,6 +60,9 @@ CLAUDE.md
 docs/
 .claude/
 
+# Error logs and debug files
+error/
+
 # Database
 *.sqlite
 *.db
