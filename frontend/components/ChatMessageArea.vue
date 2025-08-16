@@ -53,7 +53,29 @@
             class="px-4 py-2 rounded-2xl"
             :class="getMessageBubbleClass(message)"
           >
-            <p class="text-sm whitespace-pre-wrap break-words">{{ message.content }}</p>
+            <!-- Flex Message Display -->
+            <div v-if="message.type === 'flex' || isFlexMessage(message)" class="flex-message-container">
+              <div class="bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-lg p-4 max-w-sm">
+                <div class="flex items-center mb-3">
+                  <div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mr-3">
+                    <span class="text-white text-xs">💼</span>
+                  </div>
+                  <h4 class="font-semibold text-green-800">業務推薦碼</h4>
+                </div>
+                <p class="text-sm text-gray-700 mb-3">{{ message.content }}</p>
+                <p class="text-xs text-gray-600 mb-4">有推薦碼可享更優惠的利率和服務！</p>
+                <div class="space-y-2">
+                  <button class="w-full bg-green-500 hover:bg-green-600 text-white text-sm py-2 px-4 rounded-lg transition-colors">
+                    輸入推薦碼
+                  </button>
+                  <button class="w-full bg-gray-300 hover:bg-gray-400 text-gray-700 text-sm py-2 px-4 rounded-lg transition-colors">
+                    暫時跳過
+                  </button>
+                </div>
+              </div>
+            </div>
+            <!-- Regular Text Message -->
+            <p v-else class="text-sm whitespace-pre-wrap break-words">{{ message.content }}</p>
           </div>
           
           <!-- 時間戳記 -->
@@ -293,6 +315,14 @@ const formatMessageTime = (timestamp) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+// 檢查是否為 Flex 訊息
+const isFlexMessage = (message) => {
+  // 檢查訊息類型或內容是否為 flex 相關
+  return message.type === 'flex' || 
+         (message.metadata && message.metadata.is_flex_message) ||
+         (message.content && message.content.includes('請輸入業務推薦碼'))
 }
 
 // 自動調整文本框高度

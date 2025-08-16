@@ -792,7 +792,7 @@ class ChatController extends Controller
                     'status' => Customer::STATUS_NEW,
                     'tracking_status' => Customer::TRACKING_PENDING,
                     'created_by' => 1, // System user
-                    'assigned_to' => 1, // Assign to admin by default
+                    'assigned_to' => null, // Unassigned by default for LINE customers
                     'region' => '未知',
                     'website_source' => 'LINE Bot',
                     'source_data' => [
