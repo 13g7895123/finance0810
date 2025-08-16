@@ -526,7 +526,7 @@
           
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              選擇新的負責業務 *
+              選擇新的負責業務 * ({{ salesUsers.length }} 位業務人員)
             </label>
             <select
               v-model="selectedAssignUser"
@@ -536,9 +536,13 @@
               <option value="">請選擇業務人員</option>
               <option value="null">取消分配</option>
               <option v-for="user in salesUsers" :key="user.id" :value="user.id">
-                {{ user.name }}
+                {{ user.name }} (ID: {{ user.id }})
               </option>
             </select>
+            <!-- 除錯資訊 -->
+            <div v-if="salesUsers.length === 0" class="text-sm text-red-500 mt-1">
+              未載入任何業務人員資料
+            </div>
           </div>
           
           <div class="flex justify-end space-x-3 pt-4">
@@ -583,6 +587,7 @@ definePageMeta({
 })
 
 const authStore = useAuthStore()
+const { alert, success, error: showError } = useNotification()
 const { 
   getCustomers, 
   checkLineFriendStatus, 
@@ -974,14 +979,18 @@ const closeAssignModal = () => {
 
 const loadSalesUsers = async () => {
   try {
-    const { data, error: apiError } = await getUsers({ role: 'staff' })
+    console.log('開始載入業務人員列表...')
+    const { success, users, error } = await getUsers({ role: 'staff' })
     
-    if (apiError) {
-      console.error('載入業務人員失敗:', apiError.message)
+    console.log('API 回應:', { success, users, error })
+    
+    if (!success || error) {
+      console.error('載入業務人員失敗:', error?.message || '未知錯誤')
       return
     }
     
-    salesUsers.value = data.data || []
+    salesUsers.value = users || []
+    console.log('載入的業務人員:', salesUsers.value)
     
   } catch (err) {
     console.error('載入業務人員錯誤:', err)
@@ -998,17 +1007,17 @@ const submitAssignForm = async () => {
     const { data, error: apiError } = await assignCustomer(assigningCustomer.value.id, assignToId)
     
     if (apiError) {
-      alert('指派業務失敗：' + apiError.message)
+      await showError('指派業務失敗：' + apiError.message)
       return
     }
     
-    alert('指派業務成功')
+    await success('指派業務成功')
     closeAssignModal()
     loadCustomers() // 重新載入列表
     
   } catch (err) {
     console.error('指派業務錯誤:', err)
-    alert('指派業務時發生錯誤')
+    await showError('指派業務時發生錯誤')
   } finally {
     assigning.value = false
   }
@@ -1027,16 +1036,16 @@ const deleteCustomerRecord = async (customer) => {
     const { data, error: apiError } = await deleteCustomer(customer.id)
     
     if (apiError) {
-      alert('刪除客戶失敗：' + apiError.message)
+      await showError('刪除客戶失敗：' + apiError.message)
       return
     }
     
-    alert('客戶刪除成功')
+    await success('客戶刪除成功')
     loadCustomers() // 重新載入列表
     
   } catch (err) {
     console.error('刪除客戶錯誤:', err)
-    alert('刪除客戶時發生錯誤')
+    await showError('刪除客戶時發生錯誤')
   } finally {
     deleting.value = false
   }
@@ -1049,17 +1058,17 @@ const submitCreateForm = async () => {
     const { data, error: apiError } = await createCustomer(customerForm.value)
     
     if (apiError) {
-      alert('創建客戶失敗：' + apiError.message)
+      await showError('創建客戶失敗：' + apiError.message)
       return
     }
     
-    alert('客戶創建成功')
+    await success('客戶創建成功')
     closeCreateModal()
     loadCustomers() // 重新載入列表
     
   } catch (err) {
     console.error('Create customer error:', err)
-    alert('創建客戶時發生錯誤')
+    await showError('創建客戶時發生錯誤')
   } finally {
     creating.value = false
   }
@@ -1073,17 +1082,17 @@ const submitEditForm = async () => {
     const { data, error: apiError } = await updateCustomer(editingCustomer.value.id, customerForm.value)
     
     if (apiError) {
-      alert('更新客戶失敗：' + apiError.message)
+      await showError('更新客戶失敗：' + apiError.message)
       return
     }
     
-    alert('客戶更新成功')
+    await success('客戶更新成功')
     closeEditModal()
     loadCustomers() // 重新載入列表
     
   } catch (err) {
     console.error('Update customer error:', err)
-    alert('更新客戶時發生錯誤')
+    await showError('更新客戶時發生錯誤')
   } finally {
     updating.value = false
   }

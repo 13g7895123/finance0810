@@ -438,6 +438,7 @@ useHead({
 })
 
 // Composables
+const { alert, error: showError } = useNotification()
 const { getPermissions, getRolePermissions, assignPermissionToRole, removePermissionFromRole } = usePermissions()
 const { getUsers, getRoles, assignRole, removeUserFromRole } = useUserManagement()
 
@@ -514,7 +515,7 @@ const loadData = async () => {
     console.log('Permissions management data loaded successfully')
   } catch (error) {
     console.error('Critical error loading permission data:', error)
-    alert('載入權限資料時發生錯誤，請重新整理頁面或聯繫系統管理員')
+    await showError('載入權限資料時發生錯誤，請重新整理頁面或聯繫系統管理員')
   } finally {
     loading.value = false
   }
@@ -606,7 +607,7 @@ const togglePermission = async (permissionName) => {
   } catch (error) {
     console.error('Failed to toggle permission:', error)
     // Show user-friendly error message
-    alert(`權限設定失敗: ${error.message || '請檢查網路連線或聯繫系統管理員'}`)
+    await showError(`權限設定失敗: ${error.message || '請檢查網路連線或聯繫系統管理員'}`)
     // Revert the change by reloading
     await loadRolePermissions()
   }
@@ -863,7 +864,7 @@ const assignUserToRole = async (userId, roleId) => {
     }
   } catch (error) {
     console.error('Failed to assign user to role:', error)
-    alert(`分配用戶到角色失敗: ${error.message}`)
+    await showError(`分配用戶到角色失敗: ${error.message}`)
   }
 }
 
@@ -874,7 +875,7 @@ const handleRemoveUserFromRole = async (userId, roleId) => {
     await loadData()
   } catch (error) {
     console.error('Failed to remove user from role:', error)
-    alert(`移除用戶角色失敗: ${error.message}`)
+    await showError(`移除用戶角色失敗: ${error.message}`)
   }
 }
 

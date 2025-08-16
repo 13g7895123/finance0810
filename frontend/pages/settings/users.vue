@@ -443,6 +443,7 @@ definePageMeta({
 
 const { t } = useI18n()
 const authStore = useAuthStore()
+const { alert, success, error: showError } = useNotification()
 const { getUsers, createUser, updateUser, deleteUser, getRoles, assignRole } = useUserManagement()
 const { getCustomers, assignCustomer } = useCustomers()
 
@@ -683,17 +684,17 @@ const resetAddForm = () => {
 const addUser = async () => {
   try {
     if (!addForm.value.name || !addForm.value.username || !addForm.value.email || !addForm.value.password || !addForm.value.password_confirmation || !addForm.value.role) {
-      alert('請填寫所有必要欄位')
+      await showError('請填寫所有必要欄位')
       return
     }
 
     if (addForm.value.password !== addForm.value.password_confirmation) {
-      alert('密碼確認不相符')
+      await showError('密碼確認不相符')
       return
     }
 
     if (addForm.value.password.length < 6) {
-      alert('密碼長度至少需要6個字元')
+      await showError('密碼長度至少需要6個字元')
       return
     }
     
@@ -709,7 +710,7 @@ const addUser = async () => {
     
     // Show success message
     if (response?.success !== false) {
-      alert('使用者建立成功')
+      await success('使用者建立成功')
       showAddModal.value = false
       resetAddForm()
       // 重新載入用戶列表
@@ -724,13 +725,13 @@ const addUser = async () => {
       for (const field in error.errors) {
         errorMessages.push(`${field}: ${error.errors[field].join(', ')}`)
       }
-      alert(`表單驗證失敗:\n${errorMessages.join('\n')}`)
+      await showError(`表單驗證失敗:\n${errorMessages.join('\n')}`)
     } else if (error?.message) {
-      alert(`新增用戶失敗: ${error.message}`)
+      await showError(`新增用戶失敗: ${error.message}`)
     } else if (error?.error) {
-      alert(`系統錯誤: ${error.error}`)
+      await showError(`系統錯誤: ${error.error}`)
     } else {
-      alert('新增用戶失敗，請重試')
+      await showError('新增用戶失敗，請重試')
     }
   }
 }
@@ -753,7 +754,7 @@ const saveUser = async () => {
     await loadUsers()
   } catch (error) {
     console.error('Failed to update user:', error)
-    alert('更新用戶失敗，請重試')
+    await showError('更新用戶失敗，請重試')
   }
 }
 
@@ -766,7 +767,7 @@ const deleteUserConfirm = async (user) => {
       await loadUsers()
     } catch (error) {
       console.error('Failed to delete user:', error)
-      alert('刪除用戶失敗，請重試')
+      await showError('刪除用戶失敗，請重試')
     }
   }
 }
@@ -864,12 +865,12 @@ const assignCustomersToStaff = async () => {
     
     await Promise.all(promises)
     
-    alert(`成功指派 ${selectedCustomerIds.value.length} 位客戶給 ${selectedStaff.value.name}`)
+    await success(`成功指派 ${selectedCustomerIds.value.length} 位客戶給 ${selectedStaff.value.name}`)
     closeAssignCustomersModal()
     
   } catch (error) {
     console.error('Failed to assign customers:', error)
-    alert('指派客戶失敗，請重試')
+    await showError('指派客戶失敗，請重試')
   } finally {
     assigningCustomers.value = false
   }

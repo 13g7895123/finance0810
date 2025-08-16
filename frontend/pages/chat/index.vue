@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-screen bg-gray-50">
+  <div class="flex bg-gray-50" style="height: calc(100vh - 120px); max-height: calc(100vh - 120px);">
     <!-- 左側用戶列表 -->
     <div class="w-80 bg-white border-r border-gray-300 flex flex-col">
       <!-- 標題和篩選 -->
@@ -93,6 +93,8 @@ import {
 definePageMeta({
   middleware: 'auth'
 })
+
+const { error: showError } = useNotification()
 
 const authStore = useAuthStore()
 const { getConversations, getConversation, replyMessage, getChatStats, searchConversations } = useChat()
@@ -804,7 +806,7 @@ const sendMessage = async (content) => {
     
   } catch (error) {
     console.error('Failed to send message:', error)
-    alert('發送訊息失敗，請重試')
+    await showError('發送訊息失敗，請重試')
   }
 }
 
@@ -849,11 +851,14 @@ const selectUserWithRealtime = async (user) => {
 
 // 處理實時訊息
 const handleRealtimeMessage = (data, user) => {
+  console.log('收到實時訊息:', data, '用戶:', user)
+  
   switch (data.type) {
     case 'new_message':
+      console.log('處理新訊息:', data.message)
       // 添加新訊息到當前對話
       if (apiMessages.value[user.lineUserId]) {
-        apiMessages.value[user.lineUserId].push({
+        const newMessage = {
           id: data.message.id,
           senderId: data.message.is_from_customer ? parseInt(data.message.line_user_id) : 'bot',
           content: data.message.message_content,
@@ -863,7 +868,11 @@ const handleRealtimeMessage = (data, user) => {
           isCustomer: data.message.is_from_customer,
           isAutoReply: !data.message.is_from_customer,
           metadata: data.message.metadata || {}
-        })
+        }
+        apiMessages.value[user.lineUserId].push(newMessage)
+        console.log('新訊息已添加到對話:', newMessage)
+      } else {
+        console.log('找不到用戶的對話記錄:', user.lineUserId)
       }
       break
       

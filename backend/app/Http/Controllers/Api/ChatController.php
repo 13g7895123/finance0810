@@ -11,6 +11,8 @@ use App\Models\ChatConversation;
 use App\Models\Customer;
 use App\Models\User;
 use App\Models\LineIntegrationSetting;
+use App\Models\CustomerIdentifier;
+use App\Models\CustomerActivity;
 
 class ChatController extends Controller
 {
@@ -786,26 +788,89 @@ class ChatController extends Controller
     }
 
     /**
-     * Find or create customer from LINE user
+     * Find or create customer from LINE user using unified identification system
      */
     protected function findOrCreateCustomer($lineUserId, $event)
     {
-        // First, check for existing customer including soft deleted ones
-        $customer = Customer::withTrashed()->where('line_user_id', $lineUserId)->first();
-        
-        if (!$customer) {
-            try {
-                // Try to get LINE user profile
-                $profile = $this->getLineUserProfile($lineUserId);
-                
-                $customer = Customer::create([
+        try {
+            // Get LINE user profile first to obtain potential identifiers
+            $profile = $this->getLineUserProfile($lineUserId);
+            
+            // Build identifier values for customer lookup
+            $identifierValues = [];
+            $identifierValues['line'] = $lineUserId;
+            
+            // Check if we can extract phone/email from profile (rare but possible)
+            // Most LINE profiles won't have this, but worth checking
+            if (!empty($profile['statusMessage'])) {
+                // Sometimes users put phone numbers in their status message
+                $phonePattern = '/(\d{2,4}[-\s]?\d{6,8}|\d{10,})/';
+                if (preg_match($phonePattern, $profile['statusMessage'], $matches)) {
+                    $phoneNumber = preg_replace('/\D+/', '', $matches[1]);
+                    if (strlen($phoneNumber) >= 8) {
+                        $identifierValues['phone'] = $phoneNumber;
+                    }
+                }
+            }
+            
+            \Illuminate\Support\Facades\DB::beginTransaction();
+            
+            // First, check for existing customer including soft deleted ones by LINE ID
+            $existingCustomer = \App\Models\Customer::withTrashed()->where('line_user_id', $lineUserId)->first();
+            
+            if (!$existingCustomer && !empty($identifierValues)) {
+                // Look for existing customer using identifier system (phone, email, or other LINE IDs)
+                $existingCustomer = \App\Models\Customer::query()
+                    ->whereHas('identifiers', function ($q) use ($identifierValues) {
+                        $q->where(function ($qq) use ($identifierValues) {
+                            foreach ($identifierValues as $type => $value) {
+                                $qq->orWhere(function ($qqq) use ($type, $value) {
+                                    $qqq->where('type', $type)->where('value', $value);
+                                });
+                            }
+                        });
+                    })->first();
+                    
+                // If found via identifiers, log the unification
+                if ($existingCustomer) {
+                    Log::info('Found existing customer via identifiers for LINE user', [
+                        'line_user_id' => $lineUserId,
+                        'customer_id' => $existingCustomer->id,
+                        'matched_identifiers' => array_keys($identifierValues),
+                        'original_channel' => $existingCustomer->channel
+                    ]);
+                    
+                    // Record unification event
+                    \App\Models\CustomerActivity::create([
+                        'customer_id' => $existingCustomer->id,
+                        'user_id' => null,
+                        'activity_type' => \App\Models\CustomerActivity::TYPE_UNIFIED,
+                        'description' => 'LINE 客戶與現有客戶統一整合',
+                        'old_data' => [
+                            'original_channel' => $existingCustomer->channel,
+                            'line_user_id' => null,
+                        ],
+                        'new_data' => [
+                            'line_user_id' => $lineUserId,
+                            'matched_via' => array_keys($identifierValues),
+                            'line_display_name' => $profile['displayName'] ?? null,
+                        ],
+                        'ip_address' => request()->ip(),
+                        'user_agent' => 'LINE Bot Webhook',
+                    ]);
+                }
+            }
+            
+            if (!$existingCustomer) {
+                // Create new customer with LINE data
+                $existingCustomer = \App\Models\Customer::create([
                     'name' => $profile['displayName'] ?? '來自LINE的客戶',
                     'phone' => '', // Required field, will be empty for now
                     'line_user_id' => $lineUserId,
                     'line_display_name' => $profile['displayName'] ?? null,
                     'channel' => 'line',
-                    'status' => Customer::STATUS_NEW,
-                    'tracking_status' => Customer::TRACKING_PENDING,
+                    'status' => \App\Models\Customer::STATUS_NEW,
+                    'tracking_status' => \App\Models\Customer::TRACKING_PENDING,
                     'created_by' => 1, // System user
                     'assigned_to' => null, // Unassigned by default for LINE customers
                     'region' => '未知',
@@ -818,68 +883,119 @@ class ChatController extends Controller
                 ]);
 
                 Log::info('Created new customer from LINE', [
-                    'customer_id' => $customer->id,
+                    'customer_id' => $existingCustomer->id,
                     'line_user_id' => $lineUserId,
-                    'name' => $customer->name,
+                    'name' => $existingCustomer->name,
                     'display_name' => $profile['displayName'] ?? null
                 ]);
                 
-            } catch (\Exception $e) {
-                Log::error('Failed to create customer from LINE user', [
-                    'line_user_id' => $lineUserId,
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
+                // Create activity record for new customer
+                \App\Models\CustomerActivity::create([
+                    'customer_id' => $existingCustomer->id,
+                    'user_id' => null,
+                    'activity_type' => \App\Models\CustomerActivity::TYPE_CREATED,
+                    'description' => '由 LINE Bot 建立客戶',
+                    'old_data' => null,
+                    'new_data' => $existingCustomer->toArray(),
+                    'ip_address' => request()->ip(),
+                    'user_agent' => 'LINE Bot Webhook',
                 ]);
-                throw $e;
+                
+            } else {
+                // Found existing customer - update with LINE information
+                $updates = [];
+                $oldData = [];
+                
+                // Check if customer was soft deleted and restore
+                if ($existingCustomer->trashed()) {
+                    $existingCustomer->restore();
+                    
+                    Log::info('Restored soft-deleted customer on LINE interaction', [
+                        'customer_id' => $existingCustomer->id,
+                        'line_user_id' => $lineUserId,
+                        'name' => $existingCustomer->name
+                    ]);
+                }
+                
+                // Update LINE-specific fields if empty or different
+                foreach ([
+                    'line_user_id' => $lineUserId,
+                    'line_display_name' => $profile['displayName'] ?? null,
+                ] as $field => $value) {
+                    if ($value && ($existingCustomer->{$field} !== $value)) {
+                        $oldData[$field] = $existingCustomer->{$field};
+                        $updates[$field] = $value;
+                    }
+                }
+                
+                // Update channel to indicate multi-channel customer (web_form + line)
+                if ($existingCustomer->channel === 'web_form') {
+                    $oldData['channel'] = $existingCustomer->channel;
+                    $updates['channel'] = 'multi_channel'; // Indicates customer uses multiple channels
+                } elseif (in_array($existingCustomer->channel, [null, ''])) {
+                    $oldData['channel'] = $existingCustomer->channel;
+                    $updates['channel'] = 'line'; // Primary channel becomes LINE
+                }
+                
+                // Update source data to include LINE profile
+                $sourceData = $existingCustomer->source_data ?? [];
+                $sourceData['line_profile'] = $profile;
+                $sourceData['line_integration_date'] = now()->toISOString();
+                $updates['source_data'] = $sourceData;
+                
+                // Add note about LINE integration if this is a web form customer
+                if ($existingCustomer->channel === 'web_form') {
+                    $updates['notes'] = ($existingCustomer->notes ? $existingCustomer->notes . "\n" : '') . 
+                                      '客戶於 ' . now()->format('Y-m-d H:i:s') . ' 加入LINE好友，帳戶已整合';
+                }
+                
+                if (!empty($updates)) {
+                    $existingCustomer->fill($updates)->save();
+                    
+                    // Create activity record for customer update
+                    \App\Models\CustomerActivity::create([
+                        'customer_id' => $existingCustomer->id,
+                        'user_id' => null,
+                        'activity_type' => \App\Models\CustomerActivity::TYPE_UPDATED,
+                        'description' => 'LINE 整合更新客戶資料',
+                        'old_data' => $oldData,
+                        'new_data' => $updates,
+                        'ip_address' => request()->ip(),
+                        'user_agent' => 'LINE Bot Webhook',
+                    ]);
+                    
+                    Log::info('Updated existing customer with LINE data', [
+                        'customer_id' => $existingCustomer->id,
+                        'line_user_id' => $lineUserId,
+                        'updates' => array_keys($updates)
+                    ]);
+                }
             }
-        } else {
-            // Check if the customer was soft deleted and restore if needed
-            if ($customer->trashed()) {
-                $customer->restore();
-                
-                // Reset customer status to new when they re-add as friend
-                $customer->update([
-                    'status' => Customer::STATUS_NEW,
-                    'tracking_status' => Customer::TRACKING_PENDING,
-                    'channel' => 'line',
-                    'notes' => ($customer->notes ? $customer->notes . "\n" : '') . '客戶於 ' . now()->format('Y-m-d H:i:s') . ' 重新加入LINE好友',
-                ]);
-                
-                Log::info('Restored soft-deleted customer on LINE re-follow', [
-                    'customer_id' => $customer->id,
-                    'line_user_id' => $lineUserId,
-                    'name' => $customer->name
+            
+            // Create or update customer identifiers (avoid duplicates with unique index)
+            foreach ($identifierValues as $type => $value) {
+                \App\Models\CustomerIdentifier::firstOrCreate([
+                    'type' => $type,
+                    'value' => $value,
+                ], [
+                    'customer_id' => $existingCustomer->id,
                 ]);
             }
             
-            // Update existing customer's LINE profile if available
-            try {
-                $profile = $this->getLineUserProfile($lineUserId);
-                if (!empty($profile['displayName']) && $customer->line_display_name !== $profile['displayName']) {
-                    $customer->update([
-                        'line_display_name' => $profile['displayName'],
-                        'source_data' => array_merge($customer->source_data ?? [], [
-                            'line_profile_updated' => $profile,
-                            'last_profile_update' => now()->toISOString(),
-                        ]),
-                    ]);
-                    
-                    Log::info('Updated customer LINE profile', [
-                        'customer_id' => $customer->id,
-                        'line_user_id' => $lineUserId,
-                        'new_display_name' => $profile['displayName']
-                    ]);
-                }
-            } catch (\Exception $e) {
-                Log::warning('Failed to update customer LINE profile', [
-                    'customer_id' => $customer->id,
-                    'line_user_id' => $lineUserId,
-                    'error' => $e->getMessage()
-                ]);
-            }
+            \Illuminate\Support\Facades\DB::commit();
+            
+            return $existingCustomer;
+            
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            
+            Log::error('Failed to find or create customer from LINE user', [
+                'line_user_id' => $lineUserId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
         }
-
-        return $customer;
     }
 
     /**

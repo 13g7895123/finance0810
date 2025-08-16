@@ -180,6 +180,7 @@ definePageMeta({
 })
 
 const authStore = useAuthStore()
+const { alert, error: showError, success } = useNotification()
 
 // 使用者資訊
 const userInfo = computed(() => ({
@@ -226,7 +227,7 @@ const updateProfile = async () => {
     // 如果有密碼更新，加入密碼資料
     if (passwordForm.value.new_password) {
       if (passwordForm.value.new_password !== passwordForm.value.new_password_confirmation) {
-        alert('新密碼與確認密碼不符')
+        await showError('新密碼與確認密碼不符')
         return
       }
       
@@ -247,9 +248,9 @@ const updateProfile = async () => {
         Object.keys(error.errors).forEach(field => {
           errorMessage += `${error.errors[field].join(', ')}\n`
         })
-        alert(errorMessage)
+        await showError(errorMessage)
       } else {
-        alert(error.message || '更新失敗，請重試')
+        await showError(error.message || '更新失敗，請重試')
       }
       return
     }
@@ -275,11 +276,11 @@ const updateProfile = async () => {
     }
     
     // 顯示成功訊息
-    alert('個人資料更新成功！')
+    await success('個人資料更新成功！')
     
   } catch (error) {
     console.error('Update failed:', error)
-    alert('更新失敗，請重試')
+    await showError('更新失敗，請重試')
   } finally {
     isUpdating.value = false
   }

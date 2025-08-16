@@ -61,4 +61,5 @@ class CustomerActivity extends Model
     const TYPE_DISBURSED = 'disbursed';
     const TYPE_SUSPECTED_BLACKLIST = 'suspected_blacklist';
     const TYPE_BLACKLISTED = 'blacklisted';
+    const TYPE_UNIFIED = 'unified';
 }

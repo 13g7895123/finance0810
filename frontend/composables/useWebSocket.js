@@ -34,6 +34,9 @@ export const useWebSocket = () => {
         isConnected.value = true
         reconnectAttempts.value = 0
         
+        // 設置訊息處理器
+        setupMessageHandler()
+        
         // 發送初始認證訊息
         sendMessage({
           type: 'auth',
@@ -73,6 +76,8 @@ export const useWebSocket = () => {
       socket.value.close(1000, 'Manual disconnect')
       socket.value = null
       isConnected.value = false
+      // 清理所有訊息監聽器
+      messageListeners.value.clear()
     }
   }
   
@@ -92,27 +97,43 @@ export const useWebSocket = () => {
     return false
   }
   
+  // 儲存所有訊息監聽器
+  const messageListeners = ref(new Map())
+  
   /**
-   * 監聽特定類型的訊息
+   * 設置訊息處理器
    */
-  const onMessage = (type, callback) => {
+  const setupMessageHandler = () => {
     if (!socket.value) return
-    
-    const originalOnMessage = socket.value.onmessage
     
     socket.value.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
         
-        // 如果訊息類型匹配，執行回調
-        if (data.type === type) {
-          callback(data)
+        // 執行所有匹配類型的回調
+        if (messageListeners.value.has(data.type)) {
+          const callbacks = messageListeners.value.get(data.type)
+          callbacks.forEach(callback => {
+            try {
+              callback(data)
+            } catch (error) {
+              console.error(`Error in message callback for type ${data.type}:`, error)
+            }
+          })
         }
         
-        // 執行原始的onmessage處理器（如果存在）
-        if (originalOnMessage) {
-          originalOnMessage(event)
+        // 執行所有通用回調
+        if (messageListeners.value.has('*')) {
+          const generalCallbacks = messageListeners.value.get('*')
+          generalCallbacks.forEach(callback => {
+            try {
+              callback(data)
+            } catch (error) {
+              console.error('Error in general message callback:', error)
+            }
+          })
         }
+        
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error)
       }
@@ -120,19 +141,20 @@ export const useWebSocket = () => {
   }
   
   /**
+   * 監聽特定類型的訊息
+   */
+  const onMessage = (type, callback) => {
+    if (!messageListeners.value.has(type)) {
+      messageListeners.value.set(type, [])
+    }
+    messageListeners.value.get(type).push(callback)
+  }
+  
+  /**
    * 監聽所有訊息
    */
   const onAnyMessage = (callback) => {
-    if (!socket.value) return
-    
-    socket.value.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        callback(data)
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error)
-      }
-    }
+    onMessage('*', callback)
   }
   
   /**
