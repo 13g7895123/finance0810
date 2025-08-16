@@ -11,6 +11,7 @@ class CustomerLead extends Model
 
     protected $fillable = [
         'customer_id',
+        'assigned_to',
         'channel', // wp_form, phone_call, line, email
         'source', // page url / website
         'name',

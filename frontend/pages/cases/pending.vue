@@ -13,6 +13,12 @@
           placeholder="搜尋姓名/手機/Email/LINE/網站... (至少2個字符)"
           class="px-3 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
         />
+        <!-- 承辦業務篩選 -->
+        <select v-model="selectedAssignee" class="px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700">
+          <option value="all">全部承辦</option>
+          <option value="null">未指派</option>
+          <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
+        </select>
         <select v-model="pagination.perPage" class="px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700">
           <option v-for="option in PAGINATION_OPTIONS" :key="option.value" :value="option.value">
             {{ option.label }}
@@ -38,11 +44,19 @@
         <table class="w-full">
           <thead class="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">序號</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">日期 / 時間</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">網站</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">客戶資訊</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">來源管道</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">時間</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">承辦業務</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Email</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">LINE ID</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">地區</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">地址</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">需求金額</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">諮詢項目</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">可聯繫時間</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">IP 位址</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">備註</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">操作</th>
             </tr>
           </thead>
@@ -51,26 +65,41 @@
               <td colspan="6" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">載入中...</td>
             </tr>
             <tr v-for="lead in leads" :key="lead.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-900 dark:text-white">{{ lead.id }}</td>
+              <!-- 網站 -->
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
+                <div class="text-gray-900 dark:text-white">{{ extractDomain(lead.payload?.['頁面_URL'] || lead.source) || '-' }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[240px]">{{ lead.payload?.['頁面_URL'] || lead.source }}</div>
+              </td>
+              <!-- 來源管道 -->
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.channel || 'wp' }}</td>
+              <!-- 時間 -->
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
                 <div>{{ formatDate(lead.created_at) }}</div>
                 <div class="text-sm">{{ formatTime(lead.created_at) }}</div>
               </td>
+              <!-- 承辦業務 -->
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
-                <div class="text-gray-900 dark:text-white">{{ extractDomain(lead.source) || '-' }}</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[240px]">{{ lead.source }}</div>
+                {{ (users.find(u => u.id === lead.assigned_to)?.name) || (users.find(u => u.id === lead.payload?.assigned_to)?.name) || '-' }}
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-gray-900 dark:text-white">{{ lead.name || '-' }}</div>
-                <div class="text-sm text-gray-500 dark:text-gray-400">
-                  <span v-if="lead.phone">{{ lead.phone }}</span>
-                  <span v-if="lead.email"> · {{ lead.email }}</span>
-                  <span v-if="lead.line_id"> · LINE: {{ lead.line_id }}</span>
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
-                {{ lead.payload?.['所在地區'] || '-' }}
-              </td>
+              <!-- Email -->
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.email || '-' }}</td>
+              <!-- LINE ID -->
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.line_id || lead.payload?.['LINE_ID'] || '-' }}</td>
+              <!-- 地區 -->
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '-' }}</td>
+              <!-- 地址 -->
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['房屋地址'] || '-' }}</td>
+              <!-- 需求金額 -->
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['資金需求'] || '-' }}</td>
+              <!-- 諮詢項目 -->
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['貸款需求'] || '-' }}</td>
+              <!-- 可聯繫時間 -->
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['方便聯絡時間'] || '-' }}</td>
+              <!-- IP 位址 -->
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.ip_address || '-' }}</td>
+              <!-- 備註 -->
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.notes || lead.payload?.['備註'] || lead.payload?.notes || '-' }}</td>
+              <!-- 操作 -->
               <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">
                 <button @click="onEdit(lead)" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">編輯</button>
                 <button @click="openConvert(lead)" class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300">轉送件</button>
@@ -101,12 +130,25 @@
         <form @submit.prevent="saveEdit" class="space-y-3">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label class="block text-sm mb-1">姓名</label>
-              <input v-model="form.name" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <label class="block text-sm mb-1">網站（頁面URL）</label>
+              <input v-model="form.page_url" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
             </div>
             <div>
-              <label class="block text-sm mb-1">手機</label>
-              <input v-model="form.phone" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <label class="block text-sm mb-1">來源管道</label>
+              <select v-model="form.channel" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700">
+                <option v-for="opt in CHANNEL_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm mb-1">時間</label>
+              <input v-model="form.created_at" type="datetime-local" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+            </div>
+            <div>
+              <label class="block text-sm mb-1">承辦業務</label>
+              <select v-model="form.assigned_to" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700">
+                <option :value="null">未指派</option>
+                <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
+              </select>
             </div>
             <div>
               <label class="block text-sm mb-1">Email</label>
@@ -116,9 +158,33 @@
               <label class="block text-sm mb-1">LINE ID</label>
               <input v-model="form.line_id" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
             </div>
+            <div>
+              <label class="block text-sm mb-1">地區</label>
+              <input v-model="form.region" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+            </div>
+            <div>
+              <label class="block text-sm mb-1">地址</label>
+              <input v-model="form.address" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+            </div>
+            <div>
+              <label class="block text-sm mb-1">需求金額</label>
+              <input v-model.number="form.required_amount" type="number" min="0" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+            </div>
+            <div>
+              <label class="block text-sm mb-1">諮詢項目</label>
+              <input v-model="form.loan_purpose" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+            </div>
+            <div>
+              <label class="block text-sm mb-1">可聯繫時間</label>
+              <input v-model="form.contact_time" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+            </div>
+            <div>
+              <label class="block text-sm mb-1">IP 位址</label>
+              <input v-model="form.ip_address" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+            </div>
             <div class="md:col-span-2">
-              <label class="block text-sm mb-1">網站來源</label>
-              <input v-model="form.source" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <label class="block text-sm mb-1">備註</label>
+              <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"></textarea>
             </div>
           </div>
           <div class="flex justify-end space-x-3 pt-2">
@@ -174,17 +240,41 @@ const { pagination, totalPages, startIndex, endIndex, nextPage, prevPage, update
 const { validateCaseForm } = useFormValidation()
 const { success, error: showError, confirm } = useNotification()
 const { PAGINATION_OPTIONS, SEARCH_CONFIG } = useConstants()
+const { getUsers } = useUsers()
+
+const users = ref([])
+const CHANNEL_OPTIONS = [
+  { value: 'wp', label: 'wp' },
+  { value: 'lineoa', label: 'lineoa' },
+  { value: 'email', label: 'email' },
+  { value: 'phone', label: '電話' }
+]
 
 // state
 const leads = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const search = ref('')
+const selectedAssignee = ref('')
 
 // edit modal
 const editOpen = ref(false)
 const editingId = ref(null)
-const form = reactive({ name: '', phone: '', email: '', line_id: '', source: '', is_suspected_blacklist: false, suspected_reason: '' })
+const form = reactive({
+  page_url: '',
+  channel: 'wp',
+  created_at: '',
+  assigned_to: null,
+  email: null,
+  line_id: '',
+  region: '',
+  address: '',
+  required_amount: null,
+  loan_purpose: '',
+  contact_time: '',
+  ip_address: null,
+  notes: ''
+})
 
 // convert modal
 const convertOpen = ref(false)
@@ -208,7 +298,8 @@ const loadLeads = async () => {
     page: pagination.currentPage,
     per_page: pagination.perPage,
     search: searchValue,
-    channel: 'wp_form'
+    // channel: 'wp_form',
+    assigned_to: selectedAssignee.value
   })
   if (apiSuccess) {
     leads.value = items
@@ -217,7 +308,18 @@ const loadLeads = async () => {
   loading.value = false
 }
 
-onMounted(loadLeads)
+const loadUsers = async () => {
+  try {
+    const { success: ok, users: list } = await getUsers({ per_page: 250 })
+    if (ok && Array.isArray(list)) users.value = list
+  } catch (e) {
+    console.warn('Load users failed:', e)
+  }
+}
+
+onMounted(async () => {
+  await Promise.all([loadUsers(), loadLeads()])
+})
 
 // 搜尋防抖
 let searchTimer
@@ -227,7 +329,7 @@ const debouncedLoadLeads = () => {
 }
 
 watch([() => pagination.currentPage, () => pagination.perPage], loadLeads)
-watch(search, debouncedLoadLeads)
+watch([search, selectedAssignee], debouncedLoadLeads)
 
 // 組件銷毀時清理
 onUnmounted(() => {
@@ -247,13 +349,19 @@ const formatTime = (d) => new Date(d).toLocaleTimeString('zh-TW', { hour: '2-dig
 const onEdit = (lead) => {
   editingId.value = lead.id
   Object.assign(form, {
-    name: lead.name || '',
-    phone: lead.phone || '',
-    email: lead.email || '',
-    line_id: lead.line_id || '',
-    source: lead.source || '',
-    is_suspected_blacklist: !!lead.is_suspected_blacklist,
-    suspected_reason: lead.suspected_reason || ''
+    page_url: lead.payload?.['頁面_URL'] || lead.source || '',
+    channel: lead.channel || 'wp',
+    created_at: lead.created_at ? new Date(lead.created_at).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
+    assigned_to: lead.assigned_to || null,
+    email: lead.email || null,
+    line_id: lead.line_id || lead.payload?.['LINE_ID'] || '',
+    region: lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '',
+    address: lead.payload?.['房屋地址'] || '',
+    required_amount: lead.payload?.['資金需求'] || '',
+    loan_purpose: lead.payload?.['貸款需求'] || '',
+    contact_time: lead.payload?.['方便聯絡時間'] || '',
+    ip_address: lead.ip_address || null,
+    notes: lead.notes || lead.payload?.['備註'] || ''
   })
   editOpen.value = true
 }
@@ -263,7 +371,27 @@ const saveEdit = async () => {
   
   saving.value = true
   try {
-    const { error } = await updateLead(editingId.value, { ...form })
+    // 組合 payload：top-level + payload 物件
+    const payload = {
+      channel: form.channel,
+      email: form.email,
+      line_id: form.line_id,
+      ip_address: form.ip_address,
+      assigned_to: form.assigned_to, // 後端已有欄位，直接存欄位
+      notes: form.notes, // 若後端未有欄位會自動併入 payload（現已改為欄位，仍保留）
+      // 其他資料放在 payload 物件
+      payload: {
+        '頁面_URL': form.page_url,
+        'LINE_ID': form.line_id,
+        '房屋區域': form.region,
+        '房屋地址': form.address,
+        '資金需求': form.required_amount,
+        '貸款需求': form.loan_purpose,
+        '方便聯絡時間': form.contact_time
+      }
+    }
+
+    const { error } = await updateLead(editingId.value, payload)
     
     if (!error) {
       editOpen.value = false
@@ -314,6 +442,10 @@ const doConvert = async () => {
   
   // 使用統一的表單驗證
   const { isValid, errors } = validateCaseForm(convertForm)
+  // 最小驗證
+  if (!form.channel) return showError('來源管道為必填')
+  if (form.required_amount !== null && Number(form.required_amount) < 0) return showError('需求金額不能為負數')
+  if (form.page_url && !/^https?:\/\//i.test(form.page_url)) return showError('請輸入有效的網站URL（需以 http:// 或 https:// 開頭）')
   if (!isValid) {
     const errorMessages = Object.values(errors).join('\n')
     showError(`表單驗證失敗：\n${errorMessages}`)

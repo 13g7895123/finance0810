@@ -21,7 +21,7 @@ class LeadController extends Controller
         $query = CustomerLead::with(['customer']);
 
         // 預設顯示 WP 表單進件
-        if ($request->get('channel', 'wp_form')) {
+        if ($request->has('channel')) {
             $query->where('channel', $request->get('channel', 'wp_form'));
         }
 
@@ -35,6 +35,16 @@ class LeadController extends Controller
                     ->orWhere('source', 'like', "%$search%")
                     ->orWhere('ip_address', 'like', "%$search%");
             });
+        }
+
+        // 篩選：承辦業務 assigned_to（支援 'null' 表示未指派）
+        if ($request->has('assigned_to') && $request->get('assigned_to') !== 'all') {
+            $assigned = $request->get('assigned_to');
+            if ($assigned === 'null' || $assigned === null || $assigned === '') {
+                $query->whereNull('assigned_to');
+            } else {
+                $query->where('assigned_to', (int)$assigned);
+            }
         }
 
         if ($request->has('is_suspected_blacklist')) {
@@ -61,22 +71,37 @@ class LeadController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'customer_id' => 'sometimes|exists:customers,id',
-            'name' => 'sometimes|string|max:100',
-            'phone' => 'sometimes|string|max:50',
+            'channel' => 'sometimes|in:wp,lineoa,email,phone,wp_form',
             'email' => 'sometimes|nullable|email',
             'line_id' => 'sometimes|nullable|string|max:100',
-            'source' => 'sometimes|nullable|string',
-            'is_suspected_blacklist' => 'sometimes|boolean',
-            'suspected_reason' => 'sometimes|nullable|string|max:500',
+            'ip_address' => 'sometimes|nullable|string',
+            'assigned_to' => 'sometimes|nullable|exists:users,id',
+            'notes' => 'sometimes|nullable|string|max:1000',
             'payload' => 'sometimes|array',
         ]);
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
-        $lead->fill($validator->validated());
+        // 只填入模型存在的欄位
+        $data = collect($validator->validated())
+            ->only(['customer_id','assigned_to','channel','email','line_id','ip_address'])
+            ->toArray();
+        $lead->fill($data);
+
+        // 合併 payload（保留原有）
+        $payload = is_array($lead->payload) ? $lead->payload : [];
         if ($request->has('payload') && is_array($request->payload)) {
-            $lead->payload = $request->payload;
+            $payload = array_merge($payload, $request->payload);
         }
+        // 將未持久化的欄位也保存到 payload 內
+        if ($request->filled('assigned_to')) {
+            $payload['assigned_to'] = (int)$request->assigned_to;
+        }
+        if ($request->filled('notes')) {
+            $payload['notes'] = (string)$request->notes;
+        }
+        $lead->payload = $payload;
+
         $lead->save();
         return response()->json(['message' => 'updated', 'lead' => $lead]);
     }
