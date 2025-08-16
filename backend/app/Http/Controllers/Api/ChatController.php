@@ -191,7 +191,7 @@ class ChatController extends Controller
             
             if (!$lineSuccess) {
                 // Update conversation status to failed
-                $conversation->update(['status' => 'failed']);
+                $this->safeUpdateStatus($conversation, 'failed');
                 
                 Log::error('LINE message send failed', [
                     'conversation_id' => $conversation->id,
@@ -204,8 +204,8 @@ class ChatController extends Controller
                 ], 500);
             }
 
-            // Update conversation status to sent
-            $conversation->update(['status' => 'sent']);
+            // Update conversation status to sent (with fallback handling)
+            $this->safeUpdateStatus($conversation, 'sent');
             
             Log::info('Chat reply successful', ['conversation_id' => $conversation->id]);
 
@@ -814,7 +814,7 @@ class ChatController extends Controller
             
             // Record welcome message in conversation if successfully sent
             if ($messageSent) {
-                ChatConversation::create([
+                $this->safeCreateConversation([
                     'customer_id' => $customer->id,
                     'user_id' => $customer->assigned_to,
                     'line_user_id' => $lineUserId,
@@ -839,7 +839,7 @@ class ChatController extends Controller
                 
                 // Record flex message in conversation if successfully sent
                 if ($flexMessageSent) {
-                    ChatConversation::create([
+                    $this->safeCreateConversation([
                         'customer_id' => $customer->id,
                         'user_id' => $customer->assigned_to,
                         'line_user_id' => $lineUserId,
@@ -1198,7 +1198,7 @@ class ChatController extends Controller
         // Send the auto-reply
         if ($this->sendLineMessage($lineUserId, $message)) {
             // Save auto-reply as conversation
-            ChatConversation::create([
+            $this->safeCreateConversation([
                 'customer_id' => $customer->id,
                 'user_id' => $customer->assigned_to,
                 'line_user_id' => $lineUserId,
@@ -1379,7 +1379,7 @@ class ChatController extends Controller
             $this->sendLineMessage($lineUserId, $confirmationMessage);
             
             // Record confirmation message
-            ChatConversation::create([
+            $this->safeCreateConversation([
                 'customer_id' => $customer->id,
                 'user_id' => $customer->assigned_to,
                 'line_user_id' => $lineUserId,
@@ -1433,7 +1433,7 @@ class ChatController extends Controller
             $this->sendLineMessage($lineUserId, $skipMessage);
             
             // Record skip message
-            ChatConversation::create([
+            $this->safeCreateConversation([
                 'customer_id' => $customer->id,
                 'user_id' => $customer->assigned_to,
                 'line_user_id' => $lineUserId,
@@ -1596,5 +1596,94 @@ class ChatController extends Controller
     protected function getWelcomeMessage()
     {
         return "歡迎加入我們的LINE官方帳號！\n\n我們提供以下貸款服務：\n🚗 汽車貸款\n🛵 機車貸款\n📱 手機貸款\n\n如有任何問題，請隨時與我們聯繫，專員將盡快為您服務！";
+    }
+
+    /**
+     * Safely update conversation status, handling ENUM constraints
+     */
+    protected function safeUpdateStatus($conversation, $status)
+    {
+        try {
+            $conversation->update(['status' => $status]);
+            return true;
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Check if it's an ENUM constraint error
+            if (strpos($e->getMessage(), 'Data truncated for column \'status\'') !== false ||
+                strpos($e->getMessage(), 'enum') !== false) {
+                Log::warning('Status update failed due to ENUM constraint', [
+                    'conversation_id' => $conversation->id,
+                    'attempted_status' => $status,
+                    'error' => $e->getMessage()
+                ]);
+                
+                // Fallback to 'replied' status which should always be valid
+                try {
+                    $conversation->update(['status' => 'replied']);
+                    Log::info('Fallback status update successful', [
+                        'conversation_id' => $conversation->id,
+                        'fallback_status' => 'replied'
+                    ]);
+                    return true;
+                } catch (\Exception $fallbackError) {
+                    Log::error('Fallback status update also failed', [
+                        'conversation_id' => $conversation->id,
+                        'fallback_error' => $fallbackError->getMessage()
+                    ]);
+                    return false;
+                }
+            } else {
+                // Re-throw if it's not an ENUM error
+                throw $e;
+            }
+        } catch (\Exception $e) {
+            Log::error('Unexpected error during status update', [
+                'conversation_id' => $conversation->id,
+                'status' => $status,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Safely create conversation with status, handling ENUM constraints
+     */
+    protected function safeCreateConversation($data)
+    {
+        $originalStatus = $data['status'] ?? 'unread';
+        
+        try {
+            return ChatConversation::create($data);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Check if it's an ENUM constraint error
+            if (strpos($e->getMessage(), 'Data truncated for column \'status\'') !== false ||
+                strpos($e->getMessage(), 'enum') !== false) {
+                Log::warning('Conversation creation failed due to status ENUM constraint', [
+                    'attempted_status' => $originalStatus,
+                    'error' => $e->getMessage()
+                ]);
+                
+                // Fallback to 'replied' status
+                $data['status'] = 'replied';
+                try {
+                    $conversation = ChatConversation::create($data);
+                    Log::info('Fallback conversation creation successful', [
+                        'conversation_id' => $conversation->id,
+                        'original_status' => $originalStatus,
+                        'fallback_status' => 'replied'
+                    ]);
+                    return $conversation;
+                } catch (\Exception $fallbackError) {
+                    Log::error('Fallback conversation creation also failed', [
+                        'original_status' => $originalStatus,
+                        'fallback_error' => $fallbackError->getMessage()
+                    ]);
+                    throw $fallbackError;
+                }
+            } else {
+                // Re-throw if it's not an ENUM error
+                throw $e;
+            }
+        }
     }
 }

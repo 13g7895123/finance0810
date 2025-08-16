@@ -12,8 +12,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Update the status enum to include additional values
-        DB::statement("ALTER TABLE chat_conversations MODIFY status ENUM('unread', 'read', 'replied', 'archived', 'pending', 'sent', 'delivered', 'failed') DEFAULT 'unread'");
+        // First check if the table exists and what the current schema is
+        $schemaManager = Schema::getConnection()->getDoctrineSchemaManager();
+        $tableDetails = $schemaManager->listTableDetails('chat_conversations');
+        
+        if ($tableDetails->hasColumn('status')) {
+            // Update the status enum to include all values used in the application
+            DB::statement("ALTER TABLE chat_conversations MODIFY status ENUM('unread', 'read', 'replied', 'archived', 'sent', 'failed') DEFAULT 'unread'");
+            
+            // Update any existing invalid status values to valid ones
+            DB::statement("UPDATE chat_conversations SET status = 'replied' WHERE status NOT IN ('unread', 'read', 'replied', 'archived', 'sent', 'failed')");
+        }
     }
 
     /**
