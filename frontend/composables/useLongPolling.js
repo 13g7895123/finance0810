@@ -9,35 +9,85 @@ export const useLongPolling = () => {
   const lastUpdate = ref(null)
   const pollingInterval = ref(null)
   const activeListeners = ref(new Map())
+  const isAggressiveMode = ref(false)
+  const currentLineUserId = ref(null)
   
   const { $api } = useNuxtApp()
+  const route = useRoute()
+  
+  // 輪詢間隔配置
+  const AGGRESSIVE_POLLING_INTERVAL = 300 // 300ms for chat page
+  const NORMAL_POLLING_INTERVAL = 1000 // 1s for normal usage
+  const ERROR_RETRY_INTERVAL = 5000 // 5s for error retry
+  
+  /**
+   * 根據模式取得輪詢間隔
+   */
+  const getPollingInterval = () => {
+    return isAggressiveMode.value ? AGGRESSIVE_POLLING_INTERVAL : NORMAL_POLLING_INTERVAL
+  }
   
   /**
    * 開始長輪詢
    */
-  const startPolling = (lineUserId = null) => {
+  const startPolling = (lineUserId = null, aggressive = false) => {
     if (isPolling.value) {
       return
     }
     
     isPolling.value = true
     isConnected.value = true
+    isAggressiveMode.value = aggressive
+    currentLineUserId.value = lineUserId
     lastUpdate.value = new Date().toISOString()
+    
+    console.log(`開始長輪詢 - 模式: ${aggressive ? '積極' : '正常'}, 間隔: ${getPollingInterval()}ms`)
     
     // 開始輪詢循環
     pollForUpdates(lineUserId)
   }
   
   /**
+   * 開始積極輪詢（聊天室專用）
+   */
+  const startAggressivePolling = (lineUserId = null) => {
+    startPolling(lineUserId, true)
+  }
+  
+  /**
    * 停止長輪詢
    */
   const stopPolling = () => {
+    console.log('停止長輪詢')
     isPolling.value = false
     isConnected.value = false
+    isAggressiveMode.value = false
+    currentLineUserId.value = null
     
     if (pollingInterval.value) {
       clearTimeout(pollingInterval.value)
       pollingInterval.value = null
+    }
+  }
+  
+  /**
+   * 暫停輪詢（保持狀態）
+   */
+  const pausePolling = () => {
+    console.log('暫停長輪詢')
+    if (pollingInterval.value) {
+      clearTimeout(pollingInterval.value)
+      pollingInterval.value = null
+    }
+  }
+  
+  /**
+   * 恢復輪詢
+   */
+  const resumePolling = () => {
+    if (isPolling.value && !pollingInterval.value) {
+      console.log('恢復長輪詢')
+      pollForUpdates(currentLineUserId.value)
     }
   }
   
@@ -78,10 +128,9 @@ export const useLongPolling = () => {
       
       // 如果還在輪詢，繼續下一次輪詢
       if (isPolling.value) {
-        // 短暫延遲後繼續輪詢
         pollingInterval.value = setTimeout(() => {
           pollForUpdates(lineUserId)
-        }, 1000)
+        }, getPollingInterval())
       }
       
     } catch (error) {
@@ -91,7 +140,7 @@ export const useLongPolling = () => {
       if (isPolling.value) {
         pollingInterval.value = setTimeout(() => {
           pollForUpdates(lineUserId)
-        }, 5000)
+        }, ERROR_RETRY_INTERVAL)
       }
     }
   }
@@ -178,12 +227,27 @@ export const useLongPolling = () => {
     cleanup()
   })
   
+  // 頁面可見性檢測
+  if (process.client) {
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        pausePolling()
+      } else {
+        resumePolling()
+      }
+    })
+  }
+
   return {
     isPolling: readonly(isPolling),
     isConnected: readonly(isConnected),
     lastUpdate: readonly(lastUpdate),
+    isAggressiveMode: readonly(isAggressiveMode),
     startPolling,
+    startAggressivePolling,
     stopPolling,
+    pausePolling,
+    resumePolling,
     onUpdate,
     onAnyUpdate,
     offUpdate,

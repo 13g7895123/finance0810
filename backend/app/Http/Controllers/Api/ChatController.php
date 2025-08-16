@@ -1545,14 +1545,16 @@ class ChatController extends Controller
     {
         try {
             $user = Auth::user();
-            $timeout = min($request->get('timeout', 30), 60); // 最大60秒
+            $timeout = min($request->get('timeout', 10), 30); // 縮短最大timeout
             $lastUpdate = $request->get('last_update');
             $lineUserId = $request->get('line_user_id');
             
-            $startTime = time();
-            $pollingInterval = 2; // 每2秒檢查一次
+            $startTime = microtime(true);
+            $pollingInterval = 0.5; // 500毫秒檢查一次，提升響應速度
+            $maxChecks = 20; // 最多檢查20次，避免過度消耗資源
+            $checkCount = 0;
             
-            while ((time() - $startTime) < $timeout) {
+            while ((microtime(true) - $startTime) < $timeout && $checkCount < $maxChecks) {
                 // 檢查是否有新的訊息或更新
                 $updates = $this->checkForUpdates($user, $lastUpdate, $lineUserId);
                 
@@ -1560,12 +1562,16 @@ class ChatController extends Controller
                     return response()->json([
                         'success' => true,
                         'data' => $updates,
-                        'timestamp' => now()->toISOString()
+                        'timestamp' => now()->toISOString(),
+                        'response_time' => round((microtime(true) - $startTime) * 1000, 2) // 回應時間(毫秒)
                     ]);
                 }
                 
-                // 等待再檢查
-                sleep($pollingInterval);
+                $checkCount++;
+                
+                // 動態調整間隔：前幾次檢查使用更短間隔
+                $currentInterval = $checkCount <= 5 ? 0.2 : $pollingInterval;
+                usleep($currentInterval * 1000000); // 使用微秒精度
             }
             
             // 超時，返回空的更新
@@ -1599,42 +1605,60 @@ class ChatController extends Controller
         try {
             $lastUpdateTime = $lastUpdate ? 
                 \Carbon\Carbon::parse($lastUpdate) : 
-                now()->subMinutes(5);
+                now()->subMinutes(1); // 縮短到1分鐘，減少查詢範圍
             
             if ($lineUserId) {
-                // 檢查特定對話的新訊息
-                $newMessages = ChatConversation::where('line_user_id', $lineUserId)
+                // 檢查特定對話的新訊息 - 優化查詢，只選擇必要欄位
+                $newMessages = ChatConversation::select([
+                        'id', 'line_user_id', 'message_content', 'message_timestamp', 
+                        'is_from_customer', 'status', 'message_type', 'metadata'
+                    ])
+                    ->where('line_user_id', $lineUserId)
                     ->where('message_timestamp', '>', $lastUpdateTime)
                     ->orderBy('message_timestamp', 'asc')
+                    ->limit(50) // 限制結果數量
                     ->get();
                 
                 if ($newMessages->isNotEmpty()) {
-                    $updates[] = [
-                        'type' => 'new_messages',
-                        'line_user_id' => $lineUserId,
-                        'messages' => $newMessages->map(function ($msg) {
-                            return [
+                    foreach ($newMessages as $msg) {
+                        $updates[] = [
+                            'type' => 'new_message',
+                            'data' => [
                                 'id' => $msg->id,
-                                'content' => $msg->message_content,
-                                'timestamp' => $msg->message_timestamp,
+                                'line_user_id' => $msg->line_user_id,
+                                'message_content' => $msg->message_content,
+                                'message_timestamp' => $msg->message_timestamp,
                                 'is_from_customer' => $msg->is_from_customer,
                                 'status' => $msg->status,
-                                'message_type' => $msg->message_type
-                            ];
-                        })
-                    ];
+                                'message_type' => $msg->message_type,
+                                'metadata' => $msg->metadata
+                            ]
+                        ];
+                    }
                 }
             } else {
-                // 檢查對話列表的更新
-                $conversationUpdates = ChatConversation::distinct('line_user_id')
+                // 檢查所有對話的更新 - 優化查詢性能
+                $conversationUpdates = ChatConversation::select([
+                        'line_user_id', 
+                        \DB::raw('MAX(message_timestamp) as last_message_time'),
+                        \DB::raw('COUNT(*) as message_count')
+                    ])
                     ->where('message_timestamp', '>', $lastUpdateTime)
-                    ->pluck('line_user_id');
+                    ->groupBy('line_user_id')
+                    ->limit(20) // 限制對話數量
+                    ->get();
                 
                 if ($conversationUpdates->isNotEmpty()) {
-                    $updates[] = [
-                        'type' => 'conversation_list_update',
-                        'updated_conversations' => $conversationUpdates->toArray()
-                    ];
+                    foreach ($conversationUpdates as $conversation) {
+                        $updates[] = [
+                            'type' => 'conversation_update',
+                            'data' => [
+                                'line_user_id' => $conversation->line_user_id,
+                                'last_message_time' => $conversation->last_message_time,
+                                'message_count' => $conversation->message_count
+                            ]
+                        ];
+                    }
                 }
             }
             

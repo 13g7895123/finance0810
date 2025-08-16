@@ -23,9 +23,9 @@
               ></div>
               <span class="text-xs text-gray-500">
                 {{ 
-                  chatConnectionStatus === 'connected' ? '實時' : 
+                  chatConnectionStatus === 'connected' ? '實時更新' : 
                   chatConnectionStatus === 'connecting' ? '連線中' :
-                  chatConnectionStatus === 'ready' ? '準備' :
+                  chatConnectionStatus === 'ready' ? '已連線' :
                   chatConnectionStatus === 'failed' ? '連線失敗' : '離線'
                 }}
               </span>
@@ -45,14 +45,18 @@
               重新連線
             </button>
             
-            <!-- Debug: WebSocket 測試按鈕 (僅開發環境顯示) -->
-            <button 
-              v-if="$config.public.dev"
-              @click="testWebSocketConnection"
-              class="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
-            >
-              測試連接
-            </button>
+            <!-- Debug: 性能測試按鈕 (僅開發環境顯示) -->
+            <div v-if="$config.public.dev" class="flex space-x-1">
+              <button 
+                @click="testLongPollingPerformance"
+                class="text-xs px-2 py-1 bg-green-100 text-green-600 rounded hover:bg-green-200"
+              >
+                測試延遲
+              </button>
+              <span v-if="latencyInfo.average > 0" class="text-xs text-gray-500">
+                {{ latencyInfo.average }}ms
+              </span>
+            </div>
           </div>
           <button class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
             <PlusIcon class="w-5 h-5" />
@@ -172,6 +176,15 @@ const {
   isConnected: isWebSocketConnected 
 } = useRealTimeChat()
 
+// 使用優化的Long Polling
+const {
+  isConnected: isLongPollingConnected,
+  isAggressiveMode,
+  startAggressivePolling,
+  stopPolling: stopLongPolling,
+  onUpdate: onLongPollingUpdate
+} = useLongPolling()
+
 // 搜尋查詢
 const searchQuery = ref('')
 
@@ -194,6 +207,80 @@ const loading = ref(false)
 const conversationsLoading = ref(false)
 const initializingChat = ref(false)
 const chatConnectionStatus = ref('ready') // 'ready', 'connecting', 'connected', 'failed', 'disconnected'
+
+// 延遲監控
+const latencyInfo = ref({
+  average: 0,
+  samples: [],
+  maxSamples: 10
+})
+
+// 更新聊天室連線狀態 - 優先使用Long Polling狀態
+const updateChatConnectionStatus = () => {
+  if (isLongPollingConnected.value) {
+    chatConnectionStatus.value = isAggressiveMode.value ? 'connected' : 'ready'
+  } else {
+    chatConnectionStatus.value = 'disconnected'
+  }
+}
+
+// 監聽Long Polling連線狀態
+watch(isLongPollingConnected, updateChatConnectionStatus)
+watch(isAggressiveMode, updateChatConnectionStatus)
+
+// 性能測試功能
+const testLongPollingPerformance = async () => {
+  const testCount = 5
+  const results = []
+  
+  console.log('開始Long Polling性能測試...')
+  
+  for (let i = 0; i < testCount; i++) {
+    const startTime = performance.now()
+    
+    try {
+      const { $api } = useNuxtApp()
+      await $api('/api/chats/poll-updates', {
+        params: {
+          timeout: 1, // 短timeout測試響應時間
+          last_update: new Date().toISOString()
+        }
+      })
+      
+      const endTime = performance.now()
+      const latency = Math.round(endTime - startTime)
+      results.push(latency)
+      
+      console.log(`測試 ${i + 1}: ${latency}ms`)
+      
+      // 短暫延遲避免過於頻繁的請求
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+    } catch (error) {
+      console.error(`測試 ${i + 1} 失敗:`, error)
+    }
+  }
+  
+  if (results.length > 0) {
+    const average = Math.round(results.reduce((a, b) => a + b) / results.length)
+    latencyInfo.value.average = average
+    latencyInfo.value.samples = results
+    
+    console.log('性能測試結果:')
+    console.log(`平均延遲: ${average}ms`)
+    console.log(`最小延遲: ${Math.min(...results)}ms`)
+    console.log(`最大延遲: ${Math.max(...results)}ms`)
+    console.log(`所有結果: ${results.join(', ')}ms`)
+    
+    if (average <= 500) {
+      console.log('✅ 延遲表現良好 (≤500ms)')
+    } else if (average <= 1000) {
+      console.log('⚠️ 延遲可接受 (500-1000ms)')
+    } else {
+      console.log('❌ 延遲較高 (>1000ms)')
+    }
+  }
+}
 
 // API 數據狀態
 const apiConversations = ref([])
@@ -737,6 +824,106 @@ const initializeChatConnection = async () => {
   }
 }
 
+// 處理Long Polling訊息更新
+const handleLongPollingMessage = (update) => {
+  console.log('Long Polling收到新訊息:', update)
+  
+  if (update.type === 'new_message' && update.data && update.data.line_user_id) {
+    const lineUserId = update.data.line_user_id
+    
+    // 更新對應用戶的訊息列表
+    if (apiMessages.value[lineUserId]) {
+      const newMessage = {
+        id: update.data.id,
+        senderId: update.data.is_from_customer ? parseInt(lineUserId) : 'bot',
+        content: update.data.message_content,
+        timestamp: new Date(update.data.message_timestamp),
+        type: update.data.message_type || 'text',
+        isBot: true,
+        isCustomer: update.data.is_from_customer,
+        isAutoReply: !update.data.is_from_customer,
+        metadata: update.data.metadata || {}
+      }
+      
+      // 檢查是否已存在相同ID的訊息
+      const existingIndex = apiMessages.value[lineUserId].findIndex(msg => msg.id === newMessage.id)
+      if (existingIndex === -1) {
+        apiMessages.value[lineUserId].push(newMessage)
+        console.log('新訊息已添加到對話:', newMessage)
+        
+        // 如果當前正在查看這個對話，滾動到底部
+        if (selectedUser.value && selectedUser.value.lineUserId === lineUserId) {
+          nextTick(() => {
+            // 可以在這裡添加滾動到底部的邏輯
+            console.log('當前對話有新訊息，可滾動到底部')
+          })
+        }
+      }
+    }
+    
+    // 更新對話列表
+    const userIndex = apiConversations.value.findIndex(u => u.lineUserId === lineUserId)
+    if (userIndex !== -1) {
+      apiConversations.value[userIndex].lastMessage = update.data.message_content
+      apiConversations.value[userIndex].timestamp = new Date(update.data.message_timestamp)
+      if (update.data.is_from_customer) {
+        apiConversations.value[userIndex].unreadCount += 1
+      }
+      
+      // 重新排序對話列表
+      apiConversations.value = sortByTime(apiConversations.value)
+    }
+  }
+}
+
+// 處理Long Polling對話更新
+const handleLongPollingConversationUpdate = (update) => {
+  console.log('Long Polling收到對話更新:', update)
+  
+  if (update.type === 'conversation_update' && update.data && update.data.line_user_id) {
+    const lineUserId = update.data.line_user_id
+    const userIndex = apiConversations.value.findIndex(u => u.lineUserId === lineUserId)
+    
+    if (userIndex !== -1) {
+      if (update.data.last_message_time) {
+        apiConversations.value[userIndex].timestamp = new Date(update.data.last_message_time)
+      }
+      
+      // 重新載入該對話的詳細資訊
+      loadConversationSummary(lineUserId).then(summary => {
+        if (summary) {
+          apiConversations.value[userIndex].lastMessage = summary.lastMessage
+          apiConversations.value[userIndex].unreadCount = summary.unreadCount
+        }
+      })
+      
+      // 重新排序對話列表
+      apiConversations.value = sortByTime(apiConversations.value)
+    } else {
+      // 如果是新對話，重新載入對話列表
+      console.log('檢測到新對話，重新載入對話列表')
+      loadConversations()
+    }
+  }
+}
+
+// 載入對話摘要（用於更新對話列表）
+const loadConversationSummary = async (lineUserId) => {
+  try {
+    const response = await getConversation(lineUserId, { summary: true })
+    if (response?.data) {
+      const lastMessage = response.data[response.data.length - 1]
+      return {
+        lastMessage: lastMessage?.message_content || '',
+        unreadCount: response.data.filter(msg => msg.is_from_customer && msg.status === 'unread').length
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load conversation summary:', error)
+  }
+  return null
+}
+
 // 監聽WebSocket連線狀態變化
 watch(isWebSocketConnected, (newStatus) => {
   if (newStatus && chatConnectionStatus.value === 'connecting') {
@@ -751,8 +938,31 @@ onMounted(async () => {
   // 載入對話列表
   loadConversations()
   
-  // 不再自動初始化WebSocket連線，改為在選擇用戶時才連線
-  console.log('聊天室載入完成，WebSocket將在選擇用戶時才建立連線')
+  // 啟動積極輪詢模式（300ms間隔）
+  console.log('聊天室載入完成，啟動積極輪詢模式')
+  startAggressivePolling()
+  
+  // 設置Long Polling事件監聽 - 監聽所有類型的更新
+  onLongPollingUpdate('*', (update) => {
+    console.log('Long Polling更新:', update)
+    
+    switch (update.type) {
+      case 'new_message':
+        handleLongPollingMessage(update)
+        break
+      case 'conversation_update':
+        handleLongPollingConversationUpdate(update)
+        break
+      default:
+        console.log('未處理的Long Polling更新類型:', update.type)
+    }
+  })
+})
+
+// 頁面卸載時停止輪詢
+onUnmounted(() => {
+  console.log('聊天室頁面卸載，停止積極輪詢')
+  stopLongPolling()
 })
 
 // 頁面標題
