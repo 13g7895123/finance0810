@@ -684,29 +684,41 @@ onMounted(async () => {
   
   // 啟動積極輪詢模式（300ms間隔）
   console.log('聊天室載入完成，啟動積極輪詢模式')
-  startAggressivePolling()
+  if (typeof startAggressivePolling === 'function') {
+    startAggressivePolling()
+  } else {
+    console.error('startAggressivePolling is not a function:', typeof startAggressivePolling, startAggressivePolling)
+  }
   
-  // 設置Long Polling事件監聽 - 監聽所有類型的更新
-  onLongPollingUpdate('*', (update) => {
-    console.log('Long Polling更新:', update)
-    
-    switch (update.type) {
-      case 'new_message':
-        handleLongPollingMessage(update)
-        break
-      case 'conversation_update':
-        handleLongPollingConversationUpdate(update)
-        break
-      default:
-        console.log('未處理的Long Polling更新類型:', update.type)
-    }
-  })
+  // 設置Long Polling事件監聽 - 監聽所有類型的更新（添加防護檢查）
+  if (typeof onLongPollingUpdate === 'function') {
+    onLongPollingUpdate('*', (update) => {
+      console.log('Long Polling更新:', update)
+      
+      switch (update.type) {
+        case 'new_message':
+          handleLongPollingMessage(update)
+          break
+        case 'conversation_update':
+          handleLongPollingConversationUpdate(update)
+          break
+        default:
+          console.log('未處理的Long Polling更新類型:', update.type)
+      }
+    })
+  } else {
+    console.error('onLongPollingUpdate is not a function:', typeof onLongPollingUpdate, onLongPollingUpdate)
+  }
 })
 
 // 頁面卸載時停止輪詢
 onUnmounted(() => {
   console.log('聊天室頁面卸載，停止積極輪詢')
-  stopLongPolling()
+  if (typeof stopLongPolling === 'function') {
+    stopLongPolling()
+  } else {
+    console.error('stopLongPolling is not a function:', typeof stopLongPolling, stopLongPolling)
+  }
 })
 
 // 頁面標題

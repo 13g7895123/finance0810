@@ -117,7 +117,11 @@ export const useLongPolling = () => {
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         // 處理收到的更新
         response.data.forEach(update => {
-          handleUpdate(update)
+          if (update && typeof update === 'object') {
+            handleUpdate(update)
+          } else {
+            console.warn('Invalid update object:', update)
+          }
         })
       }
       
@@ -154,25 +158,41 @@ export const useLongPolling = () => {
     // 調用對應的監聽器
     if (activeListeners.value.has(type)) {
       const callbacks = activeListeners.value.get(type)
-      callbacks.forEach(callback => {
-        try {
-          callback(update)
-        } catch (error) {
-          console.error(`Error in update callback for type ${type}:`, error)
-        }
-      })
+      if (Array.isArray(callbacks)) {
+        callbacks.forEach(callback => {
+          if (typeof callback === 'function') {
+            try {
+              callback(update)
+            } catch (error) {
+              console.error(`Error in update callback for type ${type}:`, error)
+            }
+          } else {
+            console.error(`Invalid callback for type ${type}:`, typeof callback, callback)
+          }
+        })
+      } else {
+        console.error(`Callbacks for type ${type} is not an array:`, typeof callbacks, callbacks)
+      }
     }
     
     // 調用通用監聽器
     if (activeListeners.value.has('*')) {
       const generalCallbacks = activeListeners.value.get('*')
-      generalCallbacks.forEach(callback => {
-        try {
-          callback(update)
-        } catch (error) {
-          console.error('Error in general update callback:', error)
-        }
-      })
+      if (Array.isArray(generalCallbacks)) {
+        generalCallbacks.forEach(callback => {
+          if (typeof callback === 'function') {
+            try {
+              callback(update)
+            } catch (error) {
+              console.error('Error in general update callback:', error)
+            }
+          } else {
+            console.error('Invalid general callback:', typeof callback, callback)
+          }
+        })
+      } else {
+        console.error('General callbacks is not an array:', typeof generalCallbacks, generalCallbacks)
+      }
     }
   }
   
@@ -180,6 +200,11 @@ export const useLongPolling = () => {
    * 監聽特定類型的更新
    */
   const onUpdate = (type, callback) => {
+    if (typeof callback !== 'function') {
+      console.error('onUpdate callback must be a function:', typeof callback, callback)
+      return
+    }
+    
     if (!activeListeners.value.has(type)) {
       activeListeners.value.set(type, [])
     }
