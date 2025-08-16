@@ -166,6 +166,13 @@ const pollingConfig = ref({
   maxRetries: 3
 })
 
+// 頁面狀態管理
+const pageState = ref({
+  isActive: true,
+  isUnloading: false,
+  pendingTimeouts: new Set() // 追蹤所有待處理的計時器
+})
+
 // 搜尋查詢
 const searchQuery = ref('')
 
@@ -212,21 +219,28 @@ const updateChatConnectionStatus = () => {
   chatConnectionStatus.value = 'ready' // 始終顯示為準備就緒
 }
 
-// 手動刷新功能
+// 手動刷新功能（增強防競爭版）
 const manualRefresh = async () => {
-  if (isRefreshing.value) return
+  if (isRefreshing.value || globalLock.value || loadingLocks.value.apiCallInProgress) {
+    console.log('刷新已在進行中或有其他API操作，跳過')
+    return
+  }
   
   isRefreshing.value = true
+  loadingLocks.value.apiCallInProgress = true
+  
   try {
     console.log('手動刷新聊天室數據...')
     
-    // 重新載入對話列表 - 僅在沒有選中用戶或用戶沒有改變時更新
-    await loadConversations()
-    
-    // 如果有選中的用戶，僅重新載入其訊息，不影響主列表
+    // API 序列化：確保只有一個API調用可以進行
     if (selectedUser.value && selectedUser.value.lineUserId) {
-      console.log('重新載入選中用戶訊息:', selectedUser.value.lineUserId)
+      // 有選中用戶時，僅更新該用戶的訊息，不更新主列表以避免競爭
+      console.log('有選中用戶，僅更新該用戶訊息:', selectedUser.value.lineUserId)
       await loadConversationMessages(selectedUser.value.lineUserId)
+    } else {
+      // 沒有選中用戶時，更新主對話列表
+      console.log('沒有選中用戶，更新主對話列表')
+      await loadConversations()
     }
     
     lastRefreshTime.value = new Date()
@@ -240,11 +254,18 @@ const manualRefresh = async () => {
     pollingConfig.value.retryCount++
   } finally {
     isRefreshing.value = false
+    loadingLocks.value.apiCallInProgress = false
+    console.log('API調用鎖定已釋放')
   }
 }
 
-// 定時輪詢功能
+// 定時輪詢功能（增強防競爭版）
 const startPolling = (intervalMs = 1000) => {
+  if (pageState.value.isUnloading) {
+    console.log('頁面已離開，不啟動輪詢')
+    return
+  }
+  
   if (pollingConfig.value.enabled) {
     console.log('輪詢已在運行中')
     return
@@ -257,11 +278,18 @@ const startPolling = (intervalMs = 1000) => {
   console.log(`啟動定時輪詢，間隔: ${intervalMs}ms`)
   
   const poll = async () => {
-    if (!pollingConfig.value.enabled) return
+    if (!pollingConfig.value.enabled || pageState.value.isUnloading) return
     
     // 檢查頁面可見性
     if (process.client && document.hidden) {
       console.log('頁面隱藏，跳過本次輪詢')
+      scheduleNextPoll()
+      return
+    }
+    
+    // 檢查是否有其他API操作正在進行
+    if (globalLock.value || loadingLocks.value.userSelection || isRefreshing.value) {
+      console.log('有其他操作正在進行，跳過本次輪詢')
       scheduleNextPoll()
       return
     }
@@ -274,9 +302,7 @@ const startPolling = (intervalMs = 1000) => {
     }
     
     try {
-      if (!isRefreshing.value) {
-        await manualRefresh()
-      }
+      await manualRefresh()
     } catch (error) {
       console.error('輪詢更新失敗:', error)
     }
@@ -285,13 +311,17 @@ const startPolling = (intervalMs = 1000) => {
   }
   
   const scheduleNextPoll = () => {
-    if (pollingConfig.value.enabled) {
-      pollingConfig.value.timer = setTimeout(poll, pollingConfig.value.interval)
+    if (pollingConfig.value.enabled && !pageState.value.isUnloading) {
+      pollingConfig.value.timer = safeSetTimeout(poll, pollingConfig.value.interval)
     }
   }
   
-  // 立即執行第一次輪詢
-  poll()
+  // 延遲執行第一次輪詢，避免與初始化競爭
+  safeSetTimeout(() => {
+    if (pollingConfig.value.enabled) {
+      poll()
+    }
+  }, 1000)
 }
 
 // 停止輪詢
@@ -303,13 +333,18 @@ const stopPolling = () => {
     clearTimeout(pollingConfig.value.timer)
     pollingConfig.value.timer = null
   }
+  
+  // 重設重試計數
+  pollingConfig.value.retryCount = 0
+  
+  console.log('輪詢已停止，重試計數已重設')
 }
 
 // 調整輪詢間隔
 const changePollingInterval = (intervalMs) => {
   if (pollingConfig.value.enabled) {
     stopPolling()
-    startPolling(intervalMs)
+    safeStartPolling(intervalMs)
   } else {
     pollingConfig.value.interval = intervalMs
   }
@@ -321,7 +356,7 @@ const togglePolling = () => {
   if (pollingConfig.value.enabled) {
     stopPolling()
   } else {
-    startPolling(pollingConfig.value.interval)
+    safeStartPolling(pollingConfig.value.interval)
   }
 }
 
@@ -329,19 +364,33 @@ const togglePolling = () => {
 const apiConversations = ref([])
 const apiMessages = ref({})
 
-// 數據載入鎖，防止競態條件
+// 全域載入鎖，防止競態條件和API競爭
+const globalLock = ref(false)
 const loadingLocks = ref({
   conversations: false,
-  messages: false
+  messages: false,
+  userSelection: false,
+  apiCallInProgress: false
+})
+
+// API 調用狀態追蹤
+const apiCallTracker = ref({
+  activeApiCalls: new Set(),
+  lastApiCall: null,
+  callCounter: 0
 })
 
 // 載入對話列表
 const loadConversations = async () => {
-  // 防止重複載入
-  if (loadingLocks.value.conversations) {
-    console.log('對話列表正在載入中，跳過重複請求')
+  // 防止重複載入和API競爭
+  if (loadingLocks.value.conversations || loadingLocks.value.userSelection || loadingLocks.value.apiCallInProgress) {
+    console.log('對話列表正在載入中或有其他API操作進行中，跳過重複請求')
     return
   }
+  
+  const callId = `conversations_${++apiCallTracker.value.callCounter}`
+  apiCallTracker.value.activeApiCalls.add(callId)
+  apiCallTracker.value.lastApiCall = callId
 
   try {
     loadingLocks.value.conversations = true
@@ -416,17 +465,22 @@ const loadConversations = async () => {
   } finally {
     conversationsLoading.value = false
     loadingLocks.value.conversations = false
-    console.log('對話列表載入完成')
+    apiCallTracker.value.activeApiCalls.delete(callId)
+    console.log('對話列表載入完成，清理API追蹤')
   }
 }
 
 // 載入特定對話的訊息
 const loadConversationMessages = async (userId) => {
-  // 防止重複載入同一用戶的訊息
-  if (loadingLocks.value.messages) {
-    console.log('訊息正在載入中，跳過重複請求')
+  // 防止重複載入和API競爭
+  if (loadingLocks.value.messages || loadingLocks.value.conversations || loadingLocks.value.apiCallInProgress) {
+    console.log('訊息正在載入中或有其他API操作進行中，跳過重複請求')
     return
   }
+  
+  const callId = `messages_${userId}_${++apiCallTracker.value.callCounter}`
+  apiCallTracker.value.activeApiCalls.add(callId)
+  apiCallTracker.value.lastApiCall = callId
 
   try {
     loadingLocks.value.messages = true
@@ -472,7 +526,8 @@ const loadConversationMessages = async (userId) => {
   } finally {
     loading.value = false
     loadingLocks.value.messages = false
-    console.log('用戶訊息載入完成:', userId)
+    apiCallTracker.value.activeApiCalls.delete(callId)
+    console.log('用戶訊息載入完成:', userId, '清理API追蹤')
   }
 }
 
@@ -621,7 +676,7 @@ watch(searchQuery, (newQuery) => {
     return
   }
   
-  searchTimeout = setTimeout(() => {
+  searchTimeout = safeSetTimeout(() => {
     performSearch(newQuery)
   }, 500)
 })
@@ -707,25 +762,11 @@ const autoRefreshTimer = ref(null)
 // 頁面可見性監聽增強版
 const setupVisibilityListener = () => {
   if (process.client) {
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) {
-        console.log('頁面變可見，檢查更新')
-        
-        // 手動刷新一次
-        if (autoRefreshEnabled.value) {
-          manualRefresh()
-        }
-        
-        // 如果輪詢被停止且用戶在聊天室，則重新啟動
-        if (!pollingConfig.value.enabled && selectedUser.value) {
-          console.log('頁面可見且有選中用戶，重新啟動輪詢')
-          startPolling(pollingConfig.value.interval)
-        }
-      } else {
-        console.log('頁面隱藏，考慮停止輪詢')
-        // 頁面隱藏時可選擇停止輪詢節省資源
-        // stopPolling() // 可選擇啟用
-      }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    // 在組件卸載時移除監聽器
+    onUnmounted(() => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     })
   }
 }
@@ -815,10 +856,10 @@ const sendMessage = async (content) => {
       // 如果輪詢被停止，發送訊息後短時啟動輪詢
       if (!pollingConfig.value.enabled) {
         console.log('發送訊息後短時啟動輪詢')
-        startPolling(pollingConfig.value.interval)
+        safeStartPolling(pollingConfig.value.interval)
         
         // 30秒後自動停止（節省資源）
-        setTimeout(() => {
+        safeSetTimeout(() => {
           if (pollingConfig.value.enabled) {
             console.log('自動停止短時輪詢')
             stopPolling()
@@ -833,7 +874,7 @@ const sendMessage = async (content) => {
   }
 }
 
-// 選擇用戶功能（簡化版）
+// 選擇用戶功能（增強版防競態）
 const selectUserWithRealtime = async (user) => {
   try {
     if (!user || typeof user !== 'object') {
@@ -841,14 +882,38 @@ const selectUserWithRealtime = async (user) => {
       return
     }
     
+    // 檢查是否有其他操作正在進行
+    if (loadingLocks.value.userSelection || globalLock.value) {
+      console.log('用戶選擇操作正在進行中，忽略重複請求')
+      return
+    }
+    
     console.log('=== 選擇用戶開始 ===')
     console.log('Selecting user:', user.name, 'ID:', user.id, 'LineUserID:', user.lineUserId)
+    
+    // 設定全域鎖和用戶選擇鎖
+    loadingLocks.value.userSelection = true
+    loadingLocks.value.apiCallInProgress = true
+    globalLock.value = true
     
     // 暫停輪詢以避免競態條件
     const wasPollingEnabled = pollingConfig.value.enabled
     if (wasPollingEnabled) {
       console.log('暫停輪詢以避免競態條件')
       stopPolling()
+    }
+    
+    // 等待所有正在進行的API調用完成
+    let waitCount = 0
+    while (apiCallTracker.value.activeApiCalls.size > 0 && waitCount < 50) {
+      console.log(`等待API調用完成... (${apiCallTracker.value.activeApiCalls.size}個調用待完成)`)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      waitCount++
+    }
+    
+    if (apiCallTracker.value.activeApiCalls.size > 0) {
+      console.warn('強制清理未完成的API調用')
+      apiCallTracker.value.activeApiCalls.clear()
     }
     
     // 執行原有的用戶選擇邏輯
@@ -858,14 +923,25 @@ const selectUserWithRealtime = async (user) => {
     console.log('User selected, activeUserId set to:', user.id)
     console.log('Is bot user?', user.isBot, 'Line User ID:', user.lineUserId)
     
-    // 載入對話訊息 (如果是 LINE BOT 用戶)
+    // 載入對話訊息 (如果是 LINE BOT 用戶) - 增強版防競爭
     if (user.isBot && user.lineUserId) {
       console.log('Loading conversation messages for LINE bot user:', user.lineUserId)
+      console.log('停止主列表更新以避免與訊息載入競爭')
+      
+      // 確保在載入訊息時不會同時調用主列表API
+      loadingLocks.value.apiCallInProgress = true
+      
       try {
         await loadConversationMessages(user.lineUserId)
         console.log('✓ 對話訊息載入完成')
       } catch (error) {
         console.error('✗ 載入對話訊息失敗:', error)
+      } finally {
+        // 延遲釋放API鎖定，確保操作完成
+        safeSetTimeout(() => {
+          loadingLocks.value.apiCallInProgress = false
+          console.log('訊息載入API鎖定已釋放')
+        }, 500)
       }
     } else {
       console.log('User is not a LINE bot user')
@@ -881,9 +957,9 @@ const selectUserWithRealtime = async (user) => {
     // 恢復輪詢（如果之前啟用）
     if (wasPollingEnabled) {
       console.log('恢復輪詢')
-      setTimeout(() => {
-        startPolling(pollingConfig.value.interval)
-      }, 1000) // 延遲1秒恢復，確保操作完成
+      safeSetTimeout(() => {
+        safeStartPolling(pollingConfig.value.interval)
+      }, 1500) // 延遲1.5秒恢復，確保操作完成
     }
     
     console.log('=== 選擇用戶完成 ===')
@@ -894,6 +970,14 @@ const selectUserWithRealtime = async (user) => {
     })
   } catch (error) {
     console.error('selectUserWithRealtime 發生錯誤:', error)
+  } finally {
+    // 確保鎖定狀態被清理
+    safeSetTimeout(() => {
+      loadingLocks.value.userSelection = false
+      loadingLocks.value.apiCallInProgress = false
+      globalLock.value = false
+      console.log('用戶選擇鎖定已清理')
+    }, 1000)
   }
 }
 
@@ -902,8 +986,35 @@ const selectUserWithRealtime = async (user) => {
 
 
 // 初始化數據載入
+// Nuxt 路由導航清理
+const router = useRouter()
+const route = useRoute()
+
+// 監聽路由變化以清理資源
+watch(() => route.path, (newPath, oldPath) => {
+  if (oldPath && oldPath.includes('/chat') && !newPath.includes('/chat')) {
+    console.log(`離開聊天室頁面：${oldPath} -> ${newPath}，執行資源清理`)
+    cleanupAllResources()
+  }
+})
+
+// 路由導航守衛（離開時清理）
+onBeforeRouteLeave((to, from) => {
+  console.log(`路由導航離開：${from.path} -> ${to.path}`)
+  if (from.path.includes('/chat')) {
+    console.log('離開聊天室，清理所有資源')
+    cleanupAllResources()
+  }
+  return true
+})
+
+// 初始化數據載入
 onMounted(async () => {
   console.log('聊天室初始化開始')
+  
+  // 設定頁面為活躍狀態
+  pageState.value.isActive = true
+  pageState.value.isUnloading = false
   
   // 載入對話列表
   await loadConversations()
@@ -915,18 +1026,66 @@ onMounted(async () => {
   updateChatConnectionStatus()
   
   // 默認啟動輪詢（可選擇）
-  startPolling(1000) // 1秒間隔，自動啟動輪詢
+  safeStartPolling(1000) // 1秒間隔，自動啟動輪詢
   
   console.log('聊天室初始化完成')
   console.log('可使用「啟動輪詢」按鈕啟動定時更新')
 })
 
-// 頁面卸載清理增強版
-onUnmounted(() => {
-  console.log('聊天室頁面卸載，清理資源')
+// 安全的 setTimeout 包裝器
+const safeSetTimeout = (callback, delay) => {
+  if (pageState.value.isUnloading) {
+    console.log('頁面已離開，取消計時器')
+    return null
+  }
+  
+  const timeoutId = setTimeout(() => {
+    pageState.value.pendingTimeouts.delete(timeoutId)
+    if (!pageState.value.isUnloading) {
+      callback()
+    }
+  }, delay)
+  
+  pageState.value.pendingTimeouts.add(timeoutId)
+  return timeoutId
+}
+
+// 安全的輪詢啟動函數
+const safeStartPolling = (intervalMs = 1000) => {
+  if (pageState.value.isUnloading) {
+    console.log('頁面已離開，不啟動輪詢')
+    return
+  }
+  startPolling(intervalMs)
+}
+
+// 全域資源清理函數（增強版）
+const cleanupAllResources = () => {
+  console.log('清理所有聊天室資源...')
+  
+  // 設定頁面為離開狀態
+  pageState.value.isUnloading = true
+  pageState.value.isActive = false
   
   // 停止定時輪詢
   stopPolling()
+  
+  // 清理所有待處理的計時器
+  pageState.value.pendingTimeouts.forEach(timeoutId => {
+    clearTimeout(timeoutId)
+  })
+  pageState.value.pendingTimeouts.clear()
+  
+  // 清理API追蹤
+  apiCallTracker.value.activeApiCalls.clear()
+  apiCallTracker.value.lastApiCall = null
+  
+  // 清理所有鎖定狀態
+  loadingLocks.value.conversations = false
+  loadingLocks.value.messages = false
+  loadingLocks.value.userSelection = false
+  loadingLocks.value.apiCallInProgress = false
+  globalLock.value = false
   
   // 清理其他計時器
   if (autoRefreshTimer.value) {
@@ -934,10 +1093,81 @@ onUnmounted(() => {
     autoRefreshTimer.value = null
   }
   
-  autoRefreshEnabled.value = false
+  // 清理搜尋計時器
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+    searchTimeout = null
+  }
   
-  console.log('所有資源已清理完成')
+  autoRefreshEnabled.value = false
+  isRefreshing.value = false
+  
+  console.log('所有資源已清理完成，頁面設定為已離開')
+}
+
+// 頁面可見性變化時的額外清理
+const handleVisibilityChange = () => {
+  if (process.client && !pageState.value.isUnloading) {
+    if (!document.hidden && pageState.value.isActive) {
+      console.log('頁面變可見，檢查更新')
+      
+      // 手動刷新一次
+      if (autoRefreshEnabled.value && !globalLock.value) {
+        manualRefresh()
+      }
+      
+      // 如果輪詢被停止且用戶在聊天室，則重新啟動
+      if (!pollingConfig.value.enabled && selectedUser.value && !globalLock.value && pageState.value.isActive) {
+        console.log('頁面可見且有選中用戶，重新啟動輪詢')
+        safeStartPolling(pollingConfig.value.interval)
+      }
+    } else {
+      console.log('頁面隱藏，停止輪詢節省資源')
+      stopPolling()
+    }
+  }
+}
+
+// 頁面卸載清理增強版
+onUnmounted(() => {
+  console.log('聊天室頁面卸載，執行資源清理')
+  cleanupAllResources()
 })
+
+// 頁面導航前清理（Nuxt 3 方式）
+onBeforeUnmount(() => {
+  console.log('頁面即將卸載，執行預清理')
+  cleanupAllResources()
+})
+
+// 監聽頁面離開事件（瀏覽器關閉或導航）
+if (process.client) {
+  const handleBeforeUnload = (event) => {
+    console.log('瀏覽器即將關閉或離開頁面，執行緊急清理')
+    cleanupAllResources()
+    
+    // 如果有正在進行的操作，警告用戶
+    if (globalLock.value || Object.values(loadingLocks.value).some(lock => lock)) {
+      const message = '有操作正在進行中，確定要離開嗎？'
+      event.returnValue = message
+      return message
+    }
+  }
+  
+  const handlePageHide = () => {
+    console.log('頁面被隱藏或導航離開，執行資源清理')
+    cleanupAllResources()
+  }
+  
+  window.addEventListener('beforeunload', handleBeforeUnload)
+  window.addEventListener('pagehide', handlePageHide)
+  
+  // 在組件卸載時移除監聽器
+  onUnmounted(() => {
+    window.removeEventListener('beforeunload', handleBeforeUnload)
+    window.removeEventListener('pagehide', handlePageHide)
+  })
+}
 
 // 頁面標題
 useHead({
