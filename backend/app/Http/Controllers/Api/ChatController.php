@@ -1709,18 +1709,12 @@ class ChatController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => '測試 WebSocket 廣播已發送',
+                'message' => '測試廣播已發送',
                 'data' => [
                     'line_user_id' => $lineUserId,
                     'test_message' => $testConversation->message_content,
                     'timestamp' => $testConversation->message_timestamp,
-                    'broadcast_driver' => config('broadcasting.default'),
-                    'pusher_config' => [
-                        'app_id' => config('broadcasting.connections.pusher.app_id'),
-                        'key' => config('broadcasting.connections.pusher.key'),
-                        'host' => config('broadcasting.connections.pusher.options.host'),
-                        'port' => config('broadcasting.connections.pusher.options.port')
-                    ]
+                    'broadcast_driver' => config('broadcasting.default')
                 ]
             ]);
 
