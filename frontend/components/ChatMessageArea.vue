@@ -42,11 +42,11 @@
         v-for="message in messages"
         :key="message.id"
         class="flex"
-        :class="{ 'justify-end': message.senderId === currentUserId }"
+        :class="{ 'justify-end': isSystemMessage(message) }"
       >
         <div
           class="max-w-xs lg:max-w-md"
-          :class="{ 'order-2': message.senderId === currentUserId }"
+          :class="{ 'order-2': isSystemMessage(message) }"
         >
           <!-- 訊息氣泡 -->
           <div
@@ -81,15 +81,15 @@
           <!-- 時間戳記 -->
           <div
             class="mt-1 text-xs text-gray-500 "
-            :class="{ 'text-right': message.senderId === currentUserId }"
+            :class="{ 'text-right': isSystemMessage(message) }"
           >
             {{ formatMessageTime(message.timestamp) }}
           </div>
         </div>
 
-        <!-- 發送者頭像 (非當前用戶) -->
+        <!-- 發送者頭像 (客戶訊息才顯示) -->
         <div
-          v-if="message.senderId !== currentUserId"
+          v-if="!isSystemMessage(message)"
           class="flex-shrink-0 ml-2 order-1"
         >
           <img 
@@ -240,25 +240,35 @@ onMounted(() => {
   scrollToBottom()
 })
 
+// 判斷是否為系統訊息（應顯示在右邊）
+const isSystemMessage = (message) => {
+  // 系統訊息包括：
+  // 1. 當前用戶發送的訊息（staff/admin 回覆客戶）
+  // 2. 系統自動回覆
+  // 3. 非來自客戶的訊息
+  return message.senderId === currentUserId.value || 
+         message.isAutoReply || 
+         (message.isBot && !message.isCustomer)
+}
+
 // 獲取訊息氣泡樣式
 const getMessageBubbleClass = (message) => {
-  const isCurrentUser = message.senderId === currentUserId.value
+  const isSystem = isSystemMessage(message)
   const isBot = message.isBot
   const isCustomer = message.isCustomer
   const isAutoReply = message.isAutoReply
   
-  if (isBot && isAutoReply) {
-    // 系統自動回覆
-    return 'bg-green-500 text-white'
-  } else if (isBot && isCustomer) {
-    // LINE 客戶訊息
-    return 'bg-gray-200  text-gray-900  border border-gray-300 '
-  } else if (isCurrentUser) {
-    // 當前用戶（後台人員）訊息
-    return 'bg-blue-500 text-white'
+  if (isSystem) {
+    if (isBot && isAutoReply) {
+      // 系統自動回覆
+      return 'bg-green-500 text-white'
+    } else {
+      // 當前用戶（後台人員）回覆
+      return 'bg-blue-500 text-white'
+    }
   } else {
-    // 其他內部用戶訊息
-    return 'bg-white  text-gray-900  border border-gray-200 '
+    // 客戶訊息（顯示在左邊）
+    return 'bg-gray-200 text-gray-900 border border-gray-300'
   }
 }
 
