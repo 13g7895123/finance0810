@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Broadcast;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DashboardController;
@@ -50,6 +51,11 @@ Route::post('/auth/refresh', [AuthController::class, 'refresh']);
 // Webhooks
 Route::post('/line/webhook', [ChatController::class, 'webhook']);
 Route::post('/webhook/wp', [WebhookController::class, 'wp']);
+
+// Broadcasting authentication route (needs to be here to use API auth)
+Route::post('/broadcasting/auth', function () {
+    return Broadcast::auth(request());
+})->middleware('auth:api');
 
 // Protected routes
 Route::middleware(['auth:api'])->group(function () {

@@ -19,6 +19,14 @@
                 {{ isWebSocketConnected ? '實時' : '離線' }}
               </span>
             </div>
+            <!-- Debug: WebSocket 測試按鈕 (僅開發環境顯示) -->
+            <button 
+              v-if="process.env.NODE_ENV === 'development'"
+              @click="testWebSocketConnection"
+              class="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
+            >
+              測試連接
+            </button>
           </div>
           <button class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
             <PlusIcon class="w-5 h-5" />
@@ -470,17 +478,16 @@ const selectUserWithRealtime = async (user) => {
     console.log('Loading conversation messages for LINE bot user:', user.lineUserId)
     await loadConversationMessages(user.lineUserId)
     
-    // 加入實時聊天房間
-    const roomId = `line_${user.lineUserId}`
-    currentRoomId.value = roomId
+    // 加入實時聊天房間 (直接使用 lineUserId)
+    currentRoomId.value = user.lineUserId
     
     // 加入房間並設置訊息回調
-    joinRoom(roomId, (data) => {
+    joinRoom(user.lineUserId, (data) => {
       handleRealtimeMessage(data, user)
     })
     
     // 設置對話列表更新回調
-    onConversationUpdate(roomId, (update) => {
+    onConversationUpdate(user.lineUserId, (update) => {
       handleConversationUpdate(update, user)
     })
   } else {
@@ -512,18 +519,47 @@ const handleRealtimeMessage = (data, user) => {
         const newMessage = {
           id: data.message.id,
           senderId: data.message.is_from_customer ? parseInt(data.message.line_user_id) : 'bot',
-          content: data.message.message_content,
-          timestamp: new Date(data.message.message_timestamp),
+          content: data.message.content,
+          timestamp: new Date(data.message.timestamp),
           type: data.message.message_type || 'text',
           isBot: true,
           isCustomer: data.message.is_from_customer,
           isAutoReply: !data.message.is_from_customer,
           metadata: data.message.metadata || {}
         }
-        apiMessages.value[user.lineUserId].push(newMessage)
-        console.log('新訊息已添加到對話:', newMessage)
+        
+        // 檢查是否已存在相同 ID 的訊息，避免重複添加
+        const existingMessageIndex = apiMessages.value[user.lineUserId].findIndex(msg => msg.id === newMessage.id)
+        if (existingMessageIndex === -1) {
+          apiMessages.value[user.lineUserId].push(newMessage)
+          console.log('新訊息已添加到對話:', newMessage)
+          
+          // 更新對話列表中的最新訊息和時間戳
+          const userIndex = apiConversations.value.findIndex(u => u.lineUserId === user.lineUserId)
+          if (userIndex !== -1) {
+            apiConversations.value[userIndex].lastMessage = newMessage.content
+            apiConversations.value[userIndex].timestamp = newMessage.timestamp
+            if (newMessage.isCustomer) {
+              apiConversations.value[userIndex].unreadCount += 1
+            }
+          }
+        } else {
+          console.log('訊息已存在，跳過添加:', newMessage.id)
+        }
       } else {
-        console.log('找不到用戶的對話記錄:', user.lineUserId)
+        console.log('找不到用戶的對話記錄，初始化:', user.lineUserId)
+        // 初始化該用戶的對話記錄
+        apiMessages.value[user.lineUserId] = [{
+          id: data.message.id,
+          senderId: data.message.is_from_customer ? parseInt(data.message.line_user_id) : 'bot',
+          content: data.message.content,
+          timestamp: new Date(data.message.timestamp),
+          type: data.message.message_type || 'text',
+          isBot: true,
+          isCustomer: data.message.is_from_customer,
+          isAutoReply: !data.message.is_from_customer,
+          metadata: data.message.metadata || {}
+        }]
       }
       break
       
@@ -566,14 +602,42 @@ const handleConversationUpdate = (update, user) => {
   }
 }
 
+// 測試 WebSocket 連接功能 (僅開發環境)
+const testWebSocketConnection = () => {
+  console.log('=== WebSocket 連接測試 ===')
+  console.log('連接狀態:', isWebSocketConnected.value)
+  console.log('活躍房間:', activeRooms.value)
+  console.log('當前選中用戶:', selectedUser.value)
+  console.log('當前房間ID:', currentRoomId.value)
+  
+  if (selectedUser.value?.lineUserId) {
+    console.log('嘗試發送測試訊息到:', selectedUser.value.lineUserId)
+    // 這裡可以添加發送測試訊息的邏輯
+  } else {
+    console.log('沒有選中的用戶')
+  }
+  
+  // 顯示一個簡單的通知
+  console.log('WebSocket 連接測試完成，請查看控制台輸出')
+}
+
 // Real-time chat functionality is now integrated
 
 // 初始化數據載入
-onMounted(() => {
+onMounted(async () => {
   loadConversations()
   
   // 初始化實時聊天
-  initializeRealTimeChat()
+  try {
+    const success = await initializeRealTimeChat()
+    if (success) {
+      console.log('Real-time chat initialized successfully')
+    } else {
+      console.warn('Real-time chat initialization failed')
+    }
+  } catch (error) {
+    console.error('Error initializing real-time chat:', error)
+  }
 })
 
 // 頁面標題

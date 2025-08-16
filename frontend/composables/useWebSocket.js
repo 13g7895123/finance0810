@@ -69,10 +69,10 @@ export const useWebSocket = () => {
           disableStats: config.disableStats,
           enabledTransports: config.enabledTransports,
           cluster: config.cluster,
-          authEndpoint: '/broadcasting/auth',
+          authEndpoint: '/api/broadcasting/auth',
           auth: {
             headers: {
-              'Authorization': `Bearer ${authStore.token}`,
+              'Authorization': `Bearer ${authStore?.token || ''}`,
               'Accept': 'application/json',
             }
           }

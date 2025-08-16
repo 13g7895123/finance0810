@@ -26,13 +26,40 @@ export const useRealTimeChat = () => {
    * 初始化實時聊天
    */
   const initializeRealTimeChat = async () => {
-    // 連接 WebSocket
-    await connect()
-    
-    // 訂閱管理員頻道以接收所有聊天室更新
-    joinAdminChannel((event) => {
-      handleWebSocketMessage(event)
-    })
+    try {
+      // 確保用戶已登入並有 token
+      const authStore = useAuthStore()
+      if (!authStore.isLoggedIn || !authStore.token) {
+        console.warn('User not logged in or no token available, skipping WebSocket connection')
+        return false
+      }
+      
+      // 連接 WebSocket
+      await connect()
+      
+      // 等待連接建立
+      const maxWait = 5000 // 5秒超時
+      const startTime = Date.now()
+      
+      while (!isConnected.value && (Date.now() - startTime) < maxWait) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      
+      if (!isConnected.value) {
+        console.warn('WebSocket connection timeout')
+        return false
+      }
+      
+      // 訂閱管理員頻道以接收所有聊天室更新
+      joinAdminChannel((event) => {
+        handleWebSocketMessage(event)
+      })
+      
+      return true
+    } catch (error) {
+      console.error('Failed to initialize real-time chat:', error)
+      return false
+    }
   }
   
   /**
