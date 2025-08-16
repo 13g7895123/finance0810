@@ -181,7 +181,7 @@ class ChatController extends Controller
                 'reply_content' => $request->message,
                 'replied_at' => now(),
                 'replied_by' => $user->id,
-                'status' => 'pending', // Set to pending initially
+                'status' => 'replied', // Set to replied since user is replying
             ]);
 
             Log::info('Conversation record created', ['conversation_id' => $conversation->id]);
