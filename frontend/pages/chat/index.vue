@@ -314,10 +314,11 @@ const loadConversationMessages = async (userId) => {
         senderId: msg.is_from_customer ? parseInt(msg.line_user_id) : 'bot',
         content: msg.message_content,
         timestamp: new Date(msg.message_timestamp),
-        type: 'text',
+        type: msg.message_type || 'text',
         isBot: true,
         isCustomer: msg.is_from_customer,
-        isAutoReply: !msg.is_from_customer
+        isAutoReply: !msg.is_from_customer,
+        metadata: msg.metadata || {}
       }))
       
       apiMessages.value[userId] = apiMessages

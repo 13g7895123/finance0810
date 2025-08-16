@@ -26,11 +26,18 @@ class ChatController extends Controller
     {
         $user = Auth::user();
         
+        // Get the latest conversation for each line_user_id with the actual message content
+        $subquery = ChatConversation::select('line_user_id')
+            ->selectRaw('MAX(message_timestamp) as max_timestamp')
+            ->groupBy('line_user_id');
+
         $query = ChatConversation::with(['customer', 'user'])
-            ->select('line_user_id', 'customer_id')
-            ->selectRaw('MAX(message_timestamp) as last_message_time')
-            ->selectRaw('COUNT(CASE WHEN status = "unread" AND is_from_customer = 1 THEN 1 END) as unread_count')
-            ->groupBy('line_user_id', 'customer_id');
+            ->select('line_user_id', 'customer_id', 'message_content as last_message', 'message_timestamp as last_message_time')
+            ->selectRaw('(SELECT COUNT(*) FROM chat_conversations c2 WHERE c2.line_user_id = chat_conversations.line_user_id AND c2.status = "unread" AND c2.is_from_customer = 1) as unread_count')
+            ->joinSub($subquery, 'latest', function($join) {
+                $join->on('chat_conversations.line_user_id', '=', 'latest.line_user_id')
+                     ->on('chat_conversations.message_timestamp', '=', 'latest.max_timestamp');
+            });
 
         // Staff can only see their assigned customers' chats
         if ($user->isStaff()) {
@@ -268,10 +275,18 @@ class ChatController extends Controller
         $user = Auth::user();
         $query = $request->get('q', '');
 
+        // Get the latest conversation for each line_user_id with the actual message content
+        $subquery = ChatConversation::select('line_user_id')
+            ->selectRaw('MAX(message_timestamp) as max_timestamp')
+            ->groupBy('line_user_id');
+
         $conversationQuery = ChatConversation::with(['customer', 'user'])
-            ->select('line_user_id', 'customer_id')
-            ->selectRaw('MAX(message_timestamp) as last_message_time')
-            ->selectRaw('COUNT(CASE WHEN status = "unread" AND is_from_customer = 1 THEN 1 END) as unread_count');
+            ->select('line_user_id', 'customer_id', 'message_content as last_message', 'message_timestamp as last_message_time')
+            ->selectRaw('(SELECT COUNT(*) FROM chat_conversations c2 WHERE c2.line_user_id = chat_conversations.line_user_id AND c2.status = "unread" AND c2.is_from_customer = 1) as unread_count')
+            ->joinSub($subquery, 'latest', function($join) {
+                $join->on('chat_conversations.line_user_id', '=', 'latest.line_user_id')
+                     ->on('chat_conversations.message_timestamp', '=', 'latest.max_timestamp');
+            });
 
         // Staff can only search their assigned customers
         if ($user->isStaff()) {
@@ -291,8 +306,7 @@ class ChatController extends Controller
             });
         }
 
-        $conversations = $conversationQuery->groupBy('line_user_id', 'customer_id')
-            ->orderBy('last_message_time', 'desc')
+        $conversations = $conversationQuery->orderBy('last_message_time', 'desc')
             ->paginate(20);
 
         return response()->json($conversations);
