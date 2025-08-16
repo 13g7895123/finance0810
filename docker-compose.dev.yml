@@ -25,6 +25,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+      - "6001:6001"
     volumes:
       - ./backend:/var/www/html
       - /var/www/html/vendor
@@ -45,6 +46,15 @@ services:
       - REDIS_HOST=redis
       - REDIS_PASSWORD=redis_pass_2024
       - JWT_SECRET=your_jwt_secret_key_here
+      - BROADCAST_DRIVER=pusher
+      - PUSHER_APP_ID=local
+      - PUSHER_APP_KEY=laravel-websockets-key
+      - PUSHER_APP_SECRET=laravel-websockets-secret
+      - PUSHER_HOST=127.0.0.1
+      - PUSHER_PORT=6001
+      - PUSHER_SCHEME=http
+      - PUSHER_APP_CLUSTER=mt1
+      - LARAVEL_WEBSOCKETS_PORT=6001
     networks:
       - crm-network
       - npm_network

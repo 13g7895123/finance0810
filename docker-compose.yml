@@ -22,6 +22,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - "${BACKEND_PORT}:8000"
+      - "${WEBSOCKET_PORT:-6001}:6001"
     environment:
       - APP_NAME=${APP_NAME}
       - APP_ENV=${APP_ENV}
@@ -46,6 +47,17 @@ services:
       - MAIL_USERNAME=${MAIL_USERNAME}
       - MAIL_PASSWORD=${MAIL_PASSWORD}
       - MAIL_ENCRYPTION=${MAIL_ENCRYPTION}
+      - BROADCAST_DRIVER=${BROADCAST_DRIVER:-pusher}
+      - PUSHER_APP_ID=${PUSHER_APP_ID:-local}
+      - PUSHER_APP_KEY=${PUSHER_APP_KEY:-laravel-websockets-key}
+      - PUSHER_APP_SECRET=${PUSHER_APP_SECRET:-laravel-websockets-secret}
+      - PUSHER_HOST=${PUSHER_HOST:-127.0.0.1}
+      - PUSHER_PORT=${PUSHER_PORT:-6001}
+      - PUSHER_SCHEME=${PUSHER_SCHEME:-http}
+      - PUSHER_APP_CLUSTER=${PUSHER_APP_CLUSTER:-mt1}
+      - LARAVEL_WEBSOCKETS_PORT=6001
+      - LARAVEL_WEBSOCKETS_SSL_LOCAL_CERT=${WEBSOCKET_SSL_CERT:-}
+      - LARAVEL_WEBSOCKETS_SSL_LOCAL_PK=${WEBSOCKET_SSL_KEY:-}
     volumes:
       - backend_storage:/var/www/html/storage
       - backend_bootstrap_cache:/var/www/html/bootstrap/cache
