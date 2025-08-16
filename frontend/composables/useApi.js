@@ -113,7 +113,7 @@ export const useApi = () => {
           status: error.status,
           message: error.data?.message || error.message || '請求失敗',
           errors: error.data?.errors || null,
-          debug: process.env.NODE_ENV === 'development' ? {
+          debug: process.dev ? {
             baseURL,
             fullURL: `${baseURL}${endpoint}`,
             method: requestOptions.method

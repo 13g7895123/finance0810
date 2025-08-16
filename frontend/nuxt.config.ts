@@ -8,11 +8,7 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
-      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || (
-        process.env.NODE_ENV === 'development' 
-          ? 'http://finance.local/api' 
-          : 'https://dev-finance.mercylife.cc/api'
-      )
+      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || 'https://dev-finance.mercylife.cc/api'
     }
   },
   // Development server configuration

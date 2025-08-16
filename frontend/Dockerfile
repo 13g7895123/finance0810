@@ -30,7 +30,9 @@ RUN npm install --frozen-lockfile || npm install
 
 COPY . .
 
-RUN npm run build
+# Set production environment variables before build
+ENV NODE_ENV=production
+RUN npm run build:prod
 
 # Clean up dev dependencies after build
 RUN npm install --only=production && npm cache clean --force

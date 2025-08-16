@@ -21,7 +21,7 @@
             </div>
             <!-- Debug: WebSocket 測試按鈕 (僅開發環境顯示) -->
             <button 
-              v-if="process.env.NODE_ENV === 'development'"
+              v-if="$config.public.dev"
               @click="testWebSocketConnection"
               class="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
             >
