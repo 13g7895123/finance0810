@@ -48,6 +48,8 @@ RUN set -eux; \
     chmod -R 775 bootstrap storage
 
 # Install PHP dependencies  
+# First update lock file to ensure all packages in composer.json are included
+RUN composer update --lock --no-interaction
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
 # Set permissions
