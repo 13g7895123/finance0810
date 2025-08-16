@@ -527,30 +527,46 @@ const selectUserWithRealtime = async (user) => {
     // 在選擇用戶時才初始化WebSocket連線
     if (!isWebSocketConnected.value && chatConnectionStatus.value !== 'connected') {
       console.log('初始化WebSocket連線 (用戶選擇觸發)')
-      await initializeChatConnection()
+      const connectionSuccess = await initializeChatConnection()
+      
+      // 如果WebSocket連線失敗，顯示錯誤提示
+      if (!connectionSuccess) {
+        showError('無法建立即時聊天連線，將使用基本聊天功能。請檢查網路連線或稍後再試。')
+        console.warn('WebSocket連線失敗，但仍可查看歷史訊息')
+        return // 仍然可以查看歷史訊息，所以不完全阻止操作
+      }
     }
     
     // 如果WebSocket連線成功，才加入聊天房間
     if (isWebSocketConnected.value) {
-      // 加入實時聊天房間 (直接使用 lineUserId)
-      currentRoomId.value = user.lineUserId
-      
-      // 加入房間並設置訊息回調
-      const joinSuccess = joinRoom(user.lineUserId, (data) => {
-        handleRealtimeMessage(data, user)
-      })
-      
-      if (joinSuccess) {
-        // 設置對話列表更新回調
-        onConversationUpdate(user.lineUserId, (update) => {
-          handleConversationUpdate(update, user)
+      try {
+        // 加入實時聊天房間 (直接使用 lineUserId)
+        currentRoomId.value = user.lineUserId
+        
+        // 加入房間並設置訊息回調
+        const joinSuccess = joinRoom(user.lineUserId, (data) => {
+          handleRealtimeMessage(data, user)
         })
-        console.log('成功加入聊天房間:', user.lineUserId)
-      } else {
-        console.warn('加入聊天房間失敗:', user.lineUserId)
+        
+        if (joinSuccess) {
+          // 設置對話列表更新回調
+          onConversationUpdate(user.lineUserId, (update) => {
+            handleConversationUpdate(update, user)
+          })
+          console.log('成功加入聊天房間:', user.lineUserId)
+        } else {
+          // 加入房間失敗時的錯誤提示
+          showError(`無法加入與 ${user.name} 的即時聊天房間，將使用基本聊天功能。`)
+          console.warn('加入聊天房間失敗:', user.lineUserId)
+        }
+      } catch (error) {
+        // 捕獲加入房間時的異常
+        console.error('加入聊天房間時發生錯誤:', error)
+        showError(`連線到 ${user.name} 的聊天房間時發生錯誤，請稍後再試。`)
       }
     } else {
       console.warn('WebSocket未連線，無法加入實時聊天房間')
+      // 這種情況下用戶已經看到連線失敗的提示了，不需要重複提示
     }
   } else {
     console.log('User is not a LINE bot user, using mock messages')

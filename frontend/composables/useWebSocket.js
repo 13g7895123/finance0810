@@ -14,7 +14,7 @@ export const useWebSocket = () => {
   
   const authStore = useAuthStore()
   
-  // WebSocket 配置 (動態環境檢測)
+  // WebSocket 配置 (動態環境檢測，支援nginx代理)
   const runtimeConfig = useRuntimeConfig()
   const getWebSocketConfig = () => {
     // 檢測當前環境
@@ -23,8 +23,8 @@ export const useWebSocket = () => {
     const isHTTPS = process.client ? window.location.protocol === 'https:' : false
     
     if (isProduction || currentHost !== 'localhost') {
-      // 生產環境或非本地開發環境
-      return {
+      // 生產環境或非本地開發環境 - 支援nginx代理
+      const config = {
         key: 'laravel-websockets-key',
         cluster: 'mt1',
         wsHost: currentHost,
@@ -34,6 +34,27 @@ export const useWebSocket = () => {
         disableStats: true,
         enabledTransports: isHTTPS ? ['wss'] : ['ws'],
       }
+      
+      // 如果使用nginx代理且WebSocket透過/app/路徑代理
+      if (isHTTPS) {
+        // HTTPS環境下使用WSS協議，nginx代理會處理路徑轉換
+        config.wsPath = '/app/'
+        config.wsPort = 443
+        config.enabledTransports = ['wss']
+        
+        // 關閉Pusher統計功能，避免與代理衝突
+        config.disableStats = true
+        
+        console.log('使用HTTPS WebSocket配置 (支援nginx /app/ 代理):', config)
+      } else {
+        // HTTP環境直接連接
+        config.wsPort = 6001
+        config.enabledTransports = ['ws']
+        
+        console.log('使用HTTP WebSocket配置:', config)
+      }
+      
+      return config
     } else {
       // 本地開發環境
       return {
@@ -130,6 +151,29 @@ export const useWebSocket = () => {
           isConnected.value = false
           isConnecting.value = false
           connectionErrors.value++
+          
+          // 詳細的錯誤類型分析
+          if (error?.type) {
+            switch (error.type) {
+              case 'WebSocketError':
+                console.error('WebSocket連線錯誤 - 可能的原因：')
+                console.error('1. nginx代理配置問題 (檢查/app/路徑代理)')
+                console.error('2. WebSocket服務未啟動')
+                console.error('3. 防火牆阻擋端口6001')
+                break
+              case 'AuthError':
+                console.error('WebSocket認證錯誤 - JWT token可能無效')
+                break
+              case 'TransportError':
+                console.error('WebSocket傳輸錯誤 - 網路連線問題')
+                break
+              default:
+                console.error('未知WebSocket錯誤類型:', error.type)
+            }
+          }
+          
+          // 記錄當前配置用於除錯
+          console.error('當前WebSocket配置:', config)
         })
         
       } else {
