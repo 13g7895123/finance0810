@@ -119,10 +119,14 @@ class ChatController extends Controller
 
         $messages = $query->paginate(50);
 
-        // Mark messages as read
-        ChatConversation::where('line_user_id', $userId)
+        // Mark messages as read using safe method
+        $unreadMessages = ChatConversation::where('line_user_id', $userId)
             ->where('status', 'unread')
-            ->update(['status' => 'read']);
+            ->get();
+        
+        foreach ($unreadMessages as $message) {
+            $this->safeUpdateStatus($message, 'read');
+        }
 
         return response()->json($messages);
     }
@@ -301,7 +305,15 @@ class ChatController extends Controller
             });
         }
 
-        $updated = $query->update(['status' => 'read']);
+        // Get messages to update and use safe method
+        $messagesToUpdate = $query->get();
+        $updated = 0;
+        
+        foreach ($messagesToUpdate as $message) {
+            if ($this->safeUpdateStatus($message, 'read')) {
+                $updated++;
+            }
+        }
 
         return response()->json([
             'success' => true,
