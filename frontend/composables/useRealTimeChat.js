@@ -1,47 +1,39 @@
 /**
  * Real-time Chat Composable
- * 實時聊天功能封裝
+ * 實時聊天功能封裝 (使用長輪詢)
  */
 
 export const useRealTimeChat = () => {
   const { 
-    connect, 
-    disconnect, 
+    startPolling, 
+    stopPolling, 
     isConnected, 
-    onMessage, 
-    joinChatRoom, 
-    leaveChatRoom,
-    sendChatMessage 
-  } = useWebSocket()
+    onUpdate, 
+    onAnyUpdate,
+    offUpdate,
+    cleanup: cleanupPolling
+  } = useLongPolling()
   
   const activeRooms = ref(new Set())
   const messageCallbacks = ref(new Map())
   const conversationUpdates = ref(new Map())
+  const pollingInstances = ref(new Map())
   
   /**
    * 初始化實時聊天
    */
   const initializeRealTimeChat = () => {
-    connect()
+    // 開始對話列表輪詢
+    startPolling()
     
     // 監聽新訊息
-    onMessage('new_message', (data) => {
+    onUpdate('new_messages', (data) => {
       handleNewMessage(data)
     })
     
-    // 監聽訊息狀態更新
-    onMessage('message_status', (data) => {
-      handleMessageStatusUpdate(data)
-    })
-    
     // 監聽對話列表更新
-    onMessage('conversation_update', (data) => {
+    onUpdate('conversation_list_update', (data) => {
       handleConversationUpdate(data)
-    })
-    
-    // 監聽用戶狀態變更
-    onMessage('user_status', (data) => {
-      handleUserStatusUpdate(data)
     })
   }
   
@@ -49,25 +41,35 @@ export const useRealTimeChat = () => {
    * 處理新訊息
    */
   const handleNewMessage = (data) => {
-    const { room, message } = data
+    const { line_user_id, messages } = data
     
     // 如果有這個房間的回調函數，執行它
-    const callback = messageCallbacks.value.get(room)
+    const callback = messageCallbacks.value.get(line_user_id)
     if (callback) {
-      callback({
-        type: 'new_message',
-        message: message
+      messages.forEach(message => {
+        callback({
+          type: 'new_message',
+          message: {
+            id: message.id,
+            content: message.content,
+            timestamp: message.timestamp,
+            is_from_customer: message.is_from_customer,
+            status: message.status,
+            message_type: message.message_type
+          }
+        })
       })
     }
     
     // 更新對話列表
-    if (conversationUpdates.value.has(room)) {
-      const updateCallback = conversationUpdates.value.get(room)
+    if (conversationUpdates.value.has(line_user_id)) {
+      const updateCallback = conversationUpdates.value.get(line_user_id)
+      const latestMessage = messages[messages.length - 1]
       updateCallback({
         type: 'new_message',
-        lastMessage: message.content,
-        timestamp: message.timestamp,
-        unreadCount: message.unreadCount || 0
+        lastMessage: latestMessage.content,
+        timestamp: latestMessage.timestamp,
+        unreadCount: messages.filter(m => m.is_from_customer && m.status === 'unread').length
       })
     }
   }
@@ -92,12 +94,17 @@ export const useRealTimeChat = () => {
    * 處理對話更新
    */
   const handleConversationUpdate = (data) => {
-    const { room, update } = data
+    const { updated_conversations } = data
     
-    if (conversationUpdates.value.has(room)) {
-      const updateCallback = conversationUpdates.value.get(room)
-      updateCallback(update)
-    }
+    // 通知所有對話需要重新載入
+    conversationUpdates.value.forEach((callback, roomId) => {
+      if (updated_conversations.includes(roomId)) {
+        callback({
+          type: 'conversation_update',
+          needs_reload: true
+        })
+      }
+    })
   }
   
   /**

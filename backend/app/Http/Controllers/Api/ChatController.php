@@ -484,12 +484,6 @@ class ChatController extends Controller
         return [
             'channel_access_token' => $dbSettings['channel_access_token'] ?? $cachedSettings['channel_access_token'] ?? config('services.line.channel_access_token', ''),
             'channel_secret' => $dbSettings['channel_secret'] ?? $cachedSettings['channel_secret'] ?? config('services.line.channel_secret', ''),
-            'auto_reply_enabled' => $dbSettings['auto_reply_enabled'] ?? $cachedSettings['auto_reply_enabled'] ?? config('services.line.auto_reply_enabled', true),
-            'default_reply_message' => $dbSettings['default_reply_message'] ?? $cachedSettings['default_reply_message'] ?? config('services.line.default_reply_message', '感謝您的訊息，專員將盡快回覆您。'),
-            'business_hours_enabled' => $dbSettings['business_hours_enabled'] ?? $cachedSettings['business_hours_enabled'] ?? config('services.line.business_hours_enabled', false),
-            'business_hours_start' => $dbSettings['business_hours_start'] ?? $cachedSettings['business_hours_start'] ?? config('services.line.business_hours_start', '09:00'),
-            'business_hours_end' => $dbSettings['business_hours_end'] ?? $cachedSettings['business_hours_end'] ?? config('services.line.business_hours_end', '18:00'),
-            'out_of_hours_message' => $dbSettings['out_of_hours_message'] ?? $cachedSettings['out_of_hours_message'] ?? config('services.line.out_of_hours_message', '目前為非營業時間'),
         ];
     }
 
@@ -621,10 +615,6 @@ class ChatController extends Controller
             ],
         ]);
 
-        // Send auto-reply if enabled and not a referral code response
-        if (!$isReferralCode) {
-            $this->sendAutoReply($lineUserId, $messageText, $customer);
-        }
     }
 
     /**
@@ -668,8 +658,6 @@ class ChatController extends Controller
             ],
         ]);
 
-        // Send auto-reply acknowledging media
-        $this->sendAutoReply($lineUserId, '檔案', $customer);
     }
 
     /**
@@ -715,8 +703,6 @@ class ChatController extends Controller
             ],
         ]);
 
-        // Send auto-reply for sticker
-        $this->sendAutoReply($lineUserId, '貼圖', $customer);
     }
 
     /**
@@ -766,8 +752,6 @@ class ChatController extends Controller
             ],
         ]);
 
-        // Send auto-reply for location
-        $this->sendAutoReply($lineUserId, '位置', $customer);
     }
 
     /**
@@ -1188,73 +1172,7 @@ class ChatController extends Controller
         }
     }
 
-    /**
-     * Send auto-reply message
-     */
-    protected function sendAutoReply($lineUserId, $messageText, $customer)
-    {
-        $settings = $this->getLineSettings();
-        $autoReplyEnabled = $settings['auto_reply_enabled'];
-        
-        if (!$autoReplyEnabled) {
-            return;
-        }
 
-        // Check business hours
-        if ($this->isOutOfBusinessHours()) {
-            $message = $settings['out_of_hours_message'];
-        } else {
-            $message = $settings['default_reply_message'];
-        }
-
-        // Send the auto-reply
-        if ($this->sendLineMessage($lineUserId, $message)) {
-            // Save auto-reply as conversation
-            $this->safeCreateConversation([
-                'customer_id' => $customer->id,
-                'user_id' => $customer->assigned_to,
-                'line_user_id' => $lineUserId,
-                'platform' => 'line',
-                'message_type' => 'text',
-                'message_content' => $message,
-                'message_timestamp' => now(),
-                'is_from_customer' => false,
-                'reply_content' => $message,
-                'replied_at' => now(),
-                'replied_by' => 1, // System user
-                'status' => 'sent',
-                'metadata' => [
-                    'is_auto_reply' => true,
-                ],
-            ]);
-        }
-    }
-
-    /**
-     * Check if current time is out of business hours
-     */
-    protected function isOutOfBusinessHours()
-    {
-        $settings = $this->getLineSettings();
-        $businessHoursEnabled = $settings['business_hours_enabled'];
-        
-        if (!$businessHoursEnabled) {
-            return false;
-        }
-
-        $now = now();
-        $startTime = $settings['business_hours_start'];
-        $endTime = $settings['business_hours_end'];
-        
-        $currentTime = $now->format('H:i');
-        
-        // Only check weekdays (Monday to Friday)
-        if ($now->isWeekend()) {
-            return true;
-        }
-        
-        return $currentTime < $startTime || $currentTime > $endTime;
-    }
 
     /**
      * Send LINE message
@@ -1697,5 +1615,116 @@ class ChatController extends Controller
                 throw $e;
             }
         }
+    }
+
+    /**
+     * Long polling endpoint for real-time chat updates
+     */
+    public function pollUpdates(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $timeout = min($request->get('timeout', 30), 60); // 最大60秒
+            $lastUpdate = $request->get('last_update');
+            $lineUserId = $request->get('line_user_id');
+            
+            $startTime = time();
+            $pollingInterval = 2; // 每2秒檢查一次
+            
+            while ((time() - $startTime) < $timeout) {
+                // 檢查是否有新的訊息或更新
+                $updates = $this->checkForUpdates($user, $lastUpdate, $lineUserId);
+                
+                if (!empty($updates)) {
+                    return response()->json([
+                        'success' => true,
+                        'data' => $updates,
+                        'timestamp' => now()->toISOString()
+                    ]);
+                }
+                
+                // 等待再檢查
+                sleep($pollingInterval);
+            }
+            
+            // 超時，返回空的更新
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'timestamp' => now()->toISOString(),
+                'timeout' => true
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Long polling error:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => 'Polling failed'
+            ], 500);
+        }
+    }
+
+    /**
+     * Check for updates since last polling
+     */
+    private function checkForUpdates($user, $lastUpdate, $lineUserId = null)
+    {
+        $updates = [];
+        
+        try {
+            $lastUpdateTime = $lastUpdate ? 
+                \Carbon\Carbon::parse($lastUpdate) : 
+                now()->subMinutes(5);
+            
+            if ($lineUserId) {
+                // 檢查特定對話的新訊息
+                $newMessages = ChatConversation::where('line_user_id', $lineUserId)
+                    ->where('message_timestamp', '>', $lastUpdateTime)
+                    ->orderBy('message_timestamp', 'asc')
+                    ->get();
+                
+                if ($newMessages->isNotEmpty()) {
+                    $updates[] = [
+                        'type' => 'new_messages',
+                        'line_user_id' => $lineUserId,
+                        'messages' => $newMessages->map(function ($msg) {
+                            return [
+                                'id' => $msg->id,
+                                'content' => $msg->message_content,
+                                'timestamp' => $msg->message_timestamp,
+                                'is_from_customer' => $msg->is_from_customer,
+                                'status' => $msg->status,
+                                'message_type' => $msg->message_type
+                            ];
+                        })
+                    ];
+                }
+            } else {
+                // 檢查對話列表的更新
+                $conversationUpdates = ChatConversation::distinct('line_user_id')
+                    ->where('message_timestamp', '>', $lastUpdateTime)
+                    ->pluck('line_user_id');
+                
+                if ($conversationUpdates->isNotEmpty()) {
+                    $updates[] = [
+                        'type' => 'conversation_list_update',
+                        'updated_conversations' => $conversationUpdates->toArray()
+                    ];
+                }
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Error checking for updates:', [
+                'error' => $e->getMessage(),
+                'user_id' => $user->id,
+                'line_user_id' => $lineUserId
+            ]);
+        }
+        
+        return $updates;
     }
 }
