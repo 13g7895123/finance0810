@@ -1,69 +1,121 @@
 /**
- * WebSocket Composable for Real-time Updates
- * 用於實時更新的WebSocket封裝
+ * WebSocket Composable for Real-time Chat (Laravel WebSockets + Pusher)
+ * WebSocket 實時聊天組合函數 (使用 Laravel WebSockets 和 Pusher 協議)
  */
 
 export const useWebSocket = () => {
-  const socket = ref(null)
+  const pusher = ref(null)
   const isConnected = ref(false)
-  const reconnectAttempts = ref(0)
-  const maxReconnectAttempts = 5
-  const reconnectDelay = 2000
+  const isConnecting = ref(false)
+  const activeChannels = ref(new Map())
+  const connectionErrors = ref(0)
+  const maxRetries = 5
+  const baseRetryDelay = 1000
   
   const authStore = useAuthStore()
+  
+  // WebSocket 配置
+  const config = {
+    key: 'laravel-websockets-key',
+    cluster: 'mt1',
+    wsHost: 'localhost',
+    wsPort: 6001,
+    forceTLS: false,
+    encrypted: false,
+    disableStats: true,
+    enabledTransports: ['ws', 'wss'],
+  }
   
   /**
    * 連接WebSocket
    */
-  const connect = () => {
+  const connect = async () => {
+    if (isConnected.value || isConnecting.value) {
+      return
+    }
+    
+    isConnecting.value = true
+    
     try {
-      // 使用environment變數或默認WebSocket URL
-      const wsUrl = process.env.NUXT_WS_URL || 'ws://localhost:9203'
-      const token = authStore.token
-      
-      if (!token) {
-        console.warn('No auth token available for WebSocket connection')
-        return
-      }
-      
-      // 建立WebSocket連接，包含認證token
-      socket.value = new WebSocket(`${wsUrl}?token=${encodeURIComponent(token)}`)
-      
-      socket.value.onopen = () => {
-        console.log('WebSocket connected')
-        isConnected.value = true
-        reconnectAttempts.value = 0
-        
-        // 設置訊息處理器
-        setupMessageHandler()
-        
-        // 發送初始認證訊息
-        sendMessage({
-          type: 'auth',
-          token: token
-        })
-      }
-      
-      socket.value.onclose = (event) => {
-        console.log('WebSocket disconnected:', event.code, event.reason)
-        isConnected.value = false
-        
-        // 自動重連（除非是正常關閉）
-        if (event.code !== 1000 && reconnectAttempts.value < maxReconnectAttempts) {
-          setTimeout(() => {
-            reconnectAttempts.value++
-            console.log(`Attempting to reconnect (${reconnectAttempts.value}/${maxReconnectAttempts})`)
-            connect()
-          }, reconnectDelay * reconnectAttempts.value)
+      // 動態導入 Pusher
+      if (typeof window !== 'undefined') {
+        let Pusher
+        try {
+          // 嘗試從全局獲取 Pusher
+          Pusher = window.Pusher
+          if (!Pusher) {
+            // 如果沒有全局 Pusher，嘗試動態導入
+            const pusherModule = await import('pusher-js')
+            Pusher = pusherModule.default || pusherModule
+          }
+        } catch (error) {
+          console.error('Failed to load Pusher:', error)
+          isConnecting.value = false
+          return
         }
-      }
-      
-      socket.value.onerror = (error) => {
-        console.error('WebSocket error:', error)
+        
+        if (!Pusher) {
+          console.error('Pusher library not available')
+          isConnecting.value = false
+          return
+        }
+        
+        // 創建 Pusher 連接
+        pusher.value = new Pusher(config.key, {
+          wsHost: config.wsHost,
+          wsPort: config.wsPort,
+          forceTLS: config.forceTLS,
+          encrypted: config.encrypted,
+          disableStats: config.disableStats,
+          enabledTransports: config.enabledTransports,
+          cluster: config.cluster,
+          authEndpoint: '/broadcasting/auth',
+          auth: {
+            headers: {
+              'Authorization': `Bearer ${authStore.token}`,
+              'Accept': 'application/json',
+            }
+          }
+        })
+        
+        // 連接事件處理
+        pusher.value.connection.bind('connected', () => {
+          console.log('WebSocket connected successfully')
+          isConnected.value = true
+          isConnecting.value = false
+          connectionErrors.value = 0
+        })
+        
+        pusher.value.connection.bind('disconnected', () => {
+          console.log('WebSocket disconnected')
+          isConnected.value = false
+          isConnecting.value = false
+          
+          // 自動重連
+          if (connectionErrors.value < maxRetries) {
+            setTimeout(() => {
+              connectionErrors.value++
+              connect()
+            }, baseRetryDelay * Math.pow(2, connectionErrors.value))
+          }
+        })
+        
+        pusher.value.connection.bind('error', (error) => {
+          console.error('WebSocket connection error:', error)
+          isConnected.value = false
+          isConnecting.value = false
+          connectionErrors.value++
+        })
+        
+      } else {
+        console.error('Window object not available (SSR)')
+        isConnecting.value = false
       }
       
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error)
+      isConnected.value = false
+      isConnecting.value = false
     }
   }
   
@@ -71,141 +123,161 @@ export const useWebSocket = () => {
    * 斷開WebSocket連接
    */
   const disconnect = () => {
-    if (socket.value) {
-      reconnectAttempts.value = maxReconnectAttempts // 防止自動重連
-      socket.value.close(1000, 'Manual disconnect')
-      socket.value = null
-      isConnected.value = false
-      // 清理所有訊息監聽器
-      messageListeners.value.clear()
+    if (pusher.value) {
+      // 取消訂閱所有頻道
+      activeChannels.value.forEach((channel, channelName) => {
+        try {
+          pusher.value.unsubscribe(channelName)
+        } catch (error) {
+          console.error(`Failed to unsubscribe from ${channelName}:`, error)
+        }
+      })
+      
+      pusher.value.disconnect()
+      pusher.value = null
     }
-  }
-  
-  /**
-   * 發送訊息
-   */
-  const sendMessage = (message) => {
-    if (socket.value && isConnected.value) {
-      try {
-        socket.value.send(JSON.stringify(message))
-        return true
-      } catch (error) {
-        console.error('Failed to send WebSocket message:', error)
-        return false
-      }
-    }
-    return false
-  }
-  
-  // 儲存所有訊息監聽器
-  const messageListeners = ref(new Map())
-  
-  /**
-   * 設置訊息處理器
-   */
-  const setupMessageHandler = () => {
-    if (!socket.value) return
     
-    socket.value.onmessage = (event) => {
+    isConnected.value = false
+    isConnecting.value = false
+    activeChannels.value.clear()
+  }
+  
+  /**
+   * 訂閱私有頻道
+   */
+  const subscribeToPrivateChannel = (channelName, callback) => {
+    if (!pusher.value || !isConnected.value) {
+      console.warn('WebSocket not connected, cannot subscribe to channel')
+      return null
+    }
+    
+    try {
+      const fullChannelName = `private-${channelName}`
+      const channel = pusher.value.subscribe(fullChannelName)
+      
+      // 監聽新訊息事件
+      channel.bind('new-message', (data) => {
+        console.log('Received new message:', data)
+        if (callback) {
+          callback({
+            type: 'new_message',
+            data: data
+          })
+        }
+      })
+      
+      // 訂閱成功事件
+      channel.bind('pusher:subscription_succeeded', () => {
+        console.log(`Successfully subscribed to ${fullChannelName}`)
+        activeChannels.value.set(fullChannelName, channel)
+      })
+      
+      // 訂閱失敗事件
+      channel.bind('pusher:subscription_error', (error) => {
+        console.error(`Failed to subscribe to ${fullChannelName}:`, error)
+      })
+      
+      return channel
+      
+    } catch (error) {
+      console.error(`Error subscribing to channel ${channelName}:`, error)
+      return null
+    }
+  }
+  
+  /**
+   * 取消訂閱頻道
+   */
+  const unsubscribeFromChannel = (channelName) => {
+    const fullChannelName = channelName.startsWith('private-') ? channelName : `private-${channelName}`
+    
+    if (pusher.value && activeChannels.value.has(fullChannelName)) {
       try {
-        const data = JSON.parse(event.data)
-        
-        // 執行所有匹配類型的回調
-        if (messageListeners.value.has(data.type)) {
-          const callbacks = messageListeners.value.get(data.type)
-          callbacks.forEach(callback => {
-            try {
-              callback(data)
-            } catch (error) {
-              console.error(`Error in message callback for type ${data.type}:`, error)
-            }
-          })
-        }
-        
-        // 執行所有通用回調
-        if (messageListeners.value.has('*')) {
-          const generalCallbacks = messageListeners.value.get('*')
-          generalCallbacks.forEach(callback => {
-            try {
-              callback(data)
-            } catch (error) {
-              console.error('Error in general message callback:', error)
-            }
-          })
-        }
-        
+        pusher.value.unsubscribe(fullChannelName)
+        activeChannels.value.delete(fullChannelName)
+        console.log(`Unsubscribed from ${fullChannelName}`)
       } catch (error) {
-        console.error('Failed to parse WebSocket message:', error)
+        console.error(`Failed to unsubscribe from ${fullChannelName}:`, error)
       }
     }
-  }
-  
-  /**
-   * 監聽特定類型的訊息
-   */
-  const onMessage = (type, callback) => {
-    if (!messageListeners.value.has(type)) {
-      messageListeners.value.set(type, [])
-    }
-    messageListeners.value.get(type).push(callback)
-  }
-  
-  /**
-   * 監聽所有訊息
-   */
-  const onAnyMessage = (callback) => {
-    onMessage('*', callback)
   }
   
   /**
    * 加入聊天室
    */
-  const joinChatRoom = (roomId) => {
-    return sendMessage({
-      type: 'join_room',
-      room: roomId
-    })
+  const joinChatRoom = (lineUserId, callback) => {
+    return subscribeToPrivateChannel(`chat.${lineUserId}`, callback)
+  }
+  
+  /**
+   * 加入管理員頻道
+   */
+  const joinAdminChannel = (callback) => {
+    return subscribeToPrivateChannel('chat.admin', callback)
   }
   
   /**
    * 離開聊天室
    */
-  const leaveChatRoom = (roomId) => {
-    return sendMessage({
-      type: 'leave_room',
-      room: roomId
-    })
+  const leaveChatRoom = (lineUserId) => {
+    unsubscribeFromChannel(`chat.${lineUserId}`)
   }
   
   /**
-   * 發送聊天訊息
+   * 離開管理員頻道
    */
-  const sendChatMessage = (roomId, message) => {
-    return sendMessage({
-      type: 'chat_message',
-      room: roomId,
-      message: message
-    })
+  const leaveAdminChannel = () => {
+    unsubscribeFromChannel('chat.admin')
+  }
+  
+  /**
+   * 發送聊天訊息 (通過 HTTP API，WebSocket 用於接收)
+   */
+  const sendChatMessage = async (lineUserId, message) => {
+    try {
+      const { $api } = useNuxtApp()
+      const response = await $api(`/api/chats/${lineUserId}/reply`, {
+        method: 'POST',
+        body: {
+          message: message
+        }
+      })
+      
+      return response
+    } catch (error) {
+      console.error('Failed to send chat message:', error)
+      throw error
+    }
+  }
+  
+  /**
+   * 清理所有連接和回調
+   */
+  const cleanup = () => {
+    disconnect()
   }
   
   /**
    * 當組件銷毀時清理
    */
   onUnmounted(() => {
-    disconnect()
+    cleanup()
   })
   
   return {
-    socket: readonly(socket),
+    pusher: readonly(pusher),
     isConnected: readonly(isConnected),
-    reconnectAttempts: readonly(reconnectAttempts),
+    isConnecting: readonly(isConnecting),
+    activeChannels: readonly(activeChannels),
     connect,
     disconnect,
-    sendMessage,
-    onMessage,
-    onAnyMessage,
+    subscribeToPrivateChannel,
+    unsubscribeFromChannel,
     joinChatRoom,
+    joinAdminChannel,
     leaveChatRoom,
-    sendChatMessage
+    leaveAdminChannel,
+    sendChatMessage,
+    cleanup
   }
 }

@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\LineIntegrationSetting;
 use App\Models\CustomerIdentifier;
 use App\Models\CustomerActivity;
+use App\Events\NewChatMessage;
 
 class ChatController extends Controller
 {
@@ -210,6 +211,9 @@ class ChatController extends Controller
 
             // Update conversation status to sent (with fallback handling)
             $this->safeUpdateStatus($conversation, 'sent');
+            
+            // Broadcast the new message event for real-time updates
+            broadcast(new NewChatMessage($conversation, $userId));
             
             Log::info('Chat reply successful', ['conversation_id' => $conversation->id]);
 
@@ -614,6 +618,9 @@ class ChatController extends Controller
                 'is_referral_code' => $isReferralCode,
             ],
         ]);
+
+        // Broadcast the new message event for real-time updates
+        broadcast(new NewChatMessage($conversation, $lineUserId));
 
     }
 
