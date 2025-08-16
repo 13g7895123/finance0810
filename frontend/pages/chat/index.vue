@@ -220,11 +220,12 @@ const manualRefresh = async () => {
   try {
     console.log('手動刷新聊天室數據...')
     
-    // 重新載入對話列表
+    // 重新載入對話列表 - 僅在沒有選中用戶或用戶沒有改變時更新
     await loadConversations()
     
-    // 如果有選中的用戶，重新載入其訊息
+    // 如果有選中的用戶，僅重新載入其訊息，不影響主列表
     if (selectedUser.value && selectedUser.value.lineUserId) {
+      console.log('重新載入選中用戶訊息:', selectedUser.value.lineUserId)
       await loadConversationMessages(selectedUser.value.lineUserId)
     }
     
@@ -328,10 +329,24 @@ const togglePolling = () => {
 const apiConversations = ref([])
 const apiMessages = ref({})
 
+// 數據載入鎖，防止競態條件
+const loadingLocks = ref({
+  conversations: false,
+  messages: false
+})
+
 // 載入對話列表
 const loadConversations = async () => {
+  // 防止重複載入
+  if (loadingLocks.value.conversations) {
+    console.log('對話列表正在載入中，跳過重複請求')
+    return
+  }
+
   try {
+    loadingLocks.value.conversations = true
     conversationsLoading.value = true
+    console.log('開始載入對話列表...')
     const response = await getConversations()
     
     if (response?.data) {
@@ -400,14 +415,23 @@ const loadConversations = async () => {
     console.error('Failed to load conversations:', error)
   } finally {
     conversationsLoading.value = false
+    loadingLocks.value.conversations = false
+    console.log('對話列表載入完成')
   }
 }
 
 // 載入特定對話的訊息
 const loadConversationMessages = async (userId) => {
+  // 防止重複載入同一用戶的訊息
+  if (loadingLocks.value.messages) {
+    console.log('訊息正在載入中，跳過重複請求')
+    return
+  }
+
   try {
+    loadingLocks.value.messages = true
     loading.value = true
-    console.log('Loading conversation messages for userId:', userId)
+    console.log('開始載入用戶訊息:', userId)
     
     const response = await getConversation(userId)
     console.log('API response for conversation:', response)
@@ -447,6 +471,8 @@ const loadConversationMessages = async (userId) => {
     return []
   } finally {
     loading.value = false
+    loadingLocks.value.messages = false
+    console.log('用戶訊息載入完成:', userId)
   }
 }
 
@@ -815,7 +841,15 @@ const selectUserWithRealtime = async (user) => {
       return
     }
     
-    console.log('Selecting user:', user)
+    console.log('=== 選擇用戶開始 ===')
+    console.log('Selecting user:', user.name, 'ID:', user.id, 'LineUserID:', user.lineUserId)
+    
+    // 暫停輪詢以避免競態條件
+    const wasPollingEnabled = pollingConfig.value.enabled
+    if (wasPollingEnabled) {
+      console.log('暫停輪詢以避免競態條件')
+      stopPolling()
+    }
     
     // 執行原有的用戶選擇邏輯
     selectedUser.value = user
@@ -827,33 +861,36 @@ const selectUserWithRealtime = async (user) => {
     // 載入對話訊息 (如果是 LINE BOT 用戶)
     if (user.isBot && user.lineUserId) {
       console.log('Loading conversation messages for LINE bot user:', user.lineUserId)
-      if (typeof loadConversationMessages === 'function') {
+      try {
         await loadConversationMessages(user.lineUserId)
-      } else {
-        console.error('loadConversationMessages 不是函數:', typeof loadConversationMessages)
+        console.log('✓ 對話訊息載入完成')
+      } catch (error) {
+        console.error('✗ 載入對話訊息失敗:', error)
       }
     } else {
       console.log('User is not a LINE bot user')
     }
     
-    // 標記為已讀，但不立即觸發更新避免排序跳動
+    // 標記為已讀（僅記錄，不修改響應式數據）
     if (user.unreadCount > 0) {
-      nextTick(() => {
-        if (user && typeof user === 'object') {
-          user.unreadCount = 0
-        }
-      })
+      console.log('用戶有未讀訊息，將標記為已讀')
+      // 可以選擇性調用 markAsRead API 但不立即更新界面
+      // await markAsRead(user.lineUserId)
     }
     
-    // 選擇用戶後可選擇自動啟動輪詢
-    if (!pollingConfig.value.enabled) {
-      console.log('選擇用戶後自動啟動輪詢')
-      // startPolling(pollingConfig.value.interval) // 可選擇啟用
+    // 恢復輪詢（如果之前啟用）
+    if (wasPollingEnabled) {
+      console.log('恢復輪詢')
+      setTimeout(() => {
+        startPolling(pollingConfig.value.interval)
+      }, 1000) // 延遲1秒恢復，確保操作完成
     }
+    
+    console.log('=== 選擇用戶完成 ===')
     
     // 調試：檢查當前訊息
     nextTick(() => {
-      console.log('Current messages after user selection:', currentMessages.value)
+      console.log('Current messages after user selection:', currentMessages.value?.length || 0, 'messages')
     })
   } catch (error) {
     console.error('selectUserWithRealtime 發生錯誤:', error)
