@@ -566,9 +566,17 @@ const loadUsers = async (page = 1) => {
 const loadRoles = async () => {
   try {
     const response = await getRoles()
-    roles.value = Array.isArray(response) ? response : []
+    const rolesData = Array.isArray(response) ? response : []
+    
+    // 去重處理，確保角色ID是唯一的
+    const uniqueRoles = rolesData.filter((role, index, self) => 
+      index === self.findIndex(r => r.id === role.id)
+    )
+    
+    roles.value = uniqueRoles
   } catch (error) {
     console.error('Failed to load roles:', error)
+    roles.value = []
   }
 }
 
@@ -663,7 +671,10 @@ const toggleStatus = async (user) => {
 
 // Edit user
 const editUser = (user) => {
-  editForm.value = { ...user }
+  editForm.value = { 
+    ...user,
+    role: user.roles && user.roles.length > 0 ? user.roles[0].name : ''
+  }
   showEditModal.value = true
 }
 

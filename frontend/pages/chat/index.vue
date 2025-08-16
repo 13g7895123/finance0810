@@ -466,7 +466,19 @@ const filteredUsers = computed(() => {
       break
   }
 
-  return users.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+  // 穩定的排序：按時間排序，但使用穩定的比較邏輯
+  return users.sort((a, b) => {
+    const timeA = new Date(a.timestamp).getTime()
+    const timeB = new Date(b.timestamp).getTime()
+    
+    // 先按時間排序
+    if (timeA !== timeB) {
+      return timeB - timeA
+    }
+    
+    // 時間相同時，按ID排序確保順序穩定
+    return a.id - b.id
+  })
 })
 
 // 模擬訊息數據 - 包含豐富的 LINE BOT 對話記錄
@@ -843,9 +855,11 @@ const selectUserWithRealtime = async (user) => {
     })
   }
   
-  // 標記為已讀
+  // 標記為已讀，但不立即觸發更新避免排序跳動
   if (user.unreadCount > 0) {
-    user.unreadCount = 0
+    nextTick(() => {
+      user.unreadCount = 0
+    })
   }
 }
 
