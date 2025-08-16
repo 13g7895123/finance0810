@@ -370,9 +370,31 @@ const loadConversations = async () => {
         return acc
       }, [])
       
-      // 確保載入時就按時間排序
-      apiConversations.value = sortByTime(uniqueUsers)
-      console.log(`載入對話列表: ${uniqueUsers.length} 筆記錄`)
+      // 排序處理
+      const sortedUsers = sortByTime(uniqueUsers)
+      
+      // 數據比較：只有在數據實際改變時才更新
+      const currentData = JSON.stringify(apiConversations.value.map(u => ({
+        lineUserId: u.lineUserId,
+        lastMessage: u.lastMessage,
+        timestamp: u.timestamp?.getTime(),
+        unreadCount: u.unreadCount
+      })))
+      
+      const newData = JSON.stringify(sortedUsers.map(u => ({
+        lineUserId: u.lineUserId,
+        lastMessage: u.lastMessage,
+        timestamp: u.timestamp?.getTime(),
+        unreadCount: u.unreadCount
+      })))
+      
+      // 只有在數據真正改變時才更新，避免不必要的重新渲染
+      if (currentData !== newData) {
+        apiConversations.value = sortedUsers
+        console.log(`載入對話列表: ${uniqueUsers.length} 筆記錄 (已更新)`)
+      } else {
+        console.log(`載入對話列表: ${uniqueUsers.length} 筆記錄 (無變化)`)
+      }
     }
   } catch (error) {
     console.error('Failed to load conversations:', error)
@@ -460,11 +482,13 @@ const sortByTime = (users) => {
 // 只使用 API 數據
 const combinedUsers = computed(() => {
   // 只使用 API 對話數據，移除所有模擬數據
-  // 確保始終按時間排序，最新的在上面
+  // 數據已在 loadConversations 中排序和去重，直接返回避免重複處理
   if (!Array.isArray(apiConversations.value)) {
     return []
   }
-  return sortByTime([...apiConversations.value])
+  
+  // 創建副本以避免直接修改原始數據，但不重新排序
+  return [...apiConversations.value]
 })
 
 // 搜尋結果
@@ -521,9 +545,29 @@ const performSearch = async (query) => {
         return acc
       }, [])
       
-      // 按時間排序搜尋結果，確保一致性
-      searchResults.value = sortByTime(uniqueSearchUsers)
-      console.log('Search results processed:', uniqueSearchUsers.length) // Debug log
+      // 排序處理
+      const sortedSearchUsers = sortByTime(uniqueSearchUsers)
+      
+      // 數據比較：只有在搜索結果實際改變時才更新
+      const currentSearchData = JSON.stringify(searchResults.value.map(u => ({
+        lineUserId: u.lineUserId,
+        lastMessage: u.lastMessage,
+        timestamp: u.timestamp?.getTime()
+      })))
+      
+      const newSearchData = JSON.stringify(sortedSearchUsers.map(u => ({
+        lineUserId: u.lineUserId,
+        lastMessage: u.lastMessage,
+        timestamp: u.timestamp?.getTime()
+      })))
+      
+      // 只有在搜索結果真正改變時才更新
+      if (currentSearchData !== newSearchData) {
+        searchResults.value = sortedSearchUsers
+        console.log('Search results processed:', uniqueSearchUsers.length, '(已更新)') // Debug log
+      } else {
+        console.log('Search results processed:', uniqueSearchUsers.length, '(無變化)') // Debug log
+      }
     } else {
       console.log('No search results or invalid response format')
       searchResults.value = []
@@ -559,9 +603,10 @@ watch(searchQuery, (newQuery) => {
 // 根據權限過濾用戶列表
 const filteredUsers = computed(() => {
   try {
-    // 如果有搜尋結果，優先顯示搜尋結果
+    // 如果有搜尋結果，優先顯示搜尋結果（已在 performSearch 中排序和去重）
     if (searchQuery.value && searchQuery.value.trim() && searchResults.value && searchResults.value.length > 0) {
-      return Array.isArray(searchResults.value) ? searchResults.value : []
+      // 搜索結果已經處理過，直接返回副本
+      return Array.isArray(searchResults.value) ? [...searchResults.value] : []
     }
     
     let users = combinedUsers.value
@@ -611,8 +656,17 @@ const filteredUsers = computed(() => {
       }
     }
 
-    // 確保最終結果按時間排序，最新的在上面
-    return sortByTime(users)
+    // 數據已在 loadConversations 中排序，這裡只需要去重處理
+    // 根據 lineUserId 進行最終去重確保
+    const finalUsers = users.reduce((acc, current) => {
+      const existing = acc.find(item => item?.lineUserId === current?.lineUserId)
+      if (!existing && current?.lineUserId) {
+        acc.push(current)
+      }
+      return acc
+    }, [])
+    
+    return finalUsers
   } catch (error) {
     console.error('filteredUsers computed 發生錯誤:', error)
     return []
