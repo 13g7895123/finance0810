@@ -7,16 +7,14 @@
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center space-x-3">
             <h2 class="text-lg font-semibold text-gray-900">聊天室</h2>
-            <!-- WebSocket 連接狀態指示器 -->
+            <!-- Long Polling 連接狀態指示器 -->
             <div class="flex items-center space-x-1">
               <div 
                 :class="[
                   'w-2 h-2 rounded-full',
                   {
                     'bg-green-400': chatConnectionStatus === 'connected',
-                    'bg-yellow-400': chatConnectionStatus === 'connecting',
                     'bg-blue-400': chatConnectionStatus === 'ready',
-                    'bg-red-400': chatConnectionStatus === 'failed',
                     'bg-gray-400': chatConnectionStatus === 'disconnected'
                   }
                 ]"
@@ -24,26 +22,10 @@
               <span class="text-xs text-gray-500">
                 {{ 
                   chatConnectionStatus === 'connected' ? '實時更新' : 
-                  chatConnectionStatus === 'connecting' ? '連線中' :
-                  chatConnectionStatus === 'ready' ? '已連線' :
-                  chatConnectionStatus === 'failed' ? '連線失敗' : '離線'
+                  chatConnectionStatus === 'ready' ? '已連線' : '離線'
                 }}
               </span>
-              <!-- Loading指示器 -->
-              <div 
-                v-if="initializingChat"
-                class="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"
-              ></div>
             </div>
-            <!-- 重新連線按鈕 (連線失敗時顯示) -->
-            <button 
-              v-if="chatConnectionStatus === 'failed'"
-              @click="initializeChatConnection"
-              :disabled="initializingChat"
-              class="text-xs px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 disabled:opacity-50"
-            >
-              重新連線
-            </button>
             
             <!-- Debug: 性能測試按鈕 (僅開發環境顯示) -->
             <div v-if="$config.public.dev" class="flex space-x-1">
@@ -98,23 +80,6 @@
           <p class="text-sm text-gray-500">搜尋中...</p>
         </div>
         
-        <!-- 連線失敗提示 -->
-        <div v-else-if="chatConnectionStatus === 'failed'" class="p-4 text-center">
-          <div class="text-red-500 mb-2">
-            <svg class="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.232 15.5c-.77.833.192 2.5 1.732 2.5z"></path>
-            </svg>
-          </div>
-          <p class="text-sm text-gray-600 mb-2">聊天室連線失敗</p>
-          <p class="text-xs text-gray-500 mb-3">請檢查網路連線或稍後再試</p>
-          <button 
-            @click="initializeChatConnection"
-            :disabled="initializingChat"
-            class="text-xs px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 disabled:opacity-50"
-          >
-            重新連線
-          </button>
-        </div>
         
         <!-- 搜尋無結果 -->
         <div v-else-if="searchQuery.trim() && filteredUsers.length === 0" class="p-4 text-center">
@@ -167,14 +132,6 @@ const { error: showError } = useNotification()
 
 const authStore = useAuthStore()
 const { getConversations, getConversation, replyMessage, getChatStats, searchConversations } = useChat()
-const { 
-  initializeRealTimeChat, 
-  joinRoom, 
-  leaveRoom, 
-  sendMessage: sendRealtimeMessage, 
-  onConversationUpdate,
-  isConnected: isWebSocketConnected 
-} = useRealTimeChat()
 
 // 使用優化的Long Polling
 const {
@@ -205,8 +162,7 @@ const selectedUser = ref(null)
 // 載入狀態
 const loading = ref(false)
 const conversationsLoading = ref(false)
-const initializingChat = ref(false)
-const chatConnectionStatus = ref('ready') // 'ready', 'connecting', 'connected', 'failed', 'disconnected'
+const chatConnectionStatus = ref('ready') // 'ready', 'connected', 'disconnected'
 
 // 延遲監控
 const latencyInfo = ref({
@@ -587,17 +543,9 @@ const sendMessage = async (content) => {
   }
 }
 
-// 實時聊天功能
-const currentRoomId = ref(null)
-
-// 增強版選擇用戶功能（包含實時聊天）
+// 選擇用戶功能（使用Long Polling）
 const selectUserWithRealtime = async (user) => {
   console.log('Selecting user:', user)
-  
-  // 離開之前的房間
-  if (currentRoomId.value) {
-    leaveRoom(currentRoomId.value)
-  }
   
   // 執行原有的用戶選擇邏輯
   selectedUser.value = user
@@ -610,53 +558,8 @@ const selectUserWithRealtime = async (user) => {
   if (user.isBot && user.lineUserId) {
     console.log('Loading conversation messages for LINE bot user:', user.lineUserId)
     await loadConversationMessages(user.lineUserId)
-    
-    // 在選擇用戶時才初始化WebSocket連線
-    if (!isWebSocketConnected.value && chatConnectionStatus.value !== 'connected') {
-      console.log('初始化WebSocket連線 (用戶選擇觸發)')
-      const connectionSuccess = await initializeChatConnection()
-      
-      // 如果WebSocket連線失敗，顯示錯誤提示
-      if (!connectionSuccess) {
-        showError('無法建立即時聊天連線，將使用基本聊天功能。請檢查網路連線或稍後再試。')
-        console.warn('WebSocket連線失敗，但仍可查看歷史訊息')
-        return // 仍然可以查看歷史訊息，所以不完全阻止操作
-      }
-    }
-    
-    // 如果WebSocket連線成功，才加入聊天房間
-    if (isWebSocketConnected.value) {
-      try {
-        // 加入實時聊天房間 (直接使用 lineUserId)
-        currentRoomId.value = user.lineUserId
-        
-        // 加入房間並設置訊息回調
-        const joinSuccess = joinRoom(user.lineUserId, (data) => {
-          handleRealtimeMessage(data, user)
-        })
-        
-        if (joinSuccess) {
-          // 設置對話列表更新回調
-          onConversationUpdate(user.lineUserId, (update) => {
-            handleConversationUpdate(update, user)
-          })
-          console.log('成功加入聊天房間:', user.lineUserId)
-        } else {
-          // 加入房間失敗時的錯誤提示
-          showError(`無法加入與 ${user.name} 的即時聊天房間，將使用基本聊天功能。`)
-          console.warn('加入聊天房間失敗:', user.lineUserId)
-        }
-      } catch (error) {
-        // 捕獲加入房間時的異常
-        console.error('加入聊天房間時發生錯誤:', error)
-        showError(`連線到 ${user.name} 的聊天房間時發生錯誤，請稍後再試。`)
-      }
-    } else {
-      console.warn('WebSocket未連線，無法加入實時聊天房間')
-      // 這種情況下用戶已經看到連線失敗的提示了，不需要重複提示
-    }
   } else {
-    console.log('User is not a LINE bot user, using mock messages')
+    console.log('User is not a LINE bot user')
   }
   
   // 標記為已讀，但不立即觸發更新避免排序跳動
@@ -672,157 +575,6 @@ const selectUserWithRealtime = async (user) => {
   })
 }
 
-// 處理實時訊息
-const handleRealtimeMessage = (data, user) => {
-  console.log('收到實時訊息:', data, '用戶:', user)
-  
-  switch (data.type) {
-    case 'new_message':
-      console.log('處理新訊息:', data.message)
-      // 添加新訊息到當前對話
-      if (apiMessages.value[user.lineUserId]) {
-        const newMessage = {
-          id: data.message.id,
-          senderId: data.message.is_from_customer ? parseInt(data.message.line_user_id) : 'bot',
-          content: data.message.content,
-          timestamp: new Date(data.message.timestamp),
-          type: data.message.message_type || 'text',
-          isBot: true,
-          isCustomer: data.message.is_from_customer,
-          isAutoReply: !data.message.is_from_customer,
-          metadata: data.message.metadata || {}
-        }
-        
-        // 檢查是否已存在相同 ID 的訊息，避免重複添加
-        const existingMessageIndex = apiMessages.value[user.lineUserId].findIndex(msg => msg.id === newMessage.id)
-        if (existingMessageIndex === -1) {
-          apiMessages.value[user.lineUserId].push(newMessage)
-          console.log('新訊息已添加到對話:', newMessage)
-          
-          // 更新對話列表中的最新訊息和時間戳
-          const userIndex = apiConversations.value.findIndex(u => u.lineUserId === user.lineUserId)
-          if (userIndex !== -1) {
-            apiConversations.value[userIndex].lastMessage = newMessage.content
-            apiConversations.value[userIndex].timestamp = newMessage.timestamp
-            if (newMessage.isCustomer) {
-              apiConversations.value[userIndex].unreadCount += 1
-            }
-          }
-        } else {
-          console.log('訊息已存在，跳過添加:', newMessage.id)
-        }
-      } else {
-        console.log('找不到用戶的對話記錄，初始化:', user.lineUserId)
-        // 初始化該用戶的對話記錄
-        apiMessages.value[user.lineUserId] = [{
-          id: data.message.id,
-          senderId: data.message.is_from_customer ? parseInt(data.message.line_user_id) : 'bot',
-          content: data.message.content,
-          timestamp: new Date(data.message.timestamp),
-          type: data.message.message_type || 'text',
-          isBot: true,
-          isCustomer: data.message.is_from_customer,
-          isAutoReply: !data.message.is_from_customer,
-          metadata: data.message.metadata || {}
-        }]
-      }
-      break
-      
-    case 'message_status':
-      // 更新訊息狀態
-      if (apiMessages.value[user.lineUserId]) {
-        const messageIndex = apiMessages.value[user.lineUserId].findIndex(
-          msg => msg.id === data.messageId
-        )
-        if (messageIndex !== -1) {
-          apiMessages.value[user.lineUserId][messageIndex].status = data.status
-        }
-      }
-      break
-      
-    case 'user_status':
-      // 更新用戶在線狀態 - 只更新 API 數據
-      const apiUserIndex = apiConversations.value.findIndex(u => u.id === data.userId)
-      if (apiUserIndex !== -1) {
-        apiConversations.value[apiUserIndex].online = data.online
-      }
-      break
-  }
-}
-
-// 處理對話列表更新
-const handleConversationUpdate = (update, user) => {
-  // 只更新 API 對話列表，移除模擬數據更新
-  const apiUserIndex = apiConversations.value.findIndex(u => u.id === user.id)
-  if (apiUserIndex !== -1) {
-    if (update.lastMessage) {
-      apiConversations.value[apiUserIndex].lastMessage = update.lastMessage
-    }
-    if (update.timestamp) {
-      apiConversations.value[apiUserIndex].timestamp = new Date(update.timestamp)
-    }
-    if (update.unreadCount !== undefined) {
-      apiConversations.value[apiUserIndex].unreadCount = update.unreadCount
-    }
-  }
-}
-
-// 測試 WebSocket 連接功能 (僅開發環境)
-const testWebSocketConnection = () => {
-  console.log('=== WebSocket 連接測試 ===')
-  console.log('連接狀態:', isWebSocketConnected.value)
-  console.log('活躍房間:', activeRooms.value)
-  console.log('當前選中用戶:', selectedUser.value)
-  console.log('當前房間ID:', currentRoomId.value)
-  
-  if (selectedUser.value?.lineUserId) {
-    console.log('嘗試發送測試訊息到:', selectedUser.value.lineUserId)
-    // 這裡可以添加發送測試訊息的邏輯
-  } else {
-    console.log('沒有選中的用戶')
-  }
-  
-  // 顯示一個簡單的通知
-  console.log('WebSocket 連接測試完成，請查看控制台輸出')
-}
-
-// Real-time chat functionality is now integrated
-
-// 初始化實時聊天的輔助函數
-const initializeChatConnection = async () => {
-  initializingChat.value = true
-  chatConnectionStatus.value = 'connecting'
-  
-  try {
-    // 確保認證已完成
-    await authStore.waitForInitialization()
-    
-    if (!authStore.isLoggedIn || !authStore.token) {
-      chatConnectionStatus.value = 'failed'
-      console.warn('用戶未登入或無有效token，聊天室連線失敗')
-      showError('請先登入才能使用實時聊天功能')
-      return false
-    }
-    
-    const success = await initializeRealTimeChat()
-    if (success) {
-      chatConnectionStatus.value = 'connected'
-      console.log('WebSocket連線成功')
-      return true
-    } else {
-      chatConnectionStatus.value = 'failed'
-      console.warn('WebSocket連線失敗')
-      return false
-    }
-  } catch (error) {
-    chatConnectionStatus.value = 'failed'
-    console.error('WebSocket連線發生錯誤:', error)
-    // 只在重複連線失敗時才顯示錯誤提示
-    return false
-  } finally {
-    initializingChat.value = false
-  }
-}
 
 // 處理Long Polling訊息更新
 const handleLongPollingMessage = (update) => {
@@ -924,14 +676,6 @@ const loadConversationSummary = async (lineUserId) => {
   return null
 }
 
-// 監聽WebSocket連線狀態變化
-watch(isWebSocketConnected, (newStatus) => {
-  if (newStatus && chatConnectionStatus.value === 'connecting') {
-    chatConnectionStatus.value = 'connected'
-  } else if (!newStatus && chatConnectionStatus.value === 'connected') {
-    chatConnectionStatus.value = 'disconnected'
-  }
-})
 
 // 初始化數據載入
 onMounted(async () => {

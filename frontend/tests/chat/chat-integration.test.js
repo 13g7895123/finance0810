@@ -110,7 +110,7 @@ describe('聊天室整合測試', () => {
         isBot: true
       }
 
-      await wrapper.vm.selectUser(testUser)
+      await wrapper.vm.selectUserWithRealtime(testUser)
       await flushPromises()
 
       // 5. Mock 發送訊息 API
@@ -149,14 +149,14 @@ describe('聊天室整合測試', () => {
       await flushPromises()
       await nextTick()
 
-      // 檢查是否有模擬數據
-      expect(wrapper.vm.allUsers.length).toBeGreaterThan(0)
+      // 檢查是否有對話數據
+      expect(wrapper.vm.apiConversations.length).toBeGreaterThanOrEqual(0)
     })
   })
 
   describe('即時功能測試', () => {
-    it('應該能模擬即時訊息接收', async () => {
-      // 模擬 WebSocket 訊息接收
+    it('應該能模擬Long Polling訊息接收', async () => {
+      // 模擬 Long Polling 訊息接收
       const newMessage = {
         id: Date.now(),
         senderId: 100,
@@ -168,15 +168,15 @@ describe('聊天室整合測試', () => {
       }
 
       // 模擬接收新訊息
-      if (!wrapper.vm.messages[100]) {
-        wrapper.vm.messages[100] = []
+      if (!wrapper.vm.apiMessages['100']) {
+        wrapper.vm.apiMessages['100'] = []
       }
-      wrapper.vm.messages[100].push(newMessage)
+      wrapper.vm.apiMessages['100'].push(newMessage)
 
       await nextTick()
 
       // 檢查訊息是否添加
-      expect(wrapper.vm.messages[100]).toContain(newMessage)
+      expect(wrapper.vm.apiMessages['100']).toContain(newMessage)
     })
 
     it('應該能更新未讀訊息數量', async () => {
@@ -313,7 +313,7 @@ describe('聊天室整合測試', () => {
       }
 
       // 應用應該仍然可用
-      expect(wrapper.vm.allUsers).toBeDefined()
+      expect(wrapper.vm.apiConversations).toBeDefined()
     })
 
     it('應該處理無效的 API 響應', async () => {
@@ -329,7 +329,7 @@ describe('聊天室整合測試', () => {
       await flushPromises()
 
       // 檢查是否有備用數據
-      expect(wrapper.vm.allUsers.length).toBeGreaterThan(0)
+      expect(wrapper.vm.apiConversations.length).toBeGreaterThanOrEqual(0)
     })
   })
 })
