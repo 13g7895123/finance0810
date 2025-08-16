@@ -355,8 +355,24 @@ const loadConversations = async () => {
         }
       }))
       
+      // 去重處理：根據 lineUserId 去重，保留最新的記錄
+      const uniqueUsers = apiUsers.reduce((acc, current) => {
+        const existing = acc.find(item => item.lineUserId === current.lineUserId)
+        if (!existing) {
+          acc.push(current)
+        } else {
+          // 如果存在，比較時間戳，保留較新的
+          if (current.timestamp > existing.timestamp) {
+            const index = acc.indexOf(existing)
+            acc[index] = current
+          }
+        }
+        return acc
+      }, [])
+      
       // 確保載入時就按時間排序
-      apiConversations.value = sortByTime(apiUsers)
+      apiConversations.value = sortByTime(uniqueUsers)
+      console.log(`載入對話列表: ${uniqueUsers.length} 筆記錄`)
     }
   } catch (error) {
     console.error('Failed to load conversations:', error)
@@ -414,25 +430,41 @@ const loadConversationMessages = async (userId) => {
 
 // 時間排序函數
 const sortByTime = (users) => {
+  if (!Array.isArray(users)) {
+    console.warn('sortByTime: 輸入不是陣列:', users)
+    return []
+  }
+  
   return users.sort((a, b) => {
-    const timeA = new Date(a.timestamp).getTime()
-    const timeB = new Date(b.timestamp).getTime()
-    
-    // 按時間排序（最新的在前面）
-    if (timeA !== timeB) {
-      return timeB - timeA
+    try {
+      // 確保時間戳有效
+      const timeA = a?.timestamp ? new Date(a.timestamp).getTime() : 0
+      const timeB = b?.timestamp ? new Date(b.timestamp).getTime() : 0
+      
+      // 按時間排序（最新的在前面）
+      if (timeA !== timeB) {
+        return timeB - timeA
+      }
+      
+      // 時間相同時按ID排序確保穩定性
+      const idA = a?.id || 0
+      const idB = b?.id || 0
+      return idB - idA
+    } catch (error) {
+      console.error('sortByTime 排序錯誤:', error, { a, b })
+      return 0
     }
-    
-    // 時間相同時按ID排序確保穩定性
-    return b.id - a.id
   })
 }
 
 // 只使用 API 數據
 const combinedUsers = computed(() => {
   // 只使用 API 對話數據，移除所有模擬數據
-  // 不重新排序，保持 loadConversations 中設定的初始順序
-  return apiConversations.value
+  // 確保始終按時間排序，最新的在上面
+  if (!Array.isArray(apiConversations.value)) {
+    return []
+  }
+  return sortByTime([...apiConversations.value])
 })
 
 // 搜尋結果
@@ -474,9 +506,24 @@ const performSearch = async (query) => {
         }
       }))
       
+      // 去重處理：根據 lineUserId 去重，保留最新的記錄
+      const uniqueSearchUsers = searchUsers.reduce((acc, current) => {
+        const existing = acc.find(item => item.lineUserId === current.lineUserId)
+        if (!existing) {
+          acc.push(current)
+        } else {
+          // 如果存在，比較時間戳，保留較新的
+          if (current.timestamp > existing.timestamp) {
+            const index = acc.indexOf(existing)
+            acc[index] = current
+          }
+        }
+        return acc
+      }, [])
+      
       // 按時間排序搜尋結果，確保一致性
-      searchResults.value = sortByTime(searchUsers)
-      console.log('Search results processed:', searchUsers.length) // Debug log
+      searchResults.value = sortByTime(uniqueSearchUsers)
+      console.log('Search results processed:', uniqueSearchUsers.length) // Debug log
     } else {
       console.log('No search results or invalid response format')
       searchResults.value = []
@@ -564,8 +611,8 @@ const filteredUsers = computed(() => {
       }
     }
 
-    // 保持初始排序順序，不重新排序避免選擇用戶後順序改變
-    return users
+    // 確保最終結果按時間排序，最新的在上面
+    return sortByTime(users)
   } catch (error) {
     console.error('filteredUsers computed 發生錯誤:', error)
     return []
