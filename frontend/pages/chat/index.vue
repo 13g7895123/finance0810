@@ -17,7 +17,7 @@
             
             <!-- 手動刷新按鈕 -->
             <ClientOnly>
-              <div class="flex space-x-1">
+              <div class="flex space-x-1" style="display: none;">
                 <button 
                   @click="manualRefresh"
                   :disabled="isRefreshing"
