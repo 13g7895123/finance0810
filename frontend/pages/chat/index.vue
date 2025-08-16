@@ -26,6 +26,33 @@
                   <span v-if="isRefreshing">刷新中...</span>
                   <span v-else>手動刷新</span>
                 </button>
+                
+                <!-- 輪詢控制按鈕 -->
+                <button 
+                  @click="togglePolling"
+                  :class="[
+                    'text-xs px-2 py-1 rounded transition-colors',
+                    pollingConfig.enabled 
+                      ? 'bg-green-100 text-green-600 hover:bg-green-200' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ]"
+                >
+                  <span v-if="pollingConfig.enabled">停止輪詢</span>
+                  <span v-else>啟動輪詢</span>
+                </button>
+                
+                <!-- 輪詢間隔選擇 -->
+                <select 
+                  @change="changePollingInterval(parseInt($event.target.value))"
+                  :value="pollingConfig.interval"
+                  class="text-xs px-1 py-1 border border-gray-300 rounded bg-white"
+                >
+                  <option value="500">0.5秒</option>
+                  <option value="1000">1秒</option>
+                  <option value="2000">2秒</option>
+                  <option value="5000">5秒</option>
+                </select>
+                
                 <span class="text-xs text-gray-500">
                   {{ formatTime(lastRefreshTime) }}
                 </span>
@@ -130,6 +157,15 @@ const isRefreshing = ref(false)
 const lastRefreshTime = ref(new Date())
 const autoRefreshEnabled = ref(true)
 
+// 定時輪詢配置
+const pollingConfig = ref({
+  enabled: false,
+  interval: 1000, // 1秒默認，可調整為500ms
+  timer: null,
+  retryCount: 0,
+  maxRetries: 3
+})
+
 // 搜尋查詢
 const searchQuery = ref('')
 
@@ -195,10 +231,96 @@ const manualRefresh = async () => {
     lastRefreshTime.value = new Date()
     console.log('聊天室數據刷新完成')
     
+    // 成功後重置重試計數
+    pollingConfig.value.retryCount = 0
+    
   } catch (error) {
     console.error('刷新聊天室數據失敗:', error)
+    pollingConfig.value.retryCount++
   } finally {
     isRefreshing.value = false
+  }
+}
+
+// 定時輪詢功能
+const startPolling = (intervalMs = 1000) => {
+  if (pollingConfig.value.enabled) {
+    console.log('輪詢已在運行中')
+    return
+  }
+  
+  pollingConfig.value.enabled = true
+  pollingConfig.value.interval = intervalMs
+  pollingConfig.value.retryCount = 0
+  
+  console.log(`啟動定時輪詢，間隔: ${intervalMs}ms`)
+  
+  const poll = async () => {
+    if (!pollingConfig.value.enabled) return
+    
+    // 檢查頁面可見性
+    if (process.client && document.hidden) {
+      console.log('頁面隱藏，跳過本次輪詢')
+      scheduleNextPoll()
+      return
+    }
+    
+    // 檢查是否達到最大重試次數
+    if (pollingConfig.value.retryCount >= pollingConfig.value.maxRetries) {
+      console.warn('輪詢重試次數過多，暫停輪詢')
+      stopPolling()
+      return
+    }
+    
+    try {
+      if (!isRefreshing.value) {
+        await manualRefresh()
+      }
+    } catch (error) {
+      console.error('輪詢更新失敗:', error)
+    }
+    
+    scheduleNextPoll()
+  }
+  
+  const scheduleNextPoll = () => {
+    if (pollingConfig.value.enabled) {
+      pollingConfig.value.timer = setTimeout(poll, pollingConfig.value.interval)
+    }
+  }
+  
+  // 立即執行第一次輪詢
+  poll()
+}
+
+// 停止輪詢
+const stopPolling = () => {
+  console.log('停止定時輪詢')
+  pollingConfig.value.enabled = false
+  
+  if (pollingConfig.value.timer) {
+    clearTimeout(pollingConfig.value.timer)
+    pollingConfig.value.timer = null
+  }
+}
+
+// 調整輪詢間隔
+const changePollingInterval = (intervalMs) => {
+  if (pollingConfig.value.enabled) {
+    stopPolling()
+    startPolling(intervalMs)
+  } else {
+    pollingConfig.value.interval = intervalMs
+  }
+  console.log(`輪詢間隔已設定為: ${intervalMs}ms`)
+}
+
+// 切換輪詢狀態
+const togglePolling = () => {
+  if (pollingConfig.value.enabled) {
+    stopPolling()
+  } else {
+    startPolling(pollingConfig.value.interval)
   }
 }
 
@@ -459,13 +581,27 @@ const filteredUsers = computed(() => {
 // 自動更新策略
 const autoRefreshTimer = ref(null)
 
-// 頁面可見性監聽
+// 頁面可見性監聽增強版
 const setupVisibilityListener = () => {
   if (process.client) {
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && autoRefreshEnabled.value) {
+      if (!document.hidden) {
         console.log('頁面變可見，檢查更新')
-        manualRefresh()
+        
+        // 手動刷新一次
+        if (autoRefreshEnabled.value) {
+          manualRefresh()
+        }
+        
+        // 如果輪詢被停止且用戶在聊天室，則重新啟動
+        if (!pollingConfig.value.enabled && selectedUser.value) {
+          console.log('頁面可見且有選中用戶，重新啟動輪詢')
+          startPolling(pollingConfig.value.interval)
+        }
+      } else {
+        console.log('頁面隱藏，考慮停止輪詢')
+        // 頁面隱藏時可選擇停止輪詢節省資源
+        // stopPolling() // 可選擇啟用
       }
     })
   }
@@ -552,6 +688,20 @@ const sendMessage = async (content) => {
     // 發送訊息後延遲刷新
     setTimeout(() => {
       manualRefresh()
+      
+      // 如果輪詢被停止，發送訊息後短時啟動輪詢
+      if (!pollingConfig.value.enabled) {
+        console.log('發送訊息後短時啟動輪詢')
+        startPolling(pollingConfig.value.interval)
+        
+        // 30秒後自動停止（節省資源）
+        setTimeout(() => {
+          if (pollingConfig.value.enabled) {
+            console.log('自動停止短時輪詢')
+            stopPolling()
+          }
+        }, 30000)
+      }
     }, 1000)
     
   } catch (error) {
@@ -598,6 +748,12 @@ const selectUserWithRealtime = async (user) => {
       })
     }
     
+    // 選擇用戶後可選擇自動啟動輪詢
+    if (!pollingConfig.value.enabled) {
+      console.log('選擇用戶後自動啟動輪詢')
+      // startPolling(pollingConfig.value.interval) // 可選擇啟用
+    }
+    
     // 調試：檢查當前訊息
     nextTick(() => {
       console.log('Current messages after user selection:', currentMessages.value)
@@ -624,19 +780,29 @@ onMounted(async () => {
   // 更新連線狀態
   updateChatConnectionStatus()
   
+  // 默認啟動輪詢（可選擇）
+  // startPolling(1000) // 1秒間隔，用戶可手動啟動
+  
   console.log('聊天室初始化完成')
+  console.log('可使用「啟動輪詢」按鈕啟動定時更新')
 })
 
-// 頁面卸載清理
+// 頁面卸載清理增強版
 onUnmounted(() => {
   console.log('聊天室頁面卸載，清理資源')
   
+  // 停止定時輪詢
+  stopPolling()
+  
+  // 清理其他計時器
   if (autoRefreshTimer.value) {
     clearInterval(autoRefreshTimer.value)
     autoRefreshTimer.value = null
   }
   
   autoRefreshEnabled.value = false
+  
+  console.log('所有資源已清理完成')
 })
 
 // 頁面標題
