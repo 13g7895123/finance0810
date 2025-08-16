@@ -7,39 +7,27 @@
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center space-x-3">
             <h2 class="text-lg font-semibold text-gray-900">聊天室</h2>
-            <!-- Long Polling 連接狀態指示器 -->
+            <!-- 連線狀態指示器 -->
             <ClientOnly>
               <div class="flex items-center space-x-1">
-                <div 
-                  :class="[
-                    'w-2 h-2 rounded-full',
-                    {
-                      'bg-green-400': chatConnectionStatus === 'connected',
-                      'bg-blue-400': chatConnectionStatus === 'ready',
-                      'bg-gray-400': chatConnectionStatus === 'disconnected'
-                    }
-                  ]"
-                ></div>
-                <span class="text-xs text-gray-500">
-                  {{ 
-                    chatConnectionStatus === 'connected' ? '實時更新' : 
-                    chatConnectionStatus === 'ready' ? '已連線' : '離線'
-                  }}
-                </span>
+                <div class="w-2 h-2 rounded-full bg-green-400"></div>
+                <span class="text-xs text-gray-500">已連線</span>
               </div>
             </ClientOnly>
             
-            <!-- Debug: 性能測試按鈕 (僅開發環境顯示) -->
+            <!-- 手動刷新按鈕 -->
             <ClientOnly>
-              <div v-if="$config.public.dev" class="flex space-x-1">
+              <div class="flex space-x-1">
                 <button 
-                  @click="testPollingPerformance"
-                  class="text-xs px-2 py-1 bg-green-100 text-green-600 rounded hover:bg-green-200"
+                  @click="manualRefresh"
+                  :disabled="isRefreshing"
+                  class="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  測試延遲
+                  <span v-if="isRefreshing">刷新中...</span>
+                  <span v-else>手動刷新</span>
                 </button>
-                <span v-if="latencyInfo.average > 0" class="text-xs text-gray-500">
-                  {{ latencyInfo.average }}ms
+                <span class="text-xs text-gray-500">
+                  {{ formatTime(lastRefreshTime) }}
                 </span>
               </div>
             </ClientOnly>
@@ -137,14 +125,10 @@ const { error: showError } = useNotification()
 const authStore = useAuthStore()
 const { getConversations, getConversation, replyMessage, getChatStats, searchConversations } = useChat()
 
-// 使用高頻API輪詢 - 替代Long Polling方案
-const {
-  isConnected: isPollingConnected,
-  isAggressiveMode,
-  startAggressivePolling,
-  stopPolling: stopPolling,
-  onUpdate: onPollingUpdate
-} = useHighFrequencyPolling()
+// 簡化的聊天室更新策略 - 移除複雜的實時技術
+const isRefreshing = ref(false)
+const lastRefreshTime = ref(new Date())
+const autoRefreshEnabled = ref(true)
 
 // 搜尋查詢
 const searchQuery = ref('')
@@ -168,85 +152,59 @@ const loading = ref(false)
 const conversationsLoading = ref(false)
 const chatConnectionStatus = ref('ready') // 'ready', 'connected', 'disconnected'
 
-// 延遲監控
-const latencyInfo = ref({
-  average: 0,
-  samples: [],
-  maxSamples: 10
+// 簡化的狀態管理
+const refreshStatus = ref({
+  lastUpdate: null,
+  isManual: false
 })
 
-// 更新聊天室連線狀態 - 使用高頻輪詢狀態
-const updateChatConnectionStatus = () => {
-  if (isPollingConnected.value) {
-    chatConnectionStatus.value = isAggressiveMode.value ? 'connected' : 'ready'
-  } else {
-    chatConnectionStatus.value = 'disconnected'
-  }
+// 簡化的時間格式化函數
+const formatTime = (timestamp) => {
+  if (!timestamp) return ''
+  const now = new Date()
+  const time = new Date(timestamp)
+  const diffInMinutes = Math.floor((now - time) / (1000 * 60))
+  
+  if (diffInMinutes < 1) return '剛剛'
+  if (diffInMinutes < 60) return `${diffInMinutes}分鐘前`
+  if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}小時前`
+  return `${Math.floor(diffInMinutes / 1440)}天前`
 }
 
-// 監聽高頻輪詢連線狀態
-watch(isPollingConnected, updateChatConnectionStatus)
-watch(isAggressiveMode, updateChatConnectionStatus)
+// 簡化的連線狀態管理
+const updateChatConnectionStatus = () => {
+  chatConnectionStatus.value = 'ready' // 始終顯示為準備就緒
+}
 
-// 性能測試功能
-const testPollingPerformance = async () => {
-  const testCount = 5
-  const results = []
+// 手動刷新功能
+const manualRefresh = async () => {
+  if (isRefreshing.value) return
   
-  console.log('開始高頻API輪詢性能測試...')
-  
-  for (let i = 0; i < testCount; i++) {
-    const startTime = performance.now()
+  isRefreshing.value = true
+  try {
+    console.log('手動刷新聊天室數據...')
     
-    try {
-      const { $api } = useNuxtApp()
-      await $api('/api/chats/poll-updates', {
-        params: {
-          last_update: new Date().toISOString()
-        },
-        timeout: 1000 // 1秒超時測試響應時間
-      })
-      
-      const endTime = performance.now()
-      const latency = Math.round(endTime - startTime)
-      results.push(latency)
-      
-      console.log(`測試 ${i + 1}: ${latency}ms`)
-      
-      // 短暫延遲避免過於頻繁的請求
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-    } catch (error) {
-      console.error(`測試 ${i + 1} 失敗:`, error)
+    // 重新載入對話列表
+    await loadConversations()
+    
+    // 如果有選中的用戶，重新載入其訊息
+    if (selectedUser.value && selectedUser.value.lineUserId) {
+      await loadConversationMessages(selectedUser.value.lineUserId)
     }
-  }
-  
-  if (results.length > 0) {
-    const average = Math.round(results.reduce((a, b) => a + b) / results.length)
-    latencyInfo.value.average = average
-    latencyInfo.value.samples = results
     
-    console.log('高頻輪詢性能測試結果:')
-    console.log(`平均延遲: ${average}ms`)
-    console.log(`最小延遲: ${Math.min(...results)}ms`)
-    console.log(`最大延遲: ${Math.max(...results)}ms`)
-    console.log(`所有結果: ${results.join(', ')}ms`)
+    lastRefreshTime.value = new Date()
+    console.log('聊天室數據刷新完成')
     
-    if (average <= 500) {
-      console.log('✅ 延遲表現良好 (≤500ms)')
-    } else if (average <= 1000) {
-      console.log('⚠️ 延遲可接受 (500-1000ms)')
-    } else {
-      console.log('❌ 延遲較高 (>1000ms)')
-    }
+  } catch (error) {
+    console.error('刷新聊天室數據失敗:', error)
+  } finally {
+    isRefreshing.value = false
   }
 }
 
 // API 數據狀態
 const apiConversations = ref([])
 const apiMessages = ref({})
-
-// 移除模擬用戶數據，只使用 API 數據
 
 // 載入對話列表
 const loadConversations = async () => {
@@ -498,7 +456,22 @@ const filteredUsers = computed(() => {
 
 // 移除所有模擬訊息數據，只使用 API 數據
 
-// 當前聊天訊息 - 只使用 API 數據
+// 自動更新策略
+const autoRefreshTimer = ref(null)
+
+// 頁面可見性監聽
+const setupVisibilityListener = () => {
+  if (process.client) {
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && autoRefreshEnabled.value) {
+        console.log('頁面變可見，檢查更新')
+        manualRefresh()
+      }
+    })
+  }
+}
+
+// 當前聊天訊息
 const currentMessages = computed(() => {
   try {
     if (!selectedUser.value || typeof selectedUser.value !== 'object') {
@@ -576,13 +549,18 @@ const sendMessage = async (content) => {
       apiConversations.value[apiUserIndex].timestamp = currentTime
     }
     
+    // 發送訊息後延遲刷新
+    setTimeout(() => {
+      manualRefresh()
+    }, 1000)
+    
   } catch (error) {
     console.error('Failed to send message:', error)
     await showError('發送訊息失敗，請重試')
   }
 }
 
-// 選擇用戶功能（使用高頻輪詢）
+// 選擇用戶功能（簡化版）
 const selectUserWithRealtime = async (user) => {
   try {
     if (!user || typeof user !== 'object') {
@@ -630,184 +608,35 @@ const selectUserWithRealtime = async (user) => {
 }
 
 
-// 處理高頻輪詢訊息更新
-const handlePollingMessage = (update) => {
-  try {
-    console.log('高頻輪詢收到新訊息:', update)
-    
-    if (!update || typeof update !== 'object') {
-      console.warn('handlePollingMessage: 無效的更新對象', update)
-      return
-    }
-    
-    if (update.type === 'new_message' && update.data && update.data.line_user_id) {
-      const lineUserId = update.data.line_user_id
-      
-      // 更新對應用戶的訊息列表
-      if (apiMessages.value && apiMessages.value[lineUserId]) {
-        const newMessage = {
-          id: update.data.id,
-          senderId: update.data.is_from_customer ? parseInt(lineUserId) : 'bot',
-          content: update.data.message_content,
-          timestamp: new Date(update.data.message_timestamp),
-          type: update.data.message_type || 'text',
-          isBot: true,
-          isCustomer: update.data.is_from_customer,
-          isAutoReply: !update.data.is_from_customer,
-          metadata: update.data.metadata || {}
-        }
-        
-        // 檢查是否已存在相同ID的訊息
-        if (Array.isArray(apiMessages.value[lineUserId])) {
-          const existingIndex = apiMessages.value[lineUserId].findIndex(msg => msg && msg.id === newMessage.id)
-          if (existingIndex === -1) {
-            apiMessages.value[lineUserId].push(newMessage)
-            console.log('新訊息已添加到對話:', newMessage)
-            
-            // 如果當前正在查看這個對話，滾動到底部
-            if (selectedUser.value && selectedUser.value.lineUserId === lineUserId) {
-              nextTick(() => {
-                // 可以在這裡添加滾動到底部的邏輯
-                console.log('當前對話有新訊息，可滾動到底部')
-              })
-            }
-          }
-        }
-      }
-      
-      // 更新對話列表
-      if (Array.isArray(apiConversations.value)) {
-        const userIndex = apiConversations.value.findIndex(u => u && u.lineUserId === lineUserId)
-        if (userIndex !== -1) {
-          apiConversations.value[userIndex].lastMessage = update.data.message_content
-          apiConversations.value[userIndex].timestamp = new Date(update.data.message_timestamp)
-          if (update.data.is_from_customer) {
-            apiConversations.value[userIndex].unreadCount += 1
-          }
-          
-          // 重新排序對話列表
-          if (typeof sortByTime === 'function') {
-            apiConversations.value = sortByTime(apiConversations.value)
-          }
-        }
-      }
-    }
-  } catch (error) {
-    console.error('handlePollingMessage 發生錯誤:', error)
-  }
-}
 
-// 處理高頻輪詢對話更新
-const handlePollingConversationUpdate = (update) => {
-  try {
-    console.log('高頻輪詢收到對話更新:', update)
-    
-    if (!update || typeof update !== 'object') {
-      console.warn('handlePollingConversationUpdate: 無效的更新對象', update)
-      return
-    }
-    
-    if (update.type === 'conversation_update' && update.data && update.data.line_user_id) {
-      const lineUserId = update.data.line_user_id
-      
-      if (Array.isArray(apiConversations.value)) {
-        const userIndex = apiConversations.value.findIndex(u => u && u.lineUserId === lineUserId)
-        
-        if (userIndex !== -1) {
-          if (update.data.last_message_time) {
-            apiConversations.value[userIndex].timestamp = new Date(update.data.last_message_time)
-          }
-          
-          // 重新載入該對話的詳細資訊
-          if (typeof loadConversationSummary === 'function') {
-            loadConversationSummary(lineUserId).then(summary => {
-              if (summary && userIndex < apiConversations.value.length) {
-                apiConversations.value[userIndex].lastMessage = summary.lastMessage
-                apiConversations.value[userIndex].unreadCount = summary.unreadCount
-              }
-            }).catch(error => {
-              console.error('loadConversationSummary 錯誤:', error)
-            })
-          }
-          
-          // 重新排序對話列表
-          if (typeof sortByTime === 'function') {
-            apiConversations.value = sortByTime(apiConversations.value)
-          }
-        } else {
-          // 如果是新對話，重新載入對話列表
-          console.log('檢測到新對話，重新載入對話列表')
-          if (typeof loadConversations === 'function') {
-            loadConversations()
-          }
-        }
-      }
-    }
-  } catch (error) {
-    console.error('handlePollingConversationUpdate 發生錯誤:', error)
-  }
-}
-
-// 載入對話摘要（用於更新對話列表）
-const loadConversationSummary = async (lineUserId) => {
-  try {
-    const response = await getConversation(lineUserId, { summary: true })
-    if (response?.data) {
-      const lastMessage = response.data[response.data.length - 1]
-      return {
-        lastMessage: lastMessage?.message_content || '',
-        unreadCount: response.data.filter(msg => msg.is_from_customer && msg.status === 'unread').length
-      }
-    }
-  } catch (error) {
-    console.error('Failed to load conversation summary:', error)
-  }
-  return null
-}
 
 
 // 初始化數據載入
 onMounted(async () => {
+  console.log('聊天室初始化開始')
+  
   // 載入對話列表
-  loadConversations()
+  await loadConversations()
   
-  // 啟動積極輪詢模式（500ms間隔）
-  console.log('聊天室載入完成，啟動高頻輪詢模式')
-  if (typeof startAggressivePolling === 'function') {
-    startAggressivePolling()
-  } else {
-    console.error('startAggressivePolling is not a function:', typeof startAggressivePolling, startAggressivePolling)
-  }
+  // 設置頁面可見性監聽
+  setupVisibilityListener()
   
-  // 設置高頻輪詢事件監聽 - 監聽所有類型的更新
-  if (typeof onPollingUpdate === 'function') {
-    onPollingUpdate('*', (update) => {
-      console.log('高頻輪詢更新:', update)
-      
-      switch (update.type) {
-        case 'new_message':
-          handlePollingMessage(update)
-          break
-        case 'conversation_update':
-          handlePollingConversationUpdate(update)
-          break
-        default:
-          console.log('未處理的高頻輪詢更新類型:', update.type)
-      }
-    })
-  } else {
-    console.error('onPollingUpdate is not a function:', typeof onPollingUpdate, onPollingUpdate)
-  }
+  // 更新連線狀態
+  updateChatConnectionStatus()
+  
+  console.log('聊天室初始化完成')
 })
 
-// 頁面卸載時停止輪詢
+// 頁面卸載清理
 onUnmounted(() => {
-  console.log('聊天室頁面卸載，停止高頻輪詢')
-  if (typeof stopPolling === 'function') {
-    stopPolling()
-  } else {
-    console.error('stopPolling is not a function:', typeof stopPolling, stopPolling)
+  console.log('聊天室頁面卸載，清理資源')
+  
+  if (autoRefreshTimer.value) {
+    clearInterval(autoRefreshTimer.value)
+    autoRefreshTimer.value = null
   }
+  
+  autoRefreshEnabled.value = false
 })
 
 // 頁面標題
