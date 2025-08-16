@@ -665,6 +665,8 @@ class ChatController extends Controller
             ],
         ]);
 
+        // Broadcast the new message event for real-time updates
+        broadcast(new NewChatMessage($conversation, $lineUserId));
     }
 
     /**
@@ -710,6 +712,8 @@ class ChatController extends Controller
             ],
         ]);
 
+        // Broadcast the new message event for real-time updates
+        broadcast(new NewChatMessage($conversation, $lineUserId));
     }
 
     /**
@@ -759,6 +763,8 @@ class ChatController extends Controller
             ],
         ]);
 
+        // Broadcast the new message event for real-time updates
+        broadcast(new NewChatMessage($conversation, $lineUserId));
     }
 
     /**
@@ -1641,5 +1647,70 @@ class ChatController extends Controller
         }
         
         return $updates;
+    }
+
+    /**
+     * Test WebSocket broadcasting functionality
+     */
+    public function testWebSocketBroadcast(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $lineUserId = $request->input('line_user_id', 'test_user_123');
+            
+            Log::info('Testing WebSocket broadcast', [
+                'user_id' => $user->id,
+                'line_user_id' => $lineUserId,
+                'broadcast_driver' => config('broadcasting.default')
+            ]);
+
+            // Create a test conversation
+            $testConversation = new ChatConversation([
+                'id' => 999999,
+                'customer_id' => null,
+                'user_id' => $user->id,
+                'line_user_id' => $lineUserId,
+                'platform' => 'line',
+                'message_type' => 'text',
+                'message_content' => 'Test WebSocket broadcast message: ' . now()->toTimeString(),
+                'message_timestamp' => now(),
+                'is_from_customer' => true,
+                'status' => 'unread'
+            ]);
+
+            // Test broadcast
+            broadcast(new NewChatMessage($testConversation, $lineUserId));
+            
+            Log::info('WebSocket test broadcast sent', ['line_user_id' => $lineUserId]);
+
+            return response()->json([
+                'success' => true,
+                'message' => '測試 WebSocket 廣播已發送',
+                'data' => [
+                    'line_user_id' => $lineUserId,
+                    'test_message' => $testConversation->message_content,
+                    'timestamp' => $testConversation->message_timestamp,
+                    'broadcast_driver' => config('broadcasting.default'),
+                    'pusher_config' => [
+                        'app_id' => config('broadcasting.connections.pusher.app_id'),
+                        'key' => config('broadcasting.connections.pusher.key'),
+                        'host' => config('broadcasting.connections.pusher.options.host'),
+                        'port' => config('broadcasting.connections.pusher.options.port')
+                    ]
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('WebSocket test broadcast failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'WebSocket 測試失敗',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

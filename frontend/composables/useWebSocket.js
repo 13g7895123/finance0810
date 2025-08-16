@@ -14,17 +14,41 @@ export const useWebSocket = () => {
   
   const authStore = useAuthStore()
   
-  // WebSocket 配置
-  const config = {
-    key: 'laravel-websockets-key',
-    cluster: 'mt1',
-    wsHost: 'localhost',
-    wsPort: 6001,
-    forceTLS: false,
-    encrypted: false,
-    disableStats: true,
-    enabledTransports: ['ws', 'wss'],
+  // WebSocket 配置 (動態環境檢測)
+  const runtimeConfig = useRuntimeConfig()
+  const getWebSocketConfig = () => {
+    // 檢測當前環境
+    const isProduction = !import.meta.dev
+    const currentHost = process.client ? window.location.hostname : 'localhost'
+    
+    if (isProduction || currentHost !== 'localhost') {
+      // 生產環境或非本地開發環境
+      return {
+        key: 'laravel-websockets-key',
+        cluster: 'mt1',
+        wsHost: currentHost,
+        wsPort: 6001,
+        forceTLS: false,
+        encrypted: false,
+        disableStats: true,
+        enabledTransports: ['ws', 'wss'],
+      }
+    } else {
+      // 本地開發環境
+      return {
+        key: 'laravel-websockets-key',
+        cluster: 'mt1',
+        wsHost: 'localhost',
+        wsPort: 6001,
+        forceTLS: false,
+        encrypted: false,
+        disableStats: true,
+        enabledTransports: ['ws', 'wss'],
+      }
+    }
   }
+  
+  const config = getWebSocketConfig()
   
   /**
    * 連接WebSocket

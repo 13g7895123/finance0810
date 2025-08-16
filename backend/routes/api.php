@@ -98,6 +98,7 @@ Route::middleware(['auth:api'])->group(function () {
     Route::post('/chats/{userId}/reply', [ChatController::class, 'reply']);
     Route::post('/chats/{userId}/read', [ChatController::class, 'markAsRead']);
     Route::delete('/chats/{userId}', [ChatController::class, 'deleteConversation']);
+    Route::post('/chats/test-websocket', [ChatController::class, 'testWebSocketBroadcast']);
     
     // User Management (Admin and Manager only)
     Route::middleware(['role:admin|executive|manager'])->group(function () {
