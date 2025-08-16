@@ -343,11 +343,14 @@ const loadConversations = async () => {
 const loadConversationMessages = async (userId) => {
   try {
     loading.value = true
-    const response = await getConversation(userId)
+    console.log('Loading conversation messages for userId:', userId)
     
-    if (response?.data) {
+    const response = await getConversation(userId)
+    console.log('API response for conversation:', response)
+    
+    if (response?.data && Array.isArray(response.data)) {
       // 轉換 API 數據格式到前端格式
-      const apiMessages = response.data.map(msg => ({
+      const transformedMessages = response.data.map(msg => ({
         id: msg.id,
         senderId: msg.is_from_customer ? parseInt(msg.line_user_id) : 'bot',
         content: msg.message_content,
@@ -359,12 +362,25 @@ const loadConversationMessages = async (userId) => {
         metadata: msg.metadata || {}
       }))
       
-      apiMessages.value[userId] = apiMessages
-      return apiMessages
+      // 按時間排序（舊的在前面，新的在後面）
+      transformedMessages.sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime()
+        const timeB = new Date(b.timestamp).getTime()
+        return timeA - timeB
+      })
+      
+      console.log('Transformed messages:', transformedMessages)
+      apiMessages.value[userId] = transformedMessages
+      return transformedMessages
+    } else {
+      console.log('No messages found or invalid response format')
+      apiMessages.value[userId] = []
+      return []
     }
   } catch (error) {
     console.error('Failed to load conversation messages:', error)
-    return messages.value[userId] || []
+    apiMessages.value[userId] = []
+    return []
   } finally {
     loading.value = false
   }
@@ -786,13 +802,31 @@ const messages = ref({
 const currentMessages = computed(() => {
   if (!selectedUser.value) return []
   
-  // 優先使用 API 數據
-  const apiMsgs = apiMessages.value[selectedUser.value.id]
-  if (apiMsgs && apiMsgs.length > 0) {
-    return apiMsgs
+  // 對於 LINE BOT 用戶，使用 lineUserId 查找 API 數據
+  if (selectedUser.value.isBot && selectedUser.value.lineUserId) {
+    const apiMsgs = apiMessages.value[selectedUser.value.lineUserId]
+    if (apiMsgs && apiMsgs.length > 0) {
+      // 按時間排序訊息（舊的在前面，新的在後面）
+      return apiMsgs.sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime()
+        const timeB = new Date(b.timestamp).getTime()
+        return timeA - timeB
+      })
+    }
   }
   
-  return messages.value[selectedUser.value.id] || []
+  // 對於一般用戶，使用原有邏輯
+  const normalMsgs = messages.value[selectedUser.value.id] || []
+  if (normalMsgs.length > 0) {
+    // 按時間排序訊息（舊的在前面，新的在後面）
+    return normalMsgs.sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime()
+      const timeB = new Date(b.timestamp).getTime()
+      return timeA - timeB
+    })
+  }
+  
+  return []
 })
 
 // 選擇用戶功能已被 selectUserWithRealtime 取代
@@ -867,6 +901,8 @@ const currentRoomId = ref(null)
 
 // 增強版選擇用戶功能（包含實時聊天）
 const selectUserWithRealtime = async (user) => {
+  console.log('Selecting user:', user)
+  
   // 離開之前的房間
   if (currentRoomId.value) {
     leaveRoom(currentRoomId.value)
@@ -876,8 +912,12 @@ const selectUserWithRealtime = async (user) => {
   selectedUser.value = user
   activeUserId.value = user.id
   
+  console.log('User selected, activeUserId set to:', user.id)
+  console.log('Is bot user?', user.isBot, 'Line User ID:', user.lineUserId)
+  
   // 載入對話訊息 (如果是 LINE BOT 用戶)
   if (user.isBot && user.lineUserId) {
+    console.log('Loading conversation messages for LINE bot user:', user.lineUserId)
     await loadConversationMessages(user.lineUserId)
     
     // 加入實時聊天房間
@@ -893,6 +933,8 @@ const selectUserWithRealtime = async (user) => {
     onConversationUpdate(roomId, (update) => {
       handleConversationUpdate(update, user)
     })
+  } else {
+    console.log('User is not a LINE bot user, using mock messages')
   }
   
   // 標記為已讀，但不立即觸發更新避免排序跳動
@@ -901,6 +943,11 @@ const selectUserWithRealtime = async (user) => {
       user.unreadCount = 0
     })
   }
+  
+  // 調試：檢查當前訊息
+  nextTick(() => {
+    console.log('Current messages after user selection:', currentMessages.value)
+  })
 }
 
 // 處理實時訊息
