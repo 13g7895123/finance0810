@@ -1,8 +1,8 @@
 <template>
-  <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200">
     <!-- Title Section -->
-    <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-      <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">{{ title }}</h2>
+    <div class="p-6 border-b border-gray-200">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">{{ title }}</h2>
       
       <!-- Search and Actions Section -->
       <div class="flex items-center justify-between">
@@ -14,7 +14,7 @@
               @input="$emit('search', $event.target.value)"
               type="text"
               :placeholder="searchPlaceholder"
-              class="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-64"
+              class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-64"
             />
             <MagnifyingGlassIcon class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           </div>
@@ -29,7 +29,7 @@
           <button
             @click="$emit('refresh')"
             :disabled="loading"
-            class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200 disabled:opacity-50"
+            class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 transition-colors duration-200 disabled:opacity-50"
           >
             <ArrowPathIcon class="w-4 h-4 mr-2" :class="{ 'animate-spin': loading }" />
             重新整理
@@ -46,12 +46,12 @@
       <!-- Loading State -->
       <div v-if="loading" class="p-8 text-center">
         <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <p class="mt-2 text-gray-600 dark:text-gray-400">{{ loadingText }}</p>
+        <p class="mt-2 text-gray-600">{{ loadingText }}</p>
       </div>
       
       <!-- Error State -->
       <div v-else-if="error" class="p-8 text-center">
-        <p class="text-red-600 dark:text-red-400">{{ error }}</p>
+        <p class="text-red-600">{{ error }}</p>
         <button 
           @click="$emit('retry')"
           class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -67,18 +67,18 @@
             <TableCellsIcon class="w-full h-full" />
           </slot>
         </div>
-        <p class="text-gray-500 dark:text-gray-400">{{ emptyText }}</p>
+        <p class="text-gray-500">{{ emptyText }}</p>
       </div>
       
       <!-- Data Table -->
-      <table v-else class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead class="bg-gray-50 dark:bg-gray-700">
+      <table v-else class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
           <tr>
             <th 
               v-for="column in columns" 
               :key="column.key"
               :class="[
-                'px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider',
+                'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider',
                 column.headerClass
               ]"
               :style="column.width ? { width: column.width } : {}"
@@ -88,7 +88,7 @@
                 <button
                   v-if="column.sortable"
                   @click="handleSort(column.key)"
-                  class="hover:text-gray-700 dark:hover:text-gray-200"
+                  class="hover:text-gray-700"
                 >
                   <ChevronUpDownIcon class="w-4 h-4" />
                 </button>
@@ -96,12 +96,12 @@
             </th>
           </tr>
         </thead>
-        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+        <tbody class="bg-white divide-y divide-gray-200">
           <tr 
             v-for="(item, index) in paginatedData" 
             :key="getRowKey(item, index)"
             :class="[
-              'hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors',
+              'hover:bg-blue-50 transition-colors',
               rowClass
             ]"
           >
@@ -130,10 +130,10 @@
     </div>
     
     <!-- Pagination -->
-    <div v-if="showPagination && totalPages > 1" class="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+    <div v-if="showPagination && totalPages > 1" class="px-6 py-4 border-t border-gray-200 bg-gray-50">
       <div class="flex items-center justify-between">
         <div class="flex items-center space-x-4">
-          <p class="text-sm text-gray-700 dark:text-gray-300">
+          <p class="text-sm text-gray-700">
             顯示第 <span class="font-medium">{{ startIndex }}</span> 
             到 <span class="font-medium">{{ endIndex }}</span> 
             筆，共 <span class="font-medium">{{ totalItems }}</span> 筆記錄
@@ -141,11 +141,11 @@
           
           <!-- Items per page selector -->
           <div class="flex items-center space-x-2">
-            <label class="text-sm text-gray-700 dark:text-gray-300">每頁顯示：</label>
+            <label class="text-sm text-gray-700">每頁顯示：</label>
             <select
               :value="itemsPerPage"
               @change="$emit('page-size-change', parseInt($event.target.value))"
-              class="text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              class="text-sm border border-gray-300 rounded-md bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option :value="5">5 筆</option>
               <option :value="10">10 筆</option>
@@ -160,7 +160,7 @@
           <button
             @click="$emit('page-change', currentPage - 1)"
             :disabled="currentPage === 1"
-            class="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:bg-blue-50 focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             上一頁
           </button>
@@ -174,7 +174,7 @@
                 'px-3 py-1 border text-sm rounded-md',
                 page === currentPage
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700',
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-blue-50 focus:ring-2 focus:ring-blue-500',
                 typeof page !== 'number' ? 'cursor-default' : 'cursor-pointer'
               ]"
               :disabled="typeof page !== 'number'"
@@ -186,7 +186,7 @@
           <button
             @click="$emit('page-change', currentPage + 1)"
             :disabled="currentPage === totalPages"
-            class="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:bg-blue-50 focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             下一頁
           </button>

@@ -1,10 +1,10 @@
 <template>
   <div class="space-y-6">
     <!-- Access Denied State -->
-    <div v-if="!authStore.hasPermission('user.view') && !authStore.isAdmin && !authStore.isManager" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
+    <div v-if="!authStore.hasPermission('user.view') && !authStore.isAdmin && !authStore.isManager" class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
       <ShieldExclamationIcon class="w-12 h-12 text-red-500 mx-auto mb-4" />
-      <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">存取被拒絕</h3>
-      <p class="text-gray-600 dark:text-gray-400">您沒有權限使用此功能</p>
+      <h3 class="text-lg font-medium text-gray-900 mb-2">存取被拒絕</h3>
+      <p class="text-gray-600">您沒有權限使用此功能</p>
     </div>
     
     <!-- Main DataTable -->
@@ -46,8 +46,8 @@
             class="w-10 h-10 rounded-full"
           />
           <div class="ml-4">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">{{ item.name }}</div>
-            <div class="text-sm text-gray-500 dark:text-gray-400">{{ item.email }}</div>
+            <div class="text-sm font-medium text-gray-900">{{ item.name }}</div>
+            <div class="text-sm text-gray-500">{{ item.email }}</div>
           </div>
         </div>
       </template>
@@ -57,9 +57,9 @@
         <span 
           class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
           :class="{
-            'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300': item.roles?.[0]?.name === 'admin' || item.roles?.[0]?.name === 'executive',
-            'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300': item.roles?.[0]?.name === 'manager',
-            'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300': item.roles?.[0]?.name === 'staff'
+            'bg-purple-100 text-purple-800': item.roles?.[0]?.name === 'admin' || item.roles?.[0]?.name === 'executive',
+            'bg-blue-100 text-blue-800': item.roles?.[0]?.name === 'manager',
+            'bg-green-100 text-green-800': item.roles?.[0]?.name === 'staff'
           }"
         >
           {{ item.roles?.[0]?.display_name || item.roles?.[0]?.name || '無角色' }}
@@ -71,9 +71,9 @@
         <span 
           class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
           :class="{
-            'bg-blue-600 text-white dark:bg-blue-500 dark:text-white': item.status === 'active',
-            'bg-red-600 text-white dark:bg-red-500 dark:text-white': item.status === 'inactive',
-            'bg-yellow-600 text-white dark:bg-yellow-500 dark:text-white': item.status === 'suspended'
+            'bg-green-600 text-white': item.status === 'active',
+            'bg-red-600 text-white': item.status === 'inactive',
+            'bg-yellow-600 text-white': item.status === 'suspended'
           }"
         >
           {{ t(`auth.status_${item.status}`) }}
@@ -87,7 +87,7 @@
           <button
             v-if="item.id !== authStore.user?.id"
             @click="toggleStatus(item)"
-            class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 transition-colors duration-200"
+            class="text-indigo-600 hover:text-indigo-800 transition-colors duration-200"
           >
             {{ item.status === 'active' ? t('auth.deactivate') : t('auth.activate') }}
           </button>
@@ -96,7 +96,7 @@
           <button
             v-if="item.roles?.[0]?.name === 'staff' && authStore.hasPermission('customer_management')"
             @click="openAssignCustomersModal(item)"
-            class="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 transition-colors duration-200"
+            class="text-green-600 hover:text-green-800 transition-colors duration-200"
           >
             指派客戶
           </button>
@@ -104,7 +104,7 @@
           <!-- Edit -->
           <button
             @click="editUser(item)"
-            class="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 transition-colors duration-200"
+            class="text-blue-600 hover:text-blue-800 transition-colors duration-200"
           >
             {{ t('common.edit') }}
           </button>
@@ -113,7 +113,7 @@
           <button
             v-if="item.id !== authStore.user?.id"
             @click="deleteUserConfirm(item)"
-            class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors duration-200"
+            class="text-red-600 hover:text-red-800 transition-colors duration-200"
           >
             刪除
           </button>
@@ -124,54 +124,54 @@
 
   <!-- Add User Modal - Moved outside main container -->
   <div v-if="showAddModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-xl max-w-md w-full p-6">
-      <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+      <h3 class="text-lg font-medium text-gray-900 mb-4">
         {{ t('auth.add_user') }}
       </h3>
       
       <div class="space-y-4">
         <!-- Name -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
             {{ t('auth.full_name') }}
           </label>
           <input
             v-model="addForm.name"
             type="text"
             required
-            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+            class="w-full px-3 py-2 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
           />
         </div>
 
         <!-- Username -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
             {{ t('auth.username') }}
           </label>
           <input
             v-model="addForm.username"
             type="text"
             required
-            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+            class="w-full px-3 py-2 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
           />
         </div>
         
         <!-- Email -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
             {{ t('auth.email') }}
           </label>
           <input
             v-model="addForm.email"
             type="email"
             required
-            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+            class="w-full px-3 py-2 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
           />
         </div>
 
         <!-- Password -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
             {{ t('auth.password') }}
           </label>
           <input
@@ -179,13 +179,13 @@
             type="password"
             required
             minlength="6"
-            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+            class="w-full px-3 py-2 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
           />
         </div>
 
         <!-- Confirm Password -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
             {{ t('auth.confirm_password') }}
           </label>
           <input
@@ -193,19 +193,19 @@
             type="password"
             required
             minlength="6"
-            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+            class="w-full px-3 py-2 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
           />
         </div>
 
         <!-- Role -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
             {{ t('auth.role') }}
           </label>
           <select
             v-model="addForm.role"
             required
-            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+            class="w-full px-3 py-2 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
           >
             <option value="">選擇角色</option>
             <option v-for="role in roles" :key="role.id" :value="role.name">
@@ -216,12 +216,12 @@
 
         <!-- Status -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
             {{ t('auth.status') }}
           </label>
           <select
             v-model="addForm.status"
-            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+            class="w-full px-3 py-2 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
           >
             <option value="active">啟用</option>
             <option value="inactive">停用</option>
@@ -234,7 +234,7 @@
       <div class="flex justify-end space-x-3 mt-6">
         <button
           @click="showAddModal = false; resetAddForm()"
-          class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+          class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
         >
           {{ t('common.cancel') }}
         </button>
@@ -250,44 +250,44 @@
 
   <!-- Edit User Modal - Moved outside main container -->
   <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-xl max-w-md w-full p-6">
-      <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+      <h3 class="text-lg font-medium text-gray-900 mb-4">
         {{ t('auth.edit_user') }}
       </h3>
       
       <div class="space-y-4">
         <!-- Name -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
             {{ t('auth.full_name') }}
           </label>
           <input
             v-model="editForm.name"
             type="text"
-            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+            class="w-full px-3 py-2 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
           />
         </div>
         
         <!-- Email -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
             {{ t('auth.email') }}
           </label>
           <input
             v-model="editForm.email"
             type="email"
-            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+            class="w-full px-3 py-2 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
           />
         </div>
 
         <!-- Role -->
         <div v-if="editForm.id !== authStore.user?.id">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
             {{ t('auth.role') }}
           </label>
           <select
             v-model="editForm.role"
-            class="w-full px-3 py-2 text-lg border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+            class="w-full px-3 py-2 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
           >
             <option v-for="role in roles" :key="role.id" :value="role.name">
               {{ role.display_name }}
@@ -300,7 +300,7 @@
       <div class="flex justify-end space-x-3 mt-6">
         <button
           @click="showEditModal = false"
-          class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+          class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
         >
           {{ t('common.cancel') }}
         </button>
@@ -316,8 +316,8 @@
 
   <!-- Assign Customers Modal -->
   <div v-if="showAssignCustomersModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
-      <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+    <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+      <h3 class="text-lg font-medium text-gray-900 mb-4">
         指派客戶給 {{ selectedStaff?.name }}
       </h3>
       
@@ -328,7 +328,7 @@
             v-model="customerSearchQuery"
             type="text"
             placeholder="搜尋客戶..."
-            class="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+            class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
           />
           <MagnifyingGlassIcon class="w-5 h-5 text-gray-500 absolute left-3 top-2.5" />
         </div>
@@ -343,7 +343,7 @@
             value="unassigned"
             class="mr-2"
           />
-          <span class="text-sm text-gray-700 dark:text-gray-300">僅顯示未分配客戶</span>
+          <span class="text-sm text-gray-700">僅顯示未分配客戶</span>
         </label>
         <label class="flex items-center">
           <input
@@ -352,14 +352,14 @@
             value="all"
             class="mr-2"
           />
-          <span class="text-sm text-gray-700 dark:text-gray-300">顯示所有客戶</span>
+          <span class="text-sm text-gray-700">顯示所有客戶</span>
         </label>
       </div>
       
       <!-- Loading state -->
       <div v-if="loadingCustomers" class="text-center py-8">
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mb-4"></div>
-        <p class="text-gray-600 dark:text-gray-400">載入客戶資料中...</p>
+        <p class="text-gray-600">載入客戶資料中...</p>
       </div>
       
       <!-- Customers list -->
@@ -367,7 +367,7 @@
         <div
           v-for="customer in filteredCustomersForAssignment"
           :key="customer.id"
-          class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+          class="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
         >
           <div class="flex items-center space-x-3">
             <input
@@ -377,15 +377,15 @@
               class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
             />
             <div>
-              <div class="font-medium text-gray-900 dark:text-white">{{ customer.name }}</div>
-              <div class="text-sm text-gray-500 dark:text-gray-400">{{ customer.phone }} · {{ customer.region || '未填寫地區' }}</div>
+              <div class="font-medium text-gray-900">{{ customer.name }}</div>
+              <div class="text-sm text-gray-500">{{ customer.phone }} · {{ customer.region || '未填寫地區' }}</div>
             </div>
           </div>
-          <div class="text-sm text-gray-500 dark:text-gray-400">
+          <div class="text-sm text-gray-500">
             <span v-if="customer.assigned_user">
               目前負責：{{ customer.assigned_user.name }}
             </span>
-            <span v-else class="text-yellow-600 dark:text-yellow-400">
+            <span v-else class="text-yellow-600">
               未分配
             </span>
           </div>
@@ -393,13 +393,13 @@
         
         <!-- No customers found -->
         <div v-if="filteredCustomersForAssignment.length === 0" class="text-center py-8">
-          <p class="text-gray-500 dark:text-gray-400">沒有找到符合條件的客戶</p>
+          <p class="text-gray-500">沒有找到符合條件的客戶</p>
         </div>
       </div>
 
       <!-- Assignment summary -->
-      <div v-if="selectedCustomerIds.length > 0" class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-        <p class="text-sm text-blue-800 dark:text-blue-300">
+      <div v-if="selectedCustomerIds.length > 0" class="mt-4 p-3 bg-blue-50 rounded-lg">
+        <p class="text-sm text-blue-800">
           已選擇 {{ selectedCustomerIds.length }} 位客戶將指派給 {{ selectedStaff?.name }}
         </p>
       </div>
@@ -408,7 +408,7 @@
       <div class="flex justify-end space-x-3 mt-6">
         <button
           @click="closeAssignCustomersModal"
-          class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+          class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
         >
           取消
         </button>
@@ -835,7 +835,7 @@ const filteredCustomersForAssignment = computed(() => {
   
   // Filter by assignment mode
   if (assignmentMode.value === 'unassigned') {
-    filtered = filtered.filter(customer => !customer.assigned_to)
+    filtered = filtered.filter(customer => !customer.assigned_to || customer.assigned_to === null)
   }
   
   // Filter by search query

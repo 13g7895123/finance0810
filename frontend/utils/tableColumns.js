@@ -70,14 +70,14 @@ export const commonColumns = {
     key: 'name',
     title: '姓名',
     sortable: true,
-    cellClass: 'font-medium text-gray-900 dark:text-white'
+    cellClass: 'font-medium text-gray-900'
   },
   
   userEmail: {
     key: 'email',
     title: '電子郵件',
     sortable: true,
-    cellClass: 'text-gray-500 dark:text-gray-400'
+    cellClass: 'text-gray-500'
   },
   
   userRole: {
@@ -105,7 +105,7 @@ export const commonColumns = {
     key: 'name',
     title: '客戶姓名',
     sortable: true,
-    cellClass: 'font-medium text-gray-900 dark:text-white'
+    cellClass: 'font-medium text-gray-900'
   },
   
   customerPhone: {
@@ -119,7 +119,7 @@ export const commonColumns = {
     key: 'email',
     title: '電子郵件',
     sortable: true,
-    cellClass: 'text-gray-500 dark:text-gray-400'
+    cellClass: 'text-gray-500'
   },
   
   customerRegion: {
@@ -294,25 +294,25 @@ export const statusOptions = {
 // Status styling
 export const statusStyles = {
   user: {
-    active: 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white',
-    inactive: 'bg-red-600 text-white dark:bg-red-500 dark:text-white',
-    suspended: 'bg-yellow-600 text-white dark:bg-yellow-500 dark:text-white'
+    active: 'bg-green-600 text-white',
+    inactive: 'bg-red-600 text-white',
+    suspended: 'bg-yellow-600 text-white'
   },
   
   customer: {
-    new: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-    contacted: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
-    interested: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
-    not_interested: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
-    invalid: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
-    converted: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300'
+    new: 'bg-blue-100 text-blue-800',
+    contacted: 'bg-yellow-100 text-yellow-800',
+    interested: 'bg-green-100 text-green-800',
+    not_interested: 'bg-red-100 text-red-800',
+    invalid: 'bg-gray-100 text-gray-800',
+    converted: 'bg-purple-100 text-purple-800'
   },
   
   case: {
-    submitted: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-    approved: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-    rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-    disbursed: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+    submitted: 'bg-blue-100 text-blue-800',
+    approved: 'bg-green-100 text-green-800',
+    rejected: 'bg-red-100 text-red-800',
+    disbursed: 'bg-purple-100 text-purple-800'
   }
 }
 

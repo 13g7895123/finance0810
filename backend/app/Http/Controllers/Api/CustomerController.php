@@ -63,7 +63,12 @@ class CustomerController extends Controller
         }
 
         if ($request->has('assigned_to')) {
-            $query->where('assigned_to', $request->assigned_to);
+            $assignedTo = $request->assigned_to;
+            if ($assignedTo === 'null' || $assignedTo === null) {
+                $query->whereNull('assigned_to');
+            } else {
+                $query->where('assigned_to', $assignedTo);
+            }
         }
 
         if ($request->has('date_from')) {
