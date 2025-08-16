@@ -87,7 +87,7 @@ export const useCustomers = () => {
    * 檢查LINE好友狀態
    */
   const checkLineFriendStatus = async (id) => {
-    return await get(`/customers/${id}/line-friend-status`)
+    return await get(`/customers/${id}/line/friend-status`)
   }
 
   /**

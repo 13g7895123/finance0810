@@ -130,7 +130,7 @@
     </div>
     
     <!-- Pagination -->
-    <div v-if="showPagination && totalPages > 1" class="px-6 py-4 border-t border-gray-200 bg-gray-50">
+    <div v-if="showPagination && totalPages > 1" class="px-6 py-6 border-t border-gray-200 bg-gray-50">
       <div class="flex items-center justify-between">
         <div class="flex items-center space-x-4">
           <p class="text-sm text-gray-700">

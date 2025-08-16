@@ -124,6 +124,7 @@ jobs:
             fi
 
             # 每次都執行migrate
+            echo "執行migrate"
             docker compose exec -T backend php artisan migrate --force
             
             # 清除快取（每次部署都執行）

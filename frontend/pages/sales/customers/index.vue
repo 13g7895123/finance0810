@@ -10,20 +10,9 @@
         </p>
       </div>
       
-      <div class="flex space-x-3">
-        <button
-          v-if="authStore.hasPermission('customer_management')"
-          @click="openCreateModal"
-          class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
-        >
-          <PlusIcon class="w-5 h-5" />
-          <span>新增客戶</span>
-        </button>
-        <UModal v-model="createModalOpen">
-          <CustomerForm :model-value="editing || {}" @save="handleSave" @cancel="closeCreateModal" />
-        </UModal>
-        
-      </div>
+      <UModal v-model="createModalOpen">
+        <CustomerForm :model-value="editing || {}" @save="handleSave" @cancel="closeCreateModal" />
+      </UModal>
     </div>
 
     <!-- 統計卡片 -->
