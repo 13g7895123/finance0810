@@ -33,7 +33,7 @@
             <ClientOnly>
               <div v-if="$config.public.dev" class="flex space-x-1">
                 <button 
-                  @click="testLongPollingPerformance"
+                  @click="testPollingPerformance"
                   class="text-xs px-2 py-1 bg-green-100 text-green-600 rounded hover:bg-green-200"
                 >
                   測試延遲
@@ -137,14 +137,14 @@ const { error: showError } = useNotification()
 const authStore = useAuthStore()
 const { getConversations, getConversation, replyMessage, getChatStats, searchConversations } = useChat()
 
-// 使用優化的Long Polling - 修復 "c is not a function" 錯誤
+// 使用高頻API輪詢 - 替代Long Polling方案
 const {
-  isConnected: isLongPollingConnected,
+  isConnected: isPollingConnected,
   isAggressiveMode,
   startAggressivePolling,
-  stopPolling: stopLongPolling,
-  onUpdate: onLongPollingUpdate
-} = useLongPolling()
+  stopPolling: stopPolling,
+  onUpdate: onPollingUpdate
+} = useHighFrequencyPolling()
 
 // 搜尋查詢
 const searchQuery = ref('')
@@ -175,25 +175,25 @@ const latencyInfo = ref({
   maxSamples: 10
 })
 
-// 更新聊天室連線狀態 - 優先使用Long Polling狀態
+// 更新聊天室連線狀態 - 使用高頻輪詢狀態
 const updateChatConnectionStatus = () => {
-  if (isLongPollingConnected.value) {
+  if (isPollingConnected.value) {
     chatConnectionStatus.value = isAggressiveMode.value ? 'connected' : 'ready'
   } else {
     chatConnectionStatus.value = 'disconnected'
   }
 }
 
-// 監聽Long Polling連線狀態
-watch(isLongPollingConnected, updateChatConnectionStatus)
+// 監聽高頻輪詢連線狀態
+watch(isPollingConnected, updateChatConnectionStatus)
 watch(isAggressiveMode, updateChatConnectionStatus)
 
 // 性能測試功能
-const testLongPollingPerformance = async () => {
+const testPollingPerformance = async () => {
   const testCount = 5
   const results = []
   
-  console.log('開始Long Polling性能測試...')
+  console.log('開始高頻API輪詢性能測試...')
   
   for (let i = 0; i < testCount; i++) {
     const startTime = performance.now()
@@ -202,9 +202,9 @@ const testLongPollingPerformance = async () => {
       const { $api } = useNuxtApp()
       await $api('/api/chats/poll-updates', {
         params: {
-          timeout: 1, // 短timeout測試響應時間
           last_update: new Date().toISOString()
-        }
+        },
+        timeout: 1000 // 1秒超時測試響應時間
       })
       
       const endTime = performance.now()
@@ -226,7 +226,7 @@ const testLongPollingPerformance = async () => {
     latencyInfo.value.average = average
     latencyInfo.value.samples = results
     
-    console.log('性能測試結果:')
+    console.log('高頻輪詢性能測試結果:')
     console.log(`平均延遲: ${average}ms`)
     console.log(`最小延遲: ${Math.min(...results)}ms`)
     console.log(`最大延遲: ${Math.max(...results)}ms`)
@@ -580,9 +580,9 @@ const selectUserWithRealtime = async (user) => {
 }
 
 
-// 處理Long Polling訊息更新
-const handleLongPollingMessage = (update) => {
-  console.log('Long Polling收到新訊息:', update)
+// 處理高頻輪詢訊息更新
+const handlePollingMessage = (update) => {
+  console.log('高頻輪詢收到新訊息:', update)
   
   if (update.type === 'new_message' && update.data && update.data.line_user_id) {
     const lineUserId = update.data.line_user_id
@@ -632,9 +632,9 @@ const handleLongPollingMessage = (update) => {
   }
 }
 
-// 處理Long Polling對話更新
-const handleLongPollingConversationUpdate = (update) => {
-  console.log('Long Polling收到對話更新:', update)
+// 處理高頻輪詢對話更新
+const handlePollingConversationUpdate = (update) => {
+  console.log('高頻輪詢收到對話更新:', update)
   
   if (update.type === 'conversation_update' && update.data && update.data.line_user_id) {
     const lineUserId = update.data.line_user_id
@@ -686,42 +686,42 @@ onMounted(async () => {
   // 載入對話列表
   loadConversations()
   
-  // 啟動積極輪詢模式（300ms間隔）
-  console.log('聊天室載入完成，啟動積極輪詢模式')
+  // 啟動積極輪詢模式（500ms間隔）
+  console.log('聊天室載入完成，啟動高頻輪詢模式')
   if (typeof startAggressivePolling === 'function') {
     startAggressivePolling()
   } else {
     console.error('startAggressivePolling is not a function:', typeof startAggressivePolling, startAggressivePolling)
   }
   
-  // 設置Long Polling事件監聽 - 監聽所有類型的更新（添加防護檢查）
-  if (typeof onLongPollingUpdate === 'function') {
-    onLongPollingUpdate('*', (update) => {
-      console.log('Long Polling更新:', update)
+  // 設置高頻輪詢事件監聽 - 監聽所有類型的更新
+  if (typeof onPollingUpdate === 'function') {
+    onPollingUpdate('*', (update) => {
+      console.log('高頻輪詢更新:', update)
       
       switch (update.type) {
         case 'new_message':
-          handleLongPollingMessage(update)
+          handlePollingMessage(update)
           break
         case 'conversation_update':
-          handleLongPollingConversationUpdate(update)
+          handlePollingConversationUpdate(update)
           break
         default:
-          console.log('未處理的Long Polling更新類型:', update.type)
+          console.log('未處理的高頻輪詢更新類型:', update.type)
       }
     })
   } else {
-    console.error('onLongPollingUpdate is not a function:', typeof onLongPollingUpdate, onLongPollingUpdate)
+    console.error('onPollingUpdate is not a function:', typeof onPollingUpdate, onPollingUpdate)
   }
 })
 
 // 頁面卸載時停止輪詢
 onUnmounted(() => {
-  console.log('聊天室頁面卸載，停止積極輪詢')
-  if (typeof stopLongPolling === 'function') {
-    stopLongPolling()
+  console.log('聊天室頁面卸載，停止高頻輪詢')
+  if (typeof stopPolling === 'function') {
+    stopPolling()
   } else {
-    console.error('stopLongPolling is not a function:', typeof stopLongPolling, stopLongPolling)
+    console.error('stopPolling is not a function:', typeof stopPolling, stopPolling)
   }
 })
 
