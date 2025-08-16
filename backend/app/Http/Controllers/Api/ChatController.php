@@ -319,44 +319,98 @@ class ChatController extends Controller
      */
     public function searchConversations(Request $request)
     {
-        $user = Auth::user();
-        $query = $request->get('q', '');
+        try {
+            $user = Auth::user();
+            $query = $request->get('q', '');
 
-        // Get the latest conversation for each line_user_id with the actual message content
-        $subquery = ChatConversation::select('line_user_id')
-            ->selectRaw('MAX(message_timestamp) as max_timestamp')
-            ->groupBy('line_user_id');
+            // Validate query parameter
+            if (empty($query)) {
+                return response()->json([
+                    'data' => [],
+                    'current_page' => 1,
+                    'per_page' => 20,
+                    'total' => 0
+                ]);
+            }
 
-        $conversationQuery = ChatConversation::with(['customer', 'user'])
-            ->select('line_user_id', 'customer_id', 'message_content as last_message', 'message_timestamp as last_message_time')
-            ->selectRaw('(SELECT COUNT(*) FROM chat_conversations c2 WHERE c2.line_user_id = chat_conversations.line_user_id AND c2.status = "unread" AND c2.is_from_customer = 1) as unread_count')
-            ->joinSub($subquery, 'latest', function($join) {
-                $join->on('chat_conversations.line_user_id', '=', 'latest.line_user_id')
-                     ->on('chat_conversations.message_timestamp', '=', 'latest.max_timestamp');
-            });
+            // Use a simpler approach to avoid complex JOIN issues
+            $conversationsQuery = ChatConversation::with(['customer', 'user'])
+                ->whereNotNull('line_user_id')
+                ->whereNotNull('customer_id');
 
-        // Staff can only search their assigned customers
-        if ($user->isStaff()) {
-            $conversationQuery->whereHas('customer', function($q) use ($user) {
-                $q->where('assigned_to', $user->id);
-            });
+            // Staff can only search their assigned customers
+            if ($user->isStaff()) {
+                $conversationsQuery->whereHas('customer', function($q) use ($user) {
+                    $q->where('assigned_to', $user->id);
+                });
+            }
+
+            // Search in customer names, phone, or message content
+            if ($query) {
+                $conversationsQuery->where(function($q) use ($query) {
+                    $q->whereHas('customer', function($customerQuery) use ($query) {
+                        $customerQuery->where('name', 'LIKE', "%{$query}%")
+                            ->orWhere('phone', 'LIKE', "%{$query}%");
+                    })
+                    ->orWhere('message_content', 'LIKE', "%{$query}%");
+                });
+            }
+
+            // Get all matching conversations
+            $allConversations = $conversationsQuery->orderBy('message_timestamp', 'desc')->get();
+
+            // Group by line_user_id and get the latest conversation for each
+            $latestConversations = $allConversations->groupBy('line_user_id')->map(function ($conversations) {
+                $latest = $conversations->first();
+                
+                // Calculate unread count for this line_user_id
+                $unreadCount = ChatConversation::where('line_user_id', $latest->line_user_id)
+                    ->where('status', 'unread')
+                    ->where('is_from_customer', 1)
+                    ->count();
+
+                return [
+                    'line_user_id' => $latest->line_user_id,
+                    'customer_id' => $latest->customer_id,
+                    'last_message' => $latest->message_content,
+                    'last_message_time' => $latest->message_timestamp,
+                    'unread_count' => $unreadCount,
+                    'customer' => $latest->customer,
+                    'user' => $latest->user
+                ];
+            })->values();
+
+            // Sort by last_message_time descending
+            $sortedConversations = $latestConversations->sortByDesc('last_message_time')->values();
+
+            // Manual pagination
+            $page = $request->get('page', 1);
+            $perPage = 20;
+            $total = $sortedConversations->count();
+            $offset = ($page - 1) * $perPage;
+            $paginatedData = $sortedConversations->slice($offset, $perPage)->values();
+
+            return response()->json([
+                'data' => $paginatedData,
+                'current_page' => (int) $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'last_page' => ceil($total / $perPage)
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Search conversations error: ' . $e->getMessage(), [
+                'query' => $query ?? '',
+                'user_id' => $user->id ?? null,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => 'Search failed',
+                'message' => 'An error occurred while searching conversations',
+                'data' => []
+            ], 500);
         }
-
-        // Search in customer names, phone, or message content
-        if ($query) {
-            $conversationQuery->where(function($q) use ($query) {
-                $q->whereHas('customer', function($customerQuery) use ($query) {
-                    $customerQuery->where('name', 'LIKE', "%{$query}%")
-                        ->orWhere('phone', 'LIKE', "%{$query}%");
-                })
-                ->orWhere('message_content', 'LIKE', "%{$query}%");
-            });
-        }
-
-        $conversations = $conversationQuery->orderBy('last_message_time', 'desc')
-            ->paginate(20);
-
-        return response()->json($conversations);
     }
 
     /**
