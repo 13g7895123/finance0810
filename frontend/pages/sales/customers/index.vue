@@ -1018,7 +1018,7 @@ const closeAssignModal = () => {
 
 const loadSalesUsers = async () => {
   try {
-    const { data, error: apiError } = await getUsers({ role: 'sales' })
+    const { data, error: apiError } = await getUsers({ role: 'staff' })
     
     if (apiError) {
       console.error('載入業務人員失敗:', apiError.message)

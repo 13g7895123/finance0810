@@ -251,7 +251,7 @@ class CustomerController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'assigned_to' => 'required|exists:users,id',
+            'assigned_to' => 'nullable|exists:users,id',
         ]);
 
         if ($validator->fails()) {
@@ -259,20 +259,32 @@ class CustomerController extends Controller
         }
 
         $oldAssignee = $customer->assignedUser;
-        $customer->update(['assigned_to' => $request->assigned_to]);
+        $newAssignedTo = $request->assigned_to;
+        
+        $customer->update(['assigned_to' => $newAssignedTo]);
 
         // Log activity
-        $newAssignee = User::find($request->assigned_to);
+        if ($newAssignedTo) {
+            $newAssignee = User::find($newAssignedTo);
+            $description = $oldAssignee 
+                ? "客戶已從 {$oldAssignee->name} 重新分配給 {$newAssignee->name}"
+                : "客戶已分配給 {$newAssignee->name}";
+        } else {
+            $description = $oldAssignee 
+                ? "客戶已從 {$oldAssignee->name} 取消分配"
+                : "客戶分配已取消";
+        }
+        
         CustomerActivity::create([
             'customer_id' => $customer->id,
             'user_id' => $user->id,
             'activity_type' => CustomerActivity::TYPE_ASSIGNED,
-            'description' => "客戶已從 {$oldAssignee?->name} 重新分配給 {$newAssignee->name}",
+            'description' => $description,
             'ip_address' => request()->ip(),
         ]);
 
         return response()->json([
-            'message' => '客戶分配成功',
+            'message' => $newAssignedTo ? '客戶分配成功' : '客戶分配已取消',
             'customer' => $customer->load(['assignedUser', 'creator'])
         ]);
     }
