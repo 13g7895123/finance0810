@@ -122,6 +122,9 @@ jobs:
               # 執行資料庫填充（如果需要）
               docker compose exec -T backend php artisan db:seed --force --class=RolesAndPermissionsSeeder
             fi
+
+            # 每次都執行migrate
+            docker-compose exec backend php artisan migrate --force
             
             # 清除快取（每次部署都執行）
             echo "🧹 清除應用程式快取..."

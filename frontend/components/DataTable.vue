@@ -25,7 +25,10 @@
         
         <!-- Right Side - Action Buttons -->
         <div class="flex items-center space-x-3">
-          <!-- Refresh Button -->
+          <!-- Additional Action Buttons Slot -->
+          <slot name="actions"></slot>
+          
+          <!-- Refresh Button - Always at the rightmost position -->
           <button
             @click="$emit('refresh')"
             :disabled="loading"
@@ -34,9 +37,6 @@
             <ArrowPathIcon class="w-4 h-4 mr-2" :class="{ 'animate-spin': loading }" />
             重新整理
           </button>
-          
-          <!-- Additional Action Buttons Slot -->
-          <slot name="actions"></slot>
         </div>
       </div>
     </div>

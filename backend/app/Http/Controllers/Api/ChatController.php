@@ -26,32 +26,77 @@ class ChatController extends Controller
      */
     public function index(Request $request)
     {
-        $user = Auth::user();
-        
-        // Get the latest conversation for each line_user_id with the actual message content
-        $subquery = ChatConversation::select('line_user_id')
-            ->selectRaw('MAX(message_timestamp) as max_timestamp')
-            ->groupBy('line_user_id');
-
-        $query = ChatConversation::with(['customer', 'user'])
-            ->select('line_user_id', 'customer_id', 'message_content as last_message', 'message_timestamp as last_message_time')
-            ->selectRaw('(SELECT COUNT(*) FROM chat_conversations c2 WHERE c2.line_user_id = chat_conversations.line_user_id AND c2.status = "unread" AND c2.is_from_customer = 1) as unread_count')
-            ->joinSub($subquery, 'latest', function($join) {
-                $join->on('chat_conversations.line_user_id', '=', 'latest.line_user_id')
-                     ->on('chat_conversations.message_timestamp', '=', 'latest.max_timestamp');
-            });
-
-        // Staff can only see their assigned customers' chats
-        if ($user->isStaff()) {
-            $query->whereHas('customer', function($q) use ($user) {
-                $q->where('assigned_to', $user->id);
-            });
+        try {
+            $user = Auth::user();
+            
+            // 簡化查詢，分步進行以避免複雜的 JOIN 問題
+            $conversations = collect();
+            
+            // 首先獲取所有獨特的 line_user_id
+            $lineUserIds = ChatConversation::distinct('line_user_id')
+                ->pluck('line_user_id');
+            
+            foreach ($lineUserIds as $lineUserId) {
+                // 獲取每個用戶的最新訊息
+                $latestMessage = ChatConversation::with(['customer'])
+                    ->where('line_user_id', $lineUserId)
+                    ->orderBy('message_timestamp', 'desc')
+                    ->first();
+                
+                if (!$latestMessage) continue;
+                
+                // 檢查權限：如果是業務人員，只能看到自己分配的客戶
+                if ($user->isStaff() && $latestMessage->customer && $latestMessage->customer->assigned_to !== $user->id) {
+                    continue;
+                }
+                
+                // 計算未讀訊息數
+                $unreadCount = ChatConversation::where('line_user_id', $lineUserId)
+                    ->where('status', 'unread')
+                    ->where('is_from_customer', true)
+                    ->count();
+                
+                $conversations->push([
+                    'line_user_id' => $lineUserId,
+                    'customer_id' => $latestMessage->customer_id,
+                    'customer' => $latestMessage->customer,
+                    'last_message' => $latestMessage->message_content,
+                    'last_message_time' => $latestMessage->message_timestamp,
+                    'unread_count' => $unreadCount
+                ]);
+            }
+            
+            // 按最後訊息時間排序
+            $conversations = $conversations->sortByDesc('last_message_time')->values();
+            
+            // 手動分頁
+            $page = $request->get('page', 1);
+            $perPage = 20;
+            $total = $conversations->count();
+            $offset = ($page - 1) * $perPage;
+            $items = $conversations->slice($offset, $perPage)->values();
+            
+            return response()->json([
+                'data' => $items,
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'last_page' => ceil($total / $perPage),
+                'from' => $offset + 1,
+                'to' => min($offset + $perPage, $total)
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('ChatController@index error:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'error' => '載入對話列表失敗',
+                'message' => $e->getMessage()
+            ], 500);
         }
-
-        $conversations = $query->orderBy('last_message_time', 'desc')
-            ->paginate(20);
-
-        return response()->json($conversations);
     }
 
     /**
