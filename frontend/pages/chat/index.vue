@@ -133,7 +133,7 @@ const { error: showError } = useNotification()
 const authStore = useAuthStore()
 const { getConversations, getConversation, replyMessage, getChatStats, searchConversations } = useChat()
 
-// 使用優化的Long Polling
+// 使用優化的Long Polling - 修復 "c is not a function" 錯誤
 const {
   isConnected: isLongPollingConnected,
   isAggressiveMode,
