@@ -124,7 +124,7 @@ jobs:
             fi
 
             # 每次都執行migrate
-            docker-compose exec backend php artisan migrate --force
+            docker compose exec -T backend php artisan migrate --force
             
             # 清除快取（每次部署都執行）
             echo "🧹 清除應用程式快取..."
