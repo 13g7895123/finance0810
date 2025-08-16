@@ -8,37 +8,41 @@
           <div class="flex items-center space-x-3">
             <h2 class="text-lg font-semibold text-gray-900">聊天室</h2>
             <!-- Long Polling 連接狀態指示器 -->
-            <div class="flex items-center space-x-1">
-              <div 
-                :class="[
-                  'w-2 h-2 rounded-full',
-                  {
-                    'bg-green-400': chatConnectionStatus === 'connected',
-                    'bg-blue-400': chatConnectionStatus === 'ready',
-                    'bg-gray-400': chatConnectionStatus === 'disconnected'
-                  }
-                ]"
-              ></div>
-              <span class="text-xs text-gray-500">
-                {{ 
-                  chatConnectionStatus === 'connected' ? '實時更新' : 
-                  chatConnectionStatus === 'ready' ? '已連線' : '離線'
-                }}
-              </span>
-            </div>
+            <ClientOnly>
+              <div class="flex items-center space-x-1">
+                <div 
+                  :class="[
+                    'w-2 h-2 rounded-full',
+                    {
+                      'bg-green-400': chatConnectionStatus === 'connected',
+                      'bg-blue-400': chatConnectionStatus === 'ready',
+                      'bg-gray-400': chatConnectionStatus === 'disconnected'
+                    }
+                  ]"
+                ></div>
+                <span class="text-xs text-gray-500">
+                  {{ 
+                    chatConnectionStatus === 'connected' ? '實時更新' : 
+                    chatConnectionStatus === 'ready' ? '已連線' : '離線'
+                  }}
+                </span>
+              </div>
+            </ClientOnly>
             
             <!-- Debug: 性能測試按鈕 (僅開發環境顯示) -->
-            <div v-if="$config.public.dev" class="flex space-x-1">
-              <button 
-                @click="testLongPollingPerformance"
-                class="text-xs px-2 py-1 bg-green-100 text-green-600 rounded hover:bg-green-200"
-              >
-                測試延遲
-              </button>
-              <span v-if="latencyInfo.average > 0" class="text-xs text-gray-500">
-                {{ latencyInfo.average }}ms
-              </span>
-            </div>
+            <ClientOnly>
+              <div v-if="$config.public.dev" class="flex space-x-1">
+                <button 
+                  @click="testLongPollingPerformance"
+                  class="text-xs px-2 py-1 bg-green-100 text-green-600 rounded hover:bg-green-200"
+                >
+                  測試延遲
+                </button>
+                <span v-if="latencyInfo.average > 0" class="text-xs text-gray-500">
+                  {{ latencyInfo.average }}ms
+                </span>
+              </div>
+            </ClientOnly>
           </div>
           <button class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
             <PlusIcon class="w-5 h-5" />
