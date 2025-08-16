@@ -5,8 +5,22 @@
       <!-- 標題和篩選 -->
       <div class="p-4 border-b border-gray-200">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-gray-900 ">聊天室</h2>
-          <button class="p-2 text-gray-500 hover:bg-gray-100  rounded-lg">
+          <div class="flex items-center space-x-3">
+            <h2 class="text-lg font-semibold text-gray-900">聊天室</h2>
+            <!-- WebSocket 連接狀態指示器 -->
+            <div class="flex items-center space-x-1">
+              <div 
+                :class="[
+                  'w-2 h-2 rounded-full',
+                  isWebSocketConnected ? 'bg-green-400' : 'bg-red-400'
+                ]"
+              ></div>
+              <span class="text-xs text-gray-500">
+                {{ isWebSocketConnected ? '實時' : '離線' }}
+              </span>
+            </div>
+          </div>
+          <button class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
             <PlusIcon class="w-5 h-5" />
           </button>
         </div>
@@ -43,7 +57,7 @@
         <ChatUserList
           :users="filteredUsers"
           :activeUserId="activeUserId"
-          @userSelect="selectUser"
+          @userSelect="selectUserWithRealtime"
         />
       </div>
     </div>
@@ -82,6 +96,14 @@ definePageMeta({
 
 const authStore = useAuthStore()
 const { getConversations, getConversation, replyMessage, getChatStats, searchConversations } = useChat()
+const { 
+  initializeRealTimeChat, 
+  joinRoom, 
+  leaveRoom, 
+  sendMessage: sendRealtimeMessage, 
+  onConversationUpdate,
+  isConnected: isWebSocketConnected 
+} = useRealTimeChat()
 
 // 搜尋查詢
 const searchQuery = ref('')
@@ -719,21 +741,7 @@ const currentMessages = computed(() => {
   return messages.value[selectedUser.value.id] || []
 })
 
-// 選擇用戶
-const selectUser = async (user) => {
-  selectedUser.value = user
-  activeUserId.value = user.id
-  
-  // 載入對話訊息 (如果是 LINE BOT 用戶)
-  if (user.isBot && user.lineUserId) {
-    await loadConversationMessages(user.lineUserId)
-  }
-  
-  // 標記為已讀
-  if (user.unreadCount > 0) {
-    user.unreadCount = 0
-  }
-}
+// 選擇用戶功能已被 selectUserWithRealtime 取代
 
 // 發送訊息
 const sendMessage = async (content) => {
@@ -800,9 +808,126 @@ const sendMessage = async (content) => {
   }
 }
 
+// 實時聊天功能
+const currentRoomId = ref(null)
+
+// 增強版選擇用戶功能（包含實時聊天）
+const selectUserWithRealtime = async (user) => {
+  // 離開之前的房間
+  if (currentRoomId.value) {
+    leaveRoom(currentRoomId.value)
+  }
+  
+  // 執行原有的用戶選擇邏輯
+  selectedUser.value = user
+  activeUserId.value = user.id
+  
+  // 載入對話訊息 (如果是 LINE BOT 用戶)
+  if (user.isBot && user.lineUserId) {
+    await loadConversationMessages(user.lineUserId)
+    
+    // 加入實時聊天房間
+    const roomId = `line_${user.lineUserId}`
+    currentRoomId.value = roomId
+    
+    // 加入房間並設置訊息回調
+    joinRoom(roomId, (data) => {
+      handleRealtimeMessage(data, user)
+    })
+    
+    // 設置對話列表更新回調
+    onConversationUpdate(roomId, (update) => {
+      handleConversationUpdate(update, user)
+    })
+  }
+  
+  // 標記為已讀
+  if (user.unreadCount > 0) {
+    user.unreadCount = 0
+  }
+}
+
+// 處理實時訊息
+const handleRealtimeMessage = (data, user) => {
+  switch (data.type) {
+    case 'new_message':
+      // 添加新訊息到當前對話
+      if (apiMessages.value[user.lineUserId]) {
+        apiMessages.value[user.lineUserId].push({
+          id: data.message.id,
+          senderId: data.message.is_from_customer ? parseInt(data.message.line_user_id) : 'bot',
+          content: data.message.message_content,
+          timestamp: new Date(data.message.message_timestamp),
+          type: data.message.message_type || 'text',
+          isBot: true,
+          isCustomer: data.message.is_from_customer,
+          isAutoReply: !data.message.is_from_customer,
+          metadata: data.message.metadata || {}
+        })
+      }
+      break
+      
+    case 'message_status':
+      // 更新訊息狀態
+      if (apiMessages.value[user.lineUserId]) {
+        const messageIndex = apiMessages.value[user.lineUserId].findIndex(
+          msg => msg.id === data.messageId
+        )
+        if (messageIndex !== -1) {
+          apiMessages.value[user.lineUserId][messageIndex].status = data.status
+        }
+      }
+      break
+      
+    case 'user_status':
+      // 更新用戶在線狀態
+      const userIndex = allUsers.value.findIndex(u => u.id === data.userId)
+      if (userIndex !== -1) {
+        allUsers.value[userIndex].online = data.online
+      }
+      break
+  }
+}
+
+// 處理對話列表更新
+const handleConversationUpdate = (update, user) => {
+  // 更新對話列表中的項目
+  const userIndex = allUsers.value.findIndex(u => u.id === user.id)
+  if (userIndex !== -1) {
+    if (update.lastMessage) {
+      allUsers.value[userIndex].lastMessage = update.lastMessage
+    }
+    if (update.timestamp) {
+      allUsers.value[userIndex].timestamp = new Date(update.timestamp)
+    }
+    if (update.unreadCount !== undefined) {
+      allUsers.value[userIndex].unreadCount = update.unreadCount
+    }
+  }
+  
+  // 更新API對話列表
+  const apiUserIndex = apiConversations.value.findIndex(u => u.id === user.id)
+  if (apiUserIndex !== -1) {
+    if (update.lastMessage) {
+      apiConversations.value[apiUserIndex].lastMessage = update.lastMessage
+    }
+    if (update.timestamp) {
+      apiConversations.value[apiUserIndex].timestamp = new Date(update.timestamp)
+    }
+    if (update.unreadCount !== undefined) {
+      apiConversations.value[apiUserIndex].unreadCount = update.unreadCount
+    }
+  }
+}
+
+// Real-time chat functionality is now integrated
+
 // 初始化數據載入
 onMounted(() => {
   loadConversations()
+  
+  // 初始化實時聊天
+  initializeRealTimeChat()
 })
 
 // 頁面標題

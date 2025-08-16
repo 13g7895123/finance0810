@@ -240,6 +240,20 @@
                 >
                   編輯
                 </button>
+                <button 
+                  v-if="authStore.hasPermission('customer_management')"
+                  @click="openAssignModal(customer)"
+                  class="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300"
+                >
+                  指派
+                </button>
+                <button 
+                  v-if="authStore.hasPermission('customer_management')"
+                  @click="confirmDeleteCustomer(customer)"
+                  class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                >
+                  刪除
+                </button>
               </td>
             </tr>
           </tbody>
@@ -591,6 +605,70 @@
         </div>
       </div>
     </div>
+
+    <!-- 指派業務模態窗口 -->
+    <div 
+      v-if="showAssignModal" 
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      @click.self="closeAssignModal"
+    >
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">指派業務</h3>
+          <button 
+            @click="closeAssignModal"
+            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            ✕
+          </button>
+        </div>
+        
+        <div v-if="assigningCustomer" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              客戶：{{ assigningCustomer.name }}
+            </label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              目前負責業務：{{ assigningCustomer.assigned_user?.name || '未分配' }}
+            </label>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              選擇新的負責業務 *
+            </label>
+            <select
+              v-model="selectedAssignUser"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">請選擇業務人員</option>
+              <option value="null">取消分配</option>
+              <option v-for="user in salesUsers" :key="user.id" :value="user.id">
+                {{ user.name }}
+              </option>
+            </select>
+          </div>
+          
+          <div class="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              @click="closeAssignModal"
+              class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
+            >
+              取消
+            </button>
+            <button
+              @click="submitAssignForm"
+              :disabled="assigning || !selectedAssignUser"
+              class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {{ assigning ? '指派中...' : '確認指派' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -619,7 +697,10 @@ const {
   createCustomer,
   updateCustomer,
   deleteCustomer,
+  assignCustomer
 } = useCustomers()
+
+const { getUsers } = useUsers()
 
 // 搜尋和篩選
 const searchQuery = ref('')
@@ -642,12 +723,20 @@ const customerStats = ref({
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showViewModal = ref(false)
+const showAssignModal = ref(false)
 const editingCustomer = ref(null)
 const selectedCustomer = ref(null)
+const assigningCustomer = ref(null)
 
 // 表單提交狀態
 const creating = ref(false)
 const updating = ref(false)
+const assigning = ref(false)
+const deleting = ref(false)
+
+// 指派功能相關數據
+const salesUsers = ref([])
+const selectedAssignUser = ref('')
 
 
 
@@ -893,6 +982,93 @@ const editCustomer = (customer) => {
 const closeViewModal = () => {
   showViewModal.value = false
   selectedCustomer.value = null
+}
+
+// 指派業務相關函數
+const openAssignModal = async (customer) => {
+  assigningCustomer.value = customer
+  selectedAssignUser.value = ''
+  
+  // 載入業務人員列表
+  await loadSalesUsers()
+  
+  showAssignModal.value = true
+}
+
+const closeAssignModal = () => {
+  showAssignModal.value = false
+  assigningCustomer.value = null
+  selectedAssignUser.value = ''
+}
+
+const loadSalesUsers = async () => {
+  try {
+    const { data, error: apiError } = await getUsers({ role: 'sales' })
+    
+    if (apiError) {
+      console.error('載入業務人員失敗:', apiError.message)
+      return
+    }
+    
+    salesUsers.value = data.data || []
+    
+  } catch (err) {
+    console.error('載入業務人員錯誤:', err)
+  }
+}
+
+const submitAssignForm = async () => {
+  if (!assigningCustomer.value) return
+  
+  assigning.value = true
+  try {
+    const assignToId = selectedAssignUser.value === 'null' ? null : selectedAssignUser.value
+    
+    const { data, error: apiError } = await assignCustomer(assigningCustomer.value.id, assignToId)
+    
+    if (apiError) {
+      alert('指派業務失敗：' + apiError.message)
+      return
+    }
+    
+    alert('指派業務成功')
+    closeAssignModal()
+    loadCustomers() // 重新載入列表
+    
+  } catch (err) {
+    console.error('指派業務錯誤:', err)
+    alert('指派業務時發生錯誤')
+  } finally {
+    assigning.value = false
+  }
+}
+
+// 刪除客戶功能
+const confirmDeleteCustomer = (customer) => {
+  if (confirm(`確定要刪除客戶「${customer.name}」嗎？此操作無法復原。`)) {
+    deleteCustomerRecord(customer)
+  }
+}
+
+const deleteCustomerRecord = async (customer) => {
+  deleting.value = true
+  try {
+    const { data, error: apiError } = await deleteCustomer(customer.id)
+    
+    if (apiError) {
+      alert('刪除客戶失敗：' + apiError.message)
+      return
+    }
+    
+    alert('客戶刪除成功')
+    loadCustomers() // 重新載入列表
+    
+  } catch (err) {
+    console.error('刪除客戶錯誤:', err)
+    alert('刪除客戶時發生錯誤')
+  } finally {
+    deleting.value = false
+  }
 }
 
 // 表單提交函數
