@@ -1,16 +1,33 @@
 <template>
   <div class="space-y-6">
-    <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
-      <!-- Title -->
-      <div class="mb-6">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
-          {{ t('nav.user_management') }}
-        </h2>
-      </div>
-
-      <!-- Action Bar -->
-      <div class="flex items-center justify-between mb-6">
-        <!-- Add User Button - Left Side -->
+    <!-- Access Denied State -->
+    <div v-if="!authStore.hasPermission('user.view') && !authStore.isAdmin && !authStore.isManager" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
+      <ShieldExclamationIcon class="w-12 h-12 text-red-500 mx-auto mb-4" />
+      <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">存取被拒絕</h3>
+      <p class="text-gray-600 dark:text-gray-400">您沒有權限使用此功能</p>
+    </div>
+    
+    <!-- Main DataTable -->
+    <DataTable
+      v-else
+      title="用戶管理"
+      :columns="tableColumns"
+      :data="filteredUsers"
+      :loading="loading"
+      :search-query="searchQuery"
+      search-placeholder="搜尋用戶..."
+      :current-page="currentPage"
+      :items-per-page="perPage"
+      loading-text="載入用戶資料中..."
+      empty-text="沒有找到用戶"
+      @search="handleSearch"
+      @refresh="refreshUsers"
+      @retry="loadUsers"
+      @page-change="handlePageChange"
+      @page-size-change="handlePageSizeChange"
+    >
+      <!-- Action Buttons -->
+      <template #actions>
         <button
           @click="showAddModal = true"
           class="inline-flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors duration-200"
@@ -18,236 +35,91 @@
           <PlusIcon class="w-5 h-5 mr-2" />
           {{ t('auth.add_user') }}
         </button>
-
-        <!-- Search and Refresh - Right Side -->
-        <div class="flex items-center space-x-3">
-          <!-- Search -->
-          <div class="relative">
-            <input
-              v-model="searchQuery"
-              type="text"
-              :placeholder="t('common.search') + '...'"
-              class="w-64 px-4 py-2 pl-10 border-2 border-gray-600 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white bg-gray-50"
-            />
-            <MagnifyingGlassIcon class="w-5 h-5 text-gray-500 absolute left-3 top-2.5" />
+      </template>
+      
+      <!-- User Info Cell -->
+      <template #cell-user="{ item }">
+        <div class="flex items-center">
+          <img 
+            :src="item.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name)}&background=6366f1&color=fff`" 
+            :alt="item.name" 
+            class="w-10 h-10 rounded-full"
+          />
+          <div class="ml-4">
+            <div class="text-sm font-medium text-gray-900 dark:text-white">{{ item.name }}</div>
+            <div class="text-sm text-gray-500 dark:text-gray-400">{{ item.email }}</div>
           </div>
-          
-          <!-- Refresh Button -->
+        </div>
+      </template>
+      
+      <!-- Role Cell -->
+      <template #cell-role="{ item }">
+        <span 
+          class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
+          :class="{
+            'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300': item.roles?.[0]?.name === 'admin' || item.roles?.[0]?.name === 'executive',
+            'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300': item.roles?.[0]?.name === 'manager',
+            'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300': item.roles?.[0]?.name === 'staff'
+          }"
+        >
+          {{ item.roles?.[0]?.display_name || item.roles?.[0]?.name || '無角色' }}
+        </span>
+      </template>
+      
+      <!-- Status Cell -->
+      <template #cell-status="{ item }">
+        <span 
+          class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
+          :class="{
+            'bg-blue-600 text-white dark:bg-blue-500 dark:text-white': item.status === 'active',
+            'bg-red-600 text-white dark:bg-red-500 dark:text-white': item.status === 'inactive',
+            'bg-yellow-600 text-white dark:bg-yellow-500 dark:text-white': item.status === 'suspended'
+          }"
+        >
+          {{ t(`auth.status_${item.status}`) }}
+        </span>
+      </template>
+      
+      <!-- Actions Cell -->
+      <template #cell-actions="{ item }">
+        <div class="flex items-center space-x-2 justify-end">
+          <!-- Toggle Status -->
           <button
-            @click="refreshUsers"
-            class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
-            :disabled="refreshing"
+            v-if="item.id !== authStore.user?.id"
+            @click="toggleStatus(item)"
+            class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 transition-colors duration-200"
           >
-            <ArrowPathIcon class="w-4 h-4 mr-2" :class="{ 'animate-spin': refreshing }" />
-            重新整理
+            {{ item.status === 'active' ? t('auth.deactivate') : t('auth.activate') }}
+          </button>
+          
+          <!-- Assign Customers (Only for sales staff) -->
+          <button
+            v-if="item.roles?.[0]?.name === 'staff' && authStore.hasPermission('customer_management')"
+            @click="openAssignCustomersModal(item)"
+            class="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 transition-colors duration-200"
+          >
+            指派客戶
+          </button>
+          
+          <!-- Edit -->
+          <button
+            @click="editUser(item)"
+            class="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 transition-colors duration-200"
+          >
+            {{ t('common.edit') }}
+          </button>
+          
+          <!-- Delete -->
+          <button
+            v-if="item.id !== authStore.user?.id"
+            @click="deleteUserConfirm(item)"
+            class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors duration-200"
+          >
+            刪除
           </button>
         </div>
-      </div>
-
-      <!-- Access Denied for Non-Admin -->
-      <div v-if="!authStore.hasPermission('user.view') && !authStore.isAdmin && !authStore.isManager" class="text-center py-12">
-        <ShieldExclamationIcon class="w-12 h-12 text-red-500 mx-auto mb-4" />
-        <h3 class="text-lg font-medium text-gray-900 mb-2">存取被拒絕</h3>
-        <p class="text-gray-600">您沒有權限使用此功能</p>
-      </div>
-
-      <!-- Loading State -->
-      <div v-else-if="loading" class="text-center py-12">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-        <p class="text-gray-600">載入用戶資料中...</p>
-      </div>
-
-      <!-- Users Table -->
-      <div v-else class="overflow-x-auto">
-        <ClientOnly>
-          <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead class="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  {{ t('auth.user') }}
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  {{ t('auth.role') }}
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  {{ t('auth.status') }}
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  {{ t('auth.last_login') }}
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  {{ t('auth.actions') }}
-                </th>
-              </tr>
-            </thead>
-            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              <tr v-for="user in filteredUsers" :key="user.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-              <!-- User Info -->
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center">
-                  <img :src="user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366f1&color=fff`" :alt="user.name" class="w-10 h-10 rounded-full" />
-                  <div class="ml-4">
-                    <div class="text-sm font-medium text-gray-900 dark:text-white">{{ user.name }}</div>
-                    <div class="text-sm text-gray-500 dark:text-gray-400">{{ user.email }}</div>
-                  </div>
-                </div>
-              </td>
-
-              <!-- Role -->
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span 
-                  class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
-                  :class="{
-                    'bg-purple-100 text-purple-800': user.roles?.[0]?.name === 'admin' || user.roles?.[0]?.name === 'executive',
-                    'bg-blue-100 text-blue-800': user.roles?.[0]?.name === 'manager',
-                    'bg-green-100 text-green-800': user.roles?.[0]?.name === 'staff'
-                  }"
-                >
-                  {{ user.roles?.[0]?.display_name || user.roles?.[0]?.name || '無角色' }}
-                </span>
-              </td>
-
-              <!-- Status -->
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span 
-                  class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
-                  :class="{
-                    'bg-blue-600 text-white dark:bg-blue-500 dark:text-white': user.status === 'active',
-                    'bg-red-600 text-white dark:bg-red-500 dark:text-white': user.status === 'inactive',
-                    'bg-yellow-600 text-white dark:bg-yellow-500 dark:text-white': user.status === 'suspended'
-                  }"
-                >
-                  {{ t(`auth.status_${user.status}`) }}
-                </span>
-              </td>
-
-              <!-- Last Login -->
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                {{ formatDate(user.last_login_at) }}
-              </td>
-
-              <!-- Actions -->
-              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <div class="flex items-center space-x-2">
-                  <!-- Toggle Status -->
-                  <button
-                    v-if="user.id !== authStore.user?.id"
-                    @click="toggleStatus(user)"
-                    class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 transition-colors duration-200"
-                  >
-                    {{ user.status === 'active' ? t('auth.deactivate') : t('auth.activate') }}
-                  </button>
-                  
-                  <!-- Assign Customers (Only for sales staff) -->
-                  <button
-                    v-if="user.roles?.[0]?.name === 'staff' && authStore.hasPermission('customer_management')"
-                    @click="openAssignCustomersModal(user)"
-                    class="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 transition-colors duration-200"
-                  >
-                    指派客戶
-                  </button>
-                  
-                  <!-- Edit -->
-                  <button
-                    @click="editUser(user)"
-                    class="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 transition-colors duration-200"
-                  >
-                    {{ t('common.edit') }}
-                  </button>
-                  
-                  <!-- Delete -->
-                  <button
-                    v-if="user.id !== authStore.user?.id"
-                    @click="deleteUserConfirm(user)"
-                    class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors duration-200"
-                  >
-                    刪除
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-          </table>
-
-          <!-- No Users Found -->
-          <div v-if="filteredUsers.length === 0" class="text-center py-12">
-            <UsersIcon class="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p class="text-gray-500 dark:text-gray-400">{{ t('auth.no_users_found') }}</p>
-          </div>
-        </ClientOnly>
-
-        <!-- Pagination Controls -->
-        <div v-if="totalPages > 1" class="mt-6 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4">
-          <div class="flex-1 flex justify-between sm:hidden">
-            <button
-              @click="loadUsers(currentPage - 1)"
-              :disabled="currentPage <= 1"
-              class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              上一頁
-            </button>
-            <button
-              @click="loadUsers(currentPage + 1)"
-              :disabled="currentPage >= totalPages"
-              class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              下一頁
-            </button>
-          </div>
-          
-          <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-            <div>
-              <p class="text-sm text-gray-700 dark:text-gray-300">
-                顯示第 <span class="font-medium">{{ ((currentPage - 1) * perPage) + 1 }}</span> 
-                到 <span class="font-medium">{{ Math.min(currentPage * perPage, totalUsers) }}</span> 
-                筆，共 <span class="font-medium">{{ totalUsers }}</span> 筆記錄
-              </p>
-            </div>
-            <div>
-              <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="分頁導航">
-                <button
-                  @click="loadUsers(currentPage - 1)"
-                  :disabled="currentPage <= 1"
-                  class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeftIcon class="h-5 w-5" />
-                </button>
-                
-                <!-- Page numbers -->
-                <template v-for="page in getVisiblePages()" :key="page">
-                  <button
-                    v-if="typeof page === 'number'"
-                    @click="loadUsers(page)"
-                    :class="[
-                      page === currentPage
-                        ? 'bg-primary-50 border-primary-500 text-primary-600 dark:bg-primary-900/50 dark:border-primary-400 dark:text-primary-300'
-                        : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700',
-                      'relative inline-flex items-center px-4 py-2 border text-sm font-medium'
-                    ]"
-                  >
-                    {{ page }}
-                  </button>
-                  <span
-                    v-else
-                    class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >
-                    ...
-                  </span>
-                </template>
-                
-                <button
-                  @click="loadUsers(currentPage + 1)"
-                  :disabled="currentPage >= totalPages"
-                  class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronRightIcon class="h-5 w-5" />
-                </button>
-              </nav>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      </template>
+    </DataTable>
   </div>
 
   <!-- Add User Modal - Moved outside main container -->
@@ -562,6 +434,8 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon
 } from '@heroicons/vue/24/outline'
+import DataTable from '~/components/DataTable.vue'
+import { formatters } from '~/utils/tableColumns'
 
 definePageMeta({
   middleware: 'auth'
@@ -605,6 +479,56 @@ const currentPage = ref(1)
 const totalPages = ref(1)
 const perPage = ref(10)
 const totalUsers = ref(0)
+
+// Table configuration
+const tableColumns = [
+  {
+    key: 'user',
+    title: t('auth.user'),
+    sortable: false,
+    width: '300px'
+  },
+  {
+    key: 'role',
+    title: t('auth.role'),
+    sortable: true,
+    width: '150px'
+  },
+  {
+    key: 'status',
+    title: t('auth.status'),
+    sortable: true,
+    width: '120px'
+  },
+  {
+    key: 'last_login_at',
+    title: t('auth.last_login'),
+    sortable: true,
+    width: '180px',
+    formatter: formatters.datetime
+  },
+  {
+    key: 'actions',
+    title: t('auth.actions'),
+    sortable: false,
+    width: '300px'
+  }
+]
+
+// Event handlers for DataTable
+const handleSearch = (query) => {
+  searchQuery.value = query
+  loadUsers(1) // Reset to first page when searching
+}
+
+const handlePageChange = (page) => {
+  loadUsers(page)
+}
+
+const handlePageSizeChange = (size) => {
+  perPage.value = size
+  loadUsers(1) // Reset to first page when changing page size
+}
 
 // 載入用戶數據
 const loadUsers = async (page = 1) => {

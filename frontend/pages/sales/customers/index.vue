@@ -70,281 +70,157 @@
     </div>
 
     <!-- 客戶列表 -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-      <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-        <div class="flex items-center justify-between">
-          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">客戶清單</h2>
-          
-          <div class="flex items-center space-x-4">
-            <!-- 搜尋框 -->
-            <div class="relative">
-              <input
-                v-model="searchQuery"
-                type="text"
-                placeholder="搜尋客戶..."
-                class="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <MagnifyingGlassIcon class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            </div>
-            
-            <!-- 篩選器 -->
-            <select
-              v-model="statusFilter"
-              class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">所有狀態</option>
-              <option v-for="(label, value) in getStatusOptions()" :key="value" :value="value">
-                {{ label }}
-              </option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div class="overflow-x-auto">
-        <!-- Loading state -->
-        <div v-if="loading" class="p-8 text-center">
-          <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p class="mt-2 text-gray-600 dark:text-gray-400">載入中...</p>
-        </div>
-        
-        <!-- Error state -->
-        <div v-else-if="loadError" class="p-8 text-center">
-          <p class="text-red-600 dark:text-red-400">{{ loadError }}</p>
-          <button 
-            @click="loadCustomers"
-            class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            重試
-          </button>
-        </div>
-        
-        <!-- Data table -->
-        <table v-else class="w-full">
-          <thead class="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                客戶資訊
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                聯絡方式
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                狀態
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                案件狀態
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                LINE 狀態
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                最後聯絡
-              </th>
-              <th v-if="!authStore.isSales" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                負責業務
-              </th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                操作
-              </th>
-            </tr>
-          </thead>
-          <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            <tr 
-              v-for="customer in paginatedCustomers" 
-              :key="customer.id"
-              class="hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center">
-                  <div class="flex-shrink-0 w-10 h-10">
-                    <img 
-                      :src="`https://ui-avatars.com/api/?name=${customer.name}&background=6366f1&color=fff`" 
-                      :alt="customer.name"
-                      class="w-10 h-10 rounded-full"
-                    />
-                  </div>
-                  <div class="ml-4">
-                    <div class="text-base font-medium text-gray-900 dark:text-white">
-                      {{ customer.name }}
-                    </div>
-                    <div class="text-base text-gray-500 dark:text-gray-400">
-                      {{ customer.region || '未填寫地區' }}
-                    </div>
-                  </div>
-                </div>
-              </td>
-              
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-base text-gray-900 dark:text-white">{{ customer.email }}</div>
-                <div class="text-base text-gray-500 dark:text-gray-400">{{ customer.phone }}</div>
-              </td>
-              
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span 
-                  class="inline-flex px-2 py-1 text-sm font-semibold rounded-full"
-                  :class="getStatusClass(customer.status)"
-                >
-                  {{ getStatusText(customer.status) }}
-                </span>
-              </td>
-              
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span v-if="customer.case_status" class="inline-flex px-2 py-1 text-xs font-semibold rounded-full" 
-                      :class="getCaseStatusClass(customer.case_status)">
-                  {{ getCaseStatusText(customer.case_status) }}
-                </span>
-                <span v-else class="text-xs text-gray-400">無案件</span>
-              </td>
-              
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center space-x-2">
-                  <div v-if="customer.line_user_id" class="flex items-center space-x-1">
-                    <div class="w-2 h-2 bg-green-400 rounded-full"></div>
-                    <span class="text-xs text-green-600 dark:text-green-400">已綁定</span>
-                  </div>
-                  <div v-else class="flex items-center space-x-1">
-                    <div class="w-2 h-2 bg-gray-300 rounded-full"></div>
-                    <span class="text-xs text-gray-500">未綁定</span>
-                  </div>
-                  <button 
-                    v-if="customer.line_user_id"
-                    @click="checkLineFriend(customer)"
-                    class="text-xs text-blue-600 hover:text-blue-800"
-                    title="檢查好友狀態"
-                  >
-                    檢查
-                  </button>
-                </div>
-              </td>
-              
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500 dark:text-gray-400">
-                {{ customer.updated_at ? formatDate(customer.updated_at) : '無記錄' }}
-              </td>
-              
-              <td v-if="!authStore.isSales" class="px-6 py-4 whitespace-nowrap text-base text-gray-500 dark:text-gray-400">
-                {{ customer.assigned_user?.name || '未分配' }}
-              </td>
-              
-              <td class="px-6 py-4 whitespace-nowrap text-right text-base font-medium space-x-2">
-                <button 
-                  @click="viewCustomer(customer)"
-                  class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
-                >
-                  查看
-                </button>
-                <button 
-                  v-if="authStore.hasPermission('customer_management') || customer.assigned_to === authStore.user?.id"
-                  @click="editCustomer(customer)"
-                  class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
-                >
-                  編輯
-                </button>
-                <button 
-                  v-if="authStore.hasPermission('customer_management')"
-                  @click="openAssignModal(customer)"
-                  class="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300"
-                >
-                  指派
-                </button>
-                <button 
-                  v-if="authStore.hasPermission('customer_management')"
-                  @click="confirmDeleteCustomer(customer)"
-                  class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-                >
-                  刪除
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+    <DataTable
+      title="客戶清單"
+      :columns="customerTableColumns"
+      :data="filteredCustomers"
+      :loading="loading"
+      :error="loadError"
+      :search-query="searchQuery"
+      search-placeholder="搜尋客戶..."
+      :current-page="currentPage"
+      :items-per-page="itemsPerPage"
+      loading-text="載入中..."
+      empty-text="沒有客戶資料"
+      @search="handleCustomerSearch"
+      @refresh="loadCustomers"
+      @retry="loadCustomers"
+      @page-change="handleCustomerPageChange"
+      @page-size-change="handleCustomerPageSizeChange"
+    >
+      <!-- Filter Controls -->
+      <template #filters>
+        <select
+          v-model="statusFilter"
+          class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">所有狀態</option>
+          <option v-for="(label, value) in getStatusOptions()" :key="value" :value="value">
+            {{ label }}
+          </option>
+        </select>
+      </template>
       
-      <!-- Pagination Controls -->
-      <div v-if="totalPages > 1" class="mt-6 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4">
-        <div class="flex-1 flex justify-between sm:hidden">
-          <button
-            @click="previousPage"
-            :disabled="currentPage === 1"
-            class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            上一頁
-          </button>
-          <button
-            @click="nextPage"
-            :disabled="currentPage === totalPages"
-            class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            下一頁
-          </button>
-        </div>
-        
-        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-          <div class="flex items-center space-x-4">
-            <p class="text-sm text-gray-700 dark:text-gray-300">
-              顯示第 <span class="font-medium">{{ ((currentPage - 1) * itemsPerPage) + 1 }}</span> 
-              到 <span class="font-medium">{{ Math.min(currentPage * itemsPerPage, filteredCustomers.length) }}</span> 
-              筆，共 <span class="font-medium">{{ filteredCustomers.length }}</span> 筆記錄
-            </p>
-            <!-- Items per page selector -->
-            <div class="flex items-center space-x-2">
-              <label class="text-sm text-gray-700 dark:text-gray-300">每頁顯示：</label>
-              <select
-                v-model="itemsPerPage"
-                @change="currentPage = 1"
-                class="text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-              >
-                <option :value="5">5 筆</option>
-                <option :value="10">10 筆</option>
-                <option :value="20">20 筆</option>
-                <option :value="50">50 筆</option>
-                <option :value="100">100 筆</option>
-              </select>
+      <!-- Action Buttons -->
+      <template #actions>
+        <button
+          v-if="authStore.hasPermission('customer_management')"
+          @click="openCreateModal"
+          class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
+        >
+          <PlusIcon class="w-5 h-5" />
+          <span>新增客戶</span>
+        </button>
+      </template>
+      
+      <!-- Customer Info Cell -->
+      <template #cell-customer_info="{ item }">
+        <div class="flex items-center">
+          <div class="flex-shrink-0 w-10 h-10">
+            <img 
+              :src="`https://ui-avatars.com/api/?name=${item.name}&background=6366f1&color=fff`" 
+              :alt="item.name"
+              class="w-10 h-10 rounded-full"
+            />
+          </div>
+          <div class="ml-4">
+            <div class="text-sm font-medium text-gray-900 dark:text-white">
+              {{ item.name }}
+            </div>
+            <div class="text-sm text-gray-500 dark:text-gray-400">
+              {{ item.region || '未填寫地區' }}
             </div>
           </div>
-          <div>
-            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="分頁導航">
-              <button
-                @click="previousPage"
-                :disabled="currentPage === 1"
-                class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                ❮
-              </button>
-              
-              <template v-for="page in getVisiblePages()" :key="page">
-                <button
-                  v-if="typeof page === 'number'"
-                  @click="goToPage(page)"
-                  :class="[
-                    page === currentPage
-                      ? 'bg-primary-50 border-primary-500 text-primary-600 dark:bg-primary-900/50 dark:border-primary-400 dark:text-primary-300'
-                      : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700',
-                    'relative inline-flex items-center px-4 py-2 border text-sm font-medium'
-                  ]"
-                >
-                  {{ page }}
-                </button>
-                <span
-                  v-else
-                  class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  ...
-                </span>
-              </template>
-              
-              <button
-                @click="nextPage"
-                :disabled="currentPage === totalPages"
-                class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                ❯
-              </button>
-            </nav>
-          </div>
         </div>
-      </div>
-    </div>
+      </template>
+      
+      <!-- Contact Info Cell -->
+      <template #cell-contact_info="{ item }">
+        <div>
+          <div class="text-sm text-gray-900 dark:text-white">{{ item.email || '未提供' }}</div>
+          <div class="text-sm text-gray-500 dark:text-gray-400">{{ item.phone }}</div>
+        </div>
+      </template>
+      
+      <!-- Status Cell -->
+      <template #cell-status="{ item }">
+        <span 
+          class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
+          :class="getStatusClass(item.status)"
+        >
+          {{ getStatusText(item.status) }}
+        </span>
+      </template>
+      
+      <!-- Case Status Cell -->
+      <template #cell-case_status="{ item }">
+        <span v-if="item.case_status" class="inline-flex px-2 py-1 text-xs font-semibold rounded-full" 
+              :class="getCaseStatusClass(item.case_status)">
+          {{ getCaseStatusText(item.case_status) }}
+        </span>
+        <span v-else class="text-xs text-gray-400">無案件</span>
+      </template>
+      
+      <!-- LINE Status Cell -->
+      <template #cell-line_status="{ item }">
+        <div class="flex items-center space-x-2">
+          <div v-if="item.line_user_id" class="flex items-center space-x-1">
+            <div class="w-2 h-2 bg-green-400 rounded-full"></div>
+            <span class="text-xs text-green-600 dark:text-green-400">已綁定</span>
+          </div>
+          <div v-else class="flex items-center space-x-1">
+            <div class="w-2 h-2 bg-gray-300 rounded-full"></div>
+            <span class="text-xs text-gray-500">未綁定</span>
+          </div>
+          <button 
+            v-if="item.line_user_id"
+            @click="checkLineFriend(item)"
+            class="text-xs text-blue-600 hover:text-blue-800"
+            title="檢查好友狀態"
+          >
+            檢查
+          </button>
+        </div>
+      </template>
+      
+      <!-- Assigned User Cell -->
+      <template #cell-assigned_user="{ item }">
+        <span>{{ item.assigned_user?.name || '未分配' }}</span>
+      </template>
+      
+      <!-- Actions Cell -->
+      <template #cell-actions="{ item }">
+        <div class="flex items-center space-x-2 justify-end">
+          <button 
+            @click="viewCustomer(item)"
+            class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+          >
+            查看
+          </button>
+          <button 
+            v-if="authStore.hasPermission('customer_management') || item.assigned_to === authStore.user?.id"
+            @click="editCustomer(item)"
+            class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors"
+          >
+            編輯
+          </button>
+          <button 
+            v-if="authStore.hasPermission('customer_management')"
+            @click="openAssignModal(item)"
+            class="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 transition-colors"
+          >
+            指派
+          </button>
+          <button 
+            v-if="authStore.hasPermission('customer_management')"
+            @click="confirmDeleteCustomer(item)"
+            class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
+          >
+            刪除
+          </button>
+        </div>
+      </template>
+    </DataTable>
 
     <!-- 新增客戶模態窗口 -->
     <div 
@@ -696,9 +572,11 @@ import {
   ChartBarIcon
 } from '@heroicons/vue/24/outline'
 
-// 明確匯入 StatsCard 組件
+// 明確匯入組件
 import StatsCard from '~/components/StatsCard.vue'
 import CustomerForm from '~/components/CustomerForm.vue'
+import DataTable from '~/components/DataTable.vue'
+import { formatters } from '~/utils/tableColumns'
 
 definePageMeta({
   middleware: ['auth', 'role']
@@ -857,6 +735,84 @@ const paginatedCustomers = computed(() => {
   const end = start + itemsPerPage.value
   return filteredCustomers.value.slice(start, end)
 })
+
+// Customer Table configuration
+const customerTableColumns = computed(() => {
+  const baseColumns = [
+    {
+      key: 'customer_info',
+      title: '客戶資訊',
+      sortable: false,
+      width: '250px'
+    },
+    {
+      key: 'contact_info',
+      title: '聯絡方式',
+      sortable: false,
+      width: '200px'
+    },
+    {
+      key: 'status',
+      title: '狀態',
+      sortable: true,
+      width: '120px'
+    },
+    {
+      key: 'case_status',
+      title: '案件狀態',
+      sortable: true,
+      width: '120px'
+    },
+    {
+      key: 'line_status',
+      title: 'LINE 狀態',
+      sortable: false,
+      width: '120px'
+    },
+    {
+      key: 'updated_at',
+      title: '最後聯絡',
+      sortable: true,
+      width: '140px',
+      formatter: formatters.date
+    }
+  ]
+  
+  // Add assigned user column if not sales staff
+  if (!authStore.isSales) {
+    baseColumns.push({
+      key: 'assigned_user',
+      title: '負責業務',
+      sortable: true,
+      width: '120px'
+    })
+  }
+  
+  // Add actions column
+  baseColumns.push({
+    key: 'actions',
+    title: '操作',
+    sortable: false,
+    width: '200px'
+  })
+  
+  return baseColumns
+})
+
+// DataTable event handlers
+const handleCustomerSearch = (query) => {
+  searchQuery.value = query
+  // The search will be handled by the existing watch function
+}
+
+const handleCustomerPageChange = (page) => {
+  currentPage.value = page
+}
+
+const handleCustomerPageSizeChange = (size) => {
+  itemsPerPage.value = size
+  currentPage.value = 1 // Reset to first page
+}
 
 // Pagination methods
 const nextPage = () => {
