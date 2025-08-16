@@ -280,12 +280,27 @@
         </div>
         
         <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-          <div>
+          <div class="flex items-center space-x-4">
             <p class="text-sm text-gray-700 dark:text-gray-300">
               顯示第 <span class="font-medium">{{ ((currentPage - 1) * itemsPerPage) + 1 }}</span> 
               到 <span class="font-medium">{{ Math.min(currentPage * itemsPerPage, filteredCustomers.length) }}</span> 
               筆，共 <span class="font-medium">{{ filteredCustomers.length }}</span> 筆記錄
             </p>
+            <!-- Items per page selector -->
+            <div class="flex items-center space-x-2">
+              <label class="text-sm text-gray-700 dark:text-gray-300">每頁顯示：</label>
+              <select
+                v-model="itemsPerPage"
+                @change="currentPage = 1"
+                class="text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              >
+                <option :value="5">5 筆</option>
+                <option :value="10">10 筆</option>
+                <option :value="20">20 筆</option>
+                <option :value="50">50 筆</option>
+                <option :value="100">100 筆</option>
+              </select>
+            </div>
           </div>
           <div>
             <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="分頁導航">
@@ -833,13 +848,13 @@ const filteredCustomers = computed(() => {
 
 // Pagination
 const currentPage = ref(1)
-const itemsPerPage = 10
+const itemsPerPage = ref(5) // Default to 5 items per page as requested
 
-const totalPages = computed(() => Math.ceil(filteredCustomers.value.length / itemsPerPage))
+const totalPages = computed(() => Math.ceil(filteredCustomers.value.length / itemsPerPage.value))
 
 const paginatedCustomers = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage
-  const end = start + itemsPerPage
+  const start = (currentPage.value - 1) * itemsPerPage.value
+  const end = start + itemsPerPage.value
   return filteredCustomers.value.slice(start, end)
 })
 

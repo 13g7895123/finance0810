@@ -138,6 +138,15 @@
                     {{ user.status === 'active' ? t('auth.deactivate') : t('auth.activate') }}
                   </button>
                   
+                  <!-- Assign Customers (Only for sales staff) -->
+                  <button
+                    v-if="user.roles?.[0]?.name === 'staff' && authStore.hasPermission('customer_management')"
+                    @click="openAssignCustomersModal(user)"
+                    class="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 transition-colors duration-200"
+                  >
+                    指派客戶
+                  </button>
+                  
                   <!-- Edit -->
                   <button
                     @click="editUser(user)"
@@ -432,6 +441,115 @@
       </div>
     </div>
   </div>
+
+  <!-- Assign Customers Modal -->
+  <div v-if="showAssignCustomersModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+      <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+        指派客戶給 {{ selectedStaff?.name }}
+      </h3>
+      
+      <!-- Search for customers -->
+      <div class="mb-4">
+        <div class="relative">
+          <input
+            v-model="customerSearchQuery"
+            type="text"
+            placeholder="搜尋客戶..."
+            class="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+          />
+          <MagnifyingGlassIcon class="w-5 h-5 text-gray-500 absolute left-3 top-2.5" />
+        </div>
+      </div>
+
+      <!-- Customer assignment options -->
+      <div class="mb-4 flex space-x-4">
+        <label class="flex items-center">
+          <input
+            type="radio"
+            v-model="assignmentMode"
+            value="unassigned"
+            class="mr-2"
+          />
+          <span class="text-sm text-gray-700 dark:text-gray-300">僅顯示未分配客戶</span>
+        </label>
+        <label class="flex items-center">
+          <input
+            type="radio"
+            v-model="assignmentMode"
+            value="all"
+            class="mr-2"
+          />
+          <span class="text-sm text-gray-700 dark:text-gray-300">顯示所有客戶</span>
+        </label>
+      </div>
+      
+      <!-- Loading state -->
+      <div v-if="loadingCustomers" class="text-center py-8">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mb-4"></div>
+        <p class="text-gray-600 dark:text-gray-400">載入客戶資料中...</p>
+      </div>
+      
+      <!-- Customers list -->
+      <div v-else class="space-y-2 max-h-96 overflow-y-auto">
+        <div
+          v-for="customer in filteredCustomersForAssignment"
+          :key="customer.id"
+          class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+        >
+          <div class="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              :value="customer.id"
+              v-model="selectedCustomerIds"
+              class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+            />
+            <div>
+              <div class="font-medium text-gray-900 dark:text-white">{{ customer.name }}</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400">{{ customer.phone }} · {{ customer.region || '未填寫地區' }}</div>
+            </div>
+          </div>
+          <div class="text-sm text-gray-500 dark:text-gray-400">
+            <span v-if="customer.assigned_user">
+              目前負責：{{ customer.assigned_user.name }}
+            </span>
+            <span v-else class="text-yellow-600 dark:text-yellow-400">
+              未分配
+            </span>
+          </div>
+        </div>
+        
+        <!-- No customers found -->
+        <div v-if="filteredCustomersForAssignment.length === 0" class="text-center py-8">
+          <p class="text-gray-500 dark:text-gray-400">沒有找到符合條件的客戶</p>
+        </div>
+      </div>
+
+      <!-- Assignment summary -->
+      <div v-if="selectedCustomerIds.length > 0" class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+        <p class="text-sm text-blue-800 dark:text-blue-300">
+          已選擇 {{ selectedCustomerIds.length }} 位客戶將指派給 {{ selectedStaff?.name }}
+        </p>
+      </div>
+
+      <!-- Modal Actions -->
+      <div class="flex justify-end space-x-3 mt-6">
+        <button
+          @click="closeAssignCustomersModal"
+          class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+        >
+          取消
+        </button>
+        <button
+          @click="assignCustomersToStaff"
+          :disabled="selectedCustomerIds.length === 0 || assigningCustomers"
+          class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+        >
+          {{ assigningCustomers ? '指派中...' : `指派 ${selectedCustomerIds.length} 位客戶` }}
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -452,6 +570,7 @@ definePageMeta({
 const { t } = useI18n()
 const authStore = useAuthStore()
 const { getUsers, createUser, updateUser, deleteUser, getRoles, assignRole } = useUserManagement()
+const { getCustomers, assignCustomer } = useCustomers()
 
 const searchQuery = ref('')
 const showEditModal = ref(false)
@@ -470,6 +589,16 @@ const loading = ref(false)
 const refreshing = ref(false)
 const users = ref([])
 const roles = ref([])
+
+// Customer assignment state
+const showAssignCustomersModal = ref(false)
+const selectedStaff = ref(null)
+const customerSearchQuery = ref('')
+const assignmentMode = ref('unassigned')
+const loadingCustomers = ref(false)
+const assigningCustomers = ref(false)
+const customers = ref([])
+const selectedCustomerIds = ref([])
 
 // Pagination state
 const currentPage = ref(1)
@@ -727,6 +856,107 @@ const refreshUsers = async () => {
     refreshing.value = false
   }
 }
+
+// Customer assignment functionality
+const openAssignCustomersModal = async (user) => {
+  selectedStaff.value = user
+  selectedCustomerIds.value = []
+  customerSearchQuery.value = ''
+  assignmentMode.value = 'unassigned'
+  showAssignCustomersModal.value = true
+  
+  // Load customers
+  await loadCustomersForAssignment()
+}
+
+const closeAssignCustomersModal = () => {
+  showAssignCustomersModal.value = false
+  selectedStaff.value = null
+  customers.value = []
+  selectedCustomerIds.value = []
+  customerSearchQuery.value = ''
+}
+
+const loadCustomersForAssignment = async () => {
+  try {
+    loadingCustomers.value = true
+    
+    const params = {}
+    if (assignmentMode.value === 'unassigned') {
+      params.assigned_to = 'null' // Filter for unassigned customers
+    }
+    if (customerSearchQuery.value.trim()) {
+      params.search = customerSearchQuery.value.trim()
+    }
+    
+    const { data, error } = await getCustomers(params)
+    
+    if (error) {
+      console.error('Failed to load customers:', error)
+      customers.value = []
+      return
+    }
+    
+    customers.value = data.data || []
+  } catch (err) {
+    console.error('Load customers error:', err)
+    customers.value = []
+  } finally {
+    loadingCustomers.value = false
+  }
+}
+
+const filteredCustomersForAssignment = computed(() => {
+  let filtered = customers.value
+  
+  // Filter by assignment mode
+  if (assignmentMode.value === 'unassigned') {
+    filtered = filtered.filter(customer => !customer.assigned_to)
+  }
+  
+  // Filter by search query
+  if (customerSearchQuery.value.trim()) {
+    const query = customerSearchQuery.value.toLowerCase()
+    filtered = filtered.filter(customer =>
+      customer.name.toLowerCase().includes(query) ||
+      customer.phone.toLowerCase().includes(query) ||
+      (customer.email && customer.email.toLowerCase().includes(query))
+    )
+  }
+  
+  return filtered
+})
+
+const assignCustomersToStaff = async () => {
+  if (!selectedStaff.value || selectedCustomerIds.value.length === 0) return
+  
+  try {
+    assigningCustomers.value = true
+    
+    // Assign each selected customer to the staff member
+    const promises = selectedCustomerIds.value.map(customerId => 
+      assignCustomer(customerId, selectedStaff.value.id)
+    )
+    
+    await Promise.all(promises)
+    
+    alert(`成功指派 ${selectedCustomerIds.value.length} 位客戶給 ${selectedStaff.value.name}`)
+    closeAssignCustomersModal()
+    
+  } catch (error) {
+    console.error('Failed to assign customers:', error)
+    alert('指派客戶失敗，請重試')
+  } finally {
+    assigningCustomers.value = false
+  }
+}
+
+// Watch for changes in assignment mode and search query
+watch([assignmentMode, customerSearchQuery], () => {
+  if (showAssignCustomersModal.value) {
+    loadCustomersForAssignment()
+  }
+})
 
 // 頁面初始化
 onMounted(() => {
