@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\User;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -10,7 +12,7 @@ class CustomerLead extends Model
     use HasFactory;
 
     protected $fillable = [
-        'customer_id',
+        'customer_id', 'assigned_to', 'status',
         'assigned_to',
         'channel', // wp_form, phone_call, line, email
         'source', // page url / website
@@ -33,5 +35,10 @@ class CustomerLead extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function assignee()
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
     }
 }

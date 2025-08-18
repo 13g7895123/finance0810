@@ -5,6 +5,31 @@
 
 export const useConstants = () => {
   
+  // Lead 狀態（前置階段）
+  const LEAD_STATUSES = {
+    PENDING: 'pending',
+    INTAKE: 'intake',
+    APPROVED: 'approved',
+    SUBMITTED: 'submitted',
+    DISBURSED: 'disbursed'
+  }
+
+  const LEAD_STATUS_LABELS = {
+    [LEAD_STATUSES.PENDING]: '待處理',
+    [LEAD_STATUSES.INTAKE]: '已進件',
+    [LEAD_STATUSES.APPROVED]: '已核准',
+    [LEAD_STATUSES.SUBMITTED]: '已送件',
+    [LEAD_STATUSES.DISBURSED]: '已撥款'
+  }
+
+  const LEAD_STATUS_TRANSITIONS = {
+    [LEAD_STATUSES.PENDING]: [LEAD_STATUSES.INTAKE, LEAD_STATUSES.APPROVED, LEAD_STATUSES.SUBMITTED],
+    [LEAD_STATUSES.INTAKE]: [LEAD_STATUSES.APPROVED, LEAD_STATUSES.SUBMITTED],
+    [LEAD_STATUSES.APPROVED]: [LEAD_STATUSES.SUBMITTED, LEAD_STATUSES.DISBURSED],
+    [LEAD_STATUSES.SUBMITTED]: [LEAD_STATUSES.DISBURSED],
+    [LEAD_STATUSES.DISBURSED]: []
+  }
+
   // 案件狀態
   const CASE_STATUSES = {
     SUBMITTED: 'submitted',
@@ -94,6 +119,9 @@ export const useConstants = () => {
   }
 
   return {
+    LEAD_STATUSES,
+    LEAD_STATUS_LABELS,
+    LEAD_STATUS_TRANSITIONS,
     CASE_STATUSES,
     CASE_STATUS_LABELS,
     CASE_STATUS_TRANSITIONS,

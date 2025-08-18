@@ -102,7 +102,7 @@
               <!-- 操作 -->
               <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">
                 <button @click="onEdit(lead)" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">編輯</button>
-                <button @click="openConvert(lead)" class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300">轉送件</button>
+                <!-- <button @click="openConvert(lead)" class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300">轉送件</button> -->
                 <button @click="onDelete(lead)" class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">刪除</button>
               </td>
             </tr>
@@ -137,6 +137,12 @@
               <label class="block text-sm mb-1">來源管道</label>
               <select v-model="form.channel" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700">
                 <option v-for="opt in CHANNEL_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm mb-1">案件狀態</label>
+              <select v-model="form.status" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700">
+                <option v-for="opt in STATUS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
             <div>
@@ -249,13 +255,20 @@ const CHANNEL_OPTIONS = [
   { value: 'email', label: 'email' },
   { value: 'phone', label: '電話' }
 ]
+const STATUS_OPTIONS = [
+  { value: 'pending', label: '待處理' },
+  { value: 'intake', label: '已進件' },
+  { value: 'approved', label: '已核准' },
+  { value: 'submitted', label: '已送件' },
+  { value: 'disbursed', label: '已撥款' }
+]
 
 // state
 const leads = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const search = ref('')
-const selectedAssignee = ref('')
+const selectedAssignee = ref('all')
 
 // edit modal
 const editOpen = ref(false)
@@ -263,6 +276,7 @@ const editingId = ref(null)
 const form = reactive({
   page_url: '',
   channel: 'wp',
+  status: 'pending',
   created_at: '',
   assigned_to: null,
   email: null,
@@ -299,7 +313,8 @@ const loadLeads = async () => {
     per_page: pagination.perPage,
     search: searchValue,
     // channel: 'wp_form',
-    assigned_to: selectedAssignee.value
+    assigned_to: selectedAssignee.value,
+    status: 'pending'
   })
   if (apiSuccess) {
     leads.value = items
@@ -351,8 +366,9 @@ const onEdit = (lead) => {
   Object.assign(form, {
     page_url: lead.payload?.['頁面_URL'] || lead.source || '',
     channel: lead.channel || 'wp',
+    status: lead.status || 'pending',
     created_at: lead.created_at ? new Date(lead.created_at).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
-    assigned_to: lead.assigned_to || null,
+    assigned_to: lead.assigned_to || lead.payload?.assigned_to || null,
     email: lead.email || null,
     line_id: lead.line_id || lead.payload?.['LINE_ID'] || '',
     region: lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '',
@@ -374,6 +390,7 @@ const saveEdit = async () => {
     // 組合 payload：top-level + payload 物件
     const payload = {
       channel: form.channel,
+      status: form.status,
       email: form.email,
       line_id: form.line_id,
       ip_address: form.ip_address,

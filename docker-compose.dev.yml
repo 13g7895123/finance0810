@@ -11,7 +11,7 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=development
-      - NUXT_PUBLIC_API_BASE_URL=http://localhost:8000
+      - NUXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     networks:
       - crm-network
@@ -35,7 +35,7 @@ services:
       - APP_ENV=local
       - APP_DEBUG=true
       - APP_NAME=Finance CRM
-      - APP_KEY=base64:abc123
+      - APP_KEY=${APP_KEY}
       - APP_URL=http://localhost:8000
       - DB_CONNECTION=mysql
       - DB_HOST=mysql
@@ -44,7 +44,7 @@ services:
       - DB_PASSWORD=finance_pass_2024
       - REDIS_HOST=redis
       - REDIS_PASSWORD=redis_pass_2024
-      - JWT_SECRET=your_jwt_secret_key_here
+      - JWT_SECRET=${JWT_SECRET}
       - BROADCAST_DRIVER=null
     networks:
       - crm-network

@@ -123,6 +123,7 @@ Route::middleware(['auth:api'])->group(function () {
     
     // Leads (pending cases)
     Route::get('/leads', [LeadController::class, 'index']);
+    Route::get('/leads/submittable', [LeadController::class, 'submittable']);
     Route::get('/leads/{lead}', [LeadController::class, 'show']);
     Route::put('/leads/{lead}', [LeadController::class, 'update']);
     Route::delete('/leads/{lead}', [LeadController::class, 'destroy']);

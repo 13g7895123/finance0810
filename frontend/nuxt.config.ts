@@ -14,7 +14,7 @@ export default defineNuxtConfig({
   // Development server configuration
   devServer: {
     port: 3000,
-    host: 'localhost'
+    host: '0.0.0.0'
   },
   // Development configuration
   vite: {

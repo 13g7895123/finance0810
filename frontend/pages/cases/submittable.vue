@@ -35,34 +35,56 @@
         <table class="w-full">
           <thead class="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">客戶</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">聯絡方式</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">來源/網站</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">動作</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">網站</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">來源管道</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">時間</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">承辦業務</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Email</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">LINE ID</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">地區</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">地址</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">需求金額</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">諮詢項目</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">可聯繫時間</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">IP 位址</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">備註</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">狀態</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">操作</th>
             </tr>
           </thead>
           <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             <tr v-if="loading">
               <td colspan="4" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">載入中...</td>
             </tr>
-            <tr v-for="c in customers" :key="c.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-              <td class="px-6 py-4">
-                <div class="text-gray-900 dark:text-white">{{ c.name }}</div>
-                <div class="text-sm text-gray-500 dark:text-gray-400">{{ c.region || '-' }}</div>
+            <tr v-for="lead in leads" :key="lead.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
+                <div class="text-gray-900 dark:text-white">{{ extractDomain(lead.payload?.['頁面_URL'] || lead.source) || '-' }}</div>
+                <div class="text-sm text-gray-500 dark:text-gray-400">{{ lead.payload?.['頁面_URL'] || lead.source }}</div>
               </td>
-              <td class="px-6 py-4">
-                <div class="text-sm text-gray-900 dark:text-white">{{ c.phone }}</div>
-                <div class="text-sm text-gray-500 dark:text-gray-400">{{ c.email || '-' }}</div>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.channel || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
+                <div>{{ formatDate(lead.created_at) }}</div>
+                <div class="text-sm">{{ formatTime(lead.created_at) }}</div>
               </td>
-              <td class="px-6 py-4">
-                <div class="text-sm text-gray-900 dark:text-white">{{ c.channel || '-' }}</div>
-                <div class="text-sm text-gray-500 dark:text-gray-400">{{ c.website_source || '-' }}</div>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.assignee?.name || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.email || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.line_id || lead.payload?.['LINE_ID'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['房屋地址'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['資金需求'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['貸款需求'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['方便聯絡時間'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.ip_address || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.notes || lead.payload?.['備註'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
+                <span :class="['px-2 py-1 rounded text-xs', getStatusClass(lead.status)]">{{ LEAD_STATUS_LABELS[lead.status] || lead.status }}</span>
               </td>
-              <td class="px-6 py-4">
-                <button class="px-3 py-1 border rounded text-sm" @click="openSubmit(c)">送件</button>
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">
+                <button class="py-1 border rounded text-sm text-blue-600" @click="goPrev(lead)">上一步</button>
+                <button class="py-1 border rounded text-sm text-blue-600" @click="goNext(lead)">下一步</button>
               </td>
             </tr>
-            <tr v-if="!loading && customers.length === 0">
+            <tr v-if="!loading && leads.length === 0">
               <td colspan="4" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">沒有資料</td>
             </tr>
           </tbody>
@@ -79,59 +101,27 @@
       </div>
     </div>
 
-    <!-- Submit Modal -->
-    <div v-if="submitOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeSubmit">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">建立案件（送件）</h3>
-        <form @submit.prevent="doSubmit" class="space-y-3">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-sm mb-1">貸款金額</label>
-              <input v-model.number="form.loan_amount" required type="number" min="0" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
-            </div>
-            <div>
-              <label class="block text-sm mb-1">貸款類型</label>
-              <input v-model="form.loan_type" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
-            </div>
-            <div>
-              <label class="block text-sm mb-1">期數（月）</label>
-              <input v-model.number="form.loan_term" type="number" min="0" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
-            </div>
-            <div>
-              <label class="block text-sm mb-1">利率</label>
-              <input v-model.number="form.interest_rate" type="number" min="0" step="0.01" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
-            </div>
-            <div class="md:col-span-2">
-              <label class="block text-sm mb-1">備註</label>
-              <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"></textarea>
-            </div>
-          </div>
-          <div class="flex justify-end space-x-3 pt-2">
-            <button type="button" class="px-4 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" @click="closeSubmit">取消</button>
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded" :disabled="submitting">{{ submitting ? '送出中...' : '送出' }}</button>
-          </div>
-        </form>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
 definePageMeta({ middleware: 'auth' })
 
-const { list: listSubmittable, submitCase } = useSubmittable()
+const { listSubmittable, updateOne: updateLead } = useLeads()
 const { pagination, totalPages, startIndex, endIndex, nextPage, prevPage, updatePagination } = usePagination(10)
 const { validateCaseForm } = useFormValidation()
 const { success, error: showError } = useNotification()
-const { PAGINATION_OPTIONS, SEARCH_CONFIG } = useConstants()
+const { PAGINATION_OPTIONS, SEARCH_CONFIG, LEAD_STATUS_LABELS } = useConstants()
+const auth = useAuthStore()
 
 const loading = ref(false)
-const submitting = ref(false)
+const submitting = ref(false) // 不再使用送件功能，保留狀態占位
 const search = ref('')
-const customers = ref([])
+const leads = ref([])
 
-const submitOpen = ref(false)
-const selectedCustomer = ref(null)
+// 移除送件 modal 功能
+const submitOpen = ref(false) // 保留占位避免大改，實際不顯示
+const selectedLead = ref(null)
 const form = reactive({ loan_amount: null, loan_type: '', loan_term: null, interest_rate: null, notes: '' })
 
 const load = async () => {
@@ -139,7 +129,7 @@ const load = async () => {
   // 搜尋優化：最少字符限制
   const searchValue = search.value.trim()
   if (searchValue && searchValue.length < SEARCH_CONFIG.MIN_CHARACTERS) {
-    customers.value = []
+    leads.value = []
     pagination.total = 0
     loading.value = false
     return
@@ -148,10 +138,11 @@ const load = async () => {
   const { items, meta, success: apiSuccess } = await listSubmittable({ 
     search: searchValue,
     page: pagination.currentPage,
-    per_page: pagination.perPage
+    per_page: pagination.perPage,
+    assigned_to: auth.user?.value?.id || ''
   })
   if (apiSuccess) {
-    customers.value = items
+    leads.value = items
     updatePagination(meta)
   }
   loading.value = false
@@ -174,15 +165,69 @@ onUnmounted(() => {
   clearTimeout(searchTimer)
 })
 
-const openSubmit = (c) => { selectedCustomer.value = c; submitOpen.value = true }
+// 上一步：依序回退狀態（approved -> intake -> pending）
+const goPrev = async (lead) => {
+  try {
+    let prev = 'intake'
+    if (lead.status === 'approved') prev = 'intake'
+    else if (lead.status === 'intake') prev = 'pending'
+    else return // 非預期狀態不處理
+
+    const payload = { status: prev }
+    if (prev === 'pending') payload.assigned_to = null
+
+    const { error } = await updateLead(lead.id, payload)
+    if (!error) {
+      success('已回退狀態')
+      await load()
+    } else {
+      showError(error.message || '回退失敗')
+    }
+  } catch (e) {
+    console.error(e)
+    showError('系統錯誤，請稍後再試')
+  }
+}
+// 下一步：依序前進狀態（intake -> approved -> submitted）
+const goNext = async (lead) => {
+  try {
+    let next = null
+    if (lead.status === 'intake') next = 'approved'
+    else if (lead.status === 'approved') next = 'submitted'
+    else return
+
+    const { error } = await updateLead(lead.id, { status: next })
+    if (!error) { success('已前進狀態'); await load() } else { showError(error.message || '操作失敗') }
+  } catch (e) { console.error(e); showError('系統錯誤，請稍後再試') }
+}
+
+// 工具函式（與其他頁一致）
+const extractDomain = (url) => {
+  if (!url) return ''
+  try { return new URL(url).hostname.replace('www.', '') } catch { return url }
+}
+const formatDate = (d) => new Date(d).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
+const formatTime = (d) => new Date(d).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
+const getStatusClass = (status) => {
+  const base = 'px-2 py-1 rounded text-xs '
+  switch (status) {
+    case 'pending': return base + 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+    case 'intake': return base + 'bg-amber-100 text-amber-700 dark:bg-amber-700 dark:text-amber-200'
+    case 'approved': return base + 'bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-200'
+    case 'submitted': return base + 'bg-blue-100 text-blue-700 dark:bg-blue-700 dark:text-blue-200'
+    case 'disbursed': return base + 'bg-purple-100 text-purple-700 dark:bg-purple-700 dark:text-purple-200'
+    default: return base + 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+  }
+}
+
 const closeSubmit = () => { 
   submitOpen.value = false
-  selectedCustomer.value = null
+  selectedLead.value = null
   // 重置表單
   Object.assign(form, { loan_amount: null, loan_type: '', loan_term: null, interest_rate: null, notes: '' })
 }
 const doSubmit = async () => {
-  if (!selectedCustomer.value) return
+  if (!selectedLead.value) return
   
   // 使用統一的表單驗證
   const { isValid, errors } = validateCaseForm(form)
@@ -194,7 +239,7 @@ const doSubmit = async () => {
   
   submitting.value = true
   try {
-    const { error, data } = await submitCase(selectedCustomer.value.id, { ...form })
+    const { error, data } = await convertToCase(selectedLead.value, { ...form })
     
     if (!error) {
       submitOpen.value = false

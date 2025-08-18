@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\LeadStatus;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,7 +19,8 @@ class LeadController extends Controller
     // GET /api/leads
     public function index(Request $request)
     {
-        $query = CustomerLead::with(['customer']);
+        $user = Auth::user();
+        $query = CustomerLead::with(['customer','assignee']);
 
         // 預設顯示 WP 表單進件
         if ($request->has('channel')) {
@@ -37,14 +39,26 @@ class LeadController extends Controller
             });
         }
 
-        // 篩選：承辦業務 assigned_to（支援 'null' 表示未指派）
-        if ($request->has('assigned_to') && $request->get('assigned_to') !== 'all') {
-            $assigned = $request->get('assigned_to');
-            if ($assigned === 'null' || $assigned === null || $assigned === '') {
-                $query->whereNull('assigned_to');
+        // 篩選：案件狀態 status
+        if ($request->filled('status')) {
+            if ($request->get('status') === LeadStatus::Pending->value) {
+                $query->where('assigned_to', null);
             } else {
-                $query->where('assigned_to', (int)$assigned);
+                $query->where('status', $request->get('status'));
             }
+        }
+
+        // 角色權限：非 admin/executive/manager 則自動限制為只看自己（staff）
+        $isPrivileged = $user && $user->hasAnyRole(['admin', 'executive', 'manager']);
+        if (!$isPrivileged) {
+            $query->where(function ($q) use ($user, $request) {
+                // 未指派也要能看見（例如回退後）
+                if ($request->get('assigned_to') === 'null' || $request->get('assigned_to') === '') {
+                    $q->whereNull('assigned_to');
+                } else {
+                    $q->where('assigned_to', $user->id);
+                }
+            });
         }
 
         if ($request->has('is_suspected_blacklist')) {
@@ -66,6 +80,35 @@ class LeadController extends Controller
         return response()->json(['lead' => $lead->load('customer')]);
     }
 
+    // GET /api/leads/submittable
+    public function submittable(Request $request)
+    {
+        $user = Auth::user();
+        $query = CustomerLead::with(['customer','assignee'])
+            ->whereIn('status', ['intake', 'approved']);
+
+        if ($search = $request->get('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%$search%")
+                    ->orWhere('phone', 'like', "%$search%")
+                    ->orWhere('email', 'like', "%$search%")
+                    ->orWhere('line_id', 'like', "%$search%")
+                    ->orWhere('source', 'like', "%$search%")
+                    ->orWhere('ip_address', 'like', "%$search%");
+            });
+        }
+
+        // 角色權限：非 admin/executive/manager 則只看自己（staff）
+        $isPrivileged = $user && $user->hasAnyRole(['admin', 'executive', 'manager']);
+        if (!$isPrivileged) {
+            $query->where('assigned_to', $user->id);
+        }
+
+        $perPage = (int)($request->get('per_page', 15));
+        $leads = $query->orderByDesc('created_at')->paginate($perPage);
+        return response()->json($leads);
+    }
+
     // PUT /api/leads/{lead}
     public function update(Request $request, CustomerLead $lead)
     {
@@ -78,13 +121,14 @@ class LeadController extends Controller
             'assigned_to' => 'sometimes|nullable|exists:users,id',
             'notes' => 'sometimes|nullable|string|max:1000',
             'payload' => 'sometimes|array',
+            'status' => 'sometimes|in:pending,intake,approved,submitted,disbursed', // see App\\Enums\\LeadStatus
         ]);
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
         // 只填入模型存在的欄位
         $data = collect($validator->validated())
-            ->only(['customer_id','assigned_to','channel','email','line_id','ip_address'])
+            ->only(['customer_id','assigned_to','channel','email','line_id','ip_address','status'])
             ->toArray();
         $lead->fill($data);
 
