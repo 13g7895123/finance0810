@@ -419,43 +419,29 @@ const loadConversations = async () => {
         }
       }))
       
-      // 去重處理：根據 lineUserId 去重，保留最新的記錄
-      const uniqueUsers = apiUsers.reduce((acc, current) => {
-        const existing = acc.find(item => item.lineUserId === current.lineUserId)
-        if (!existing) {
-          acc.push(current)
-        } else {
-          // 如果存在，比較時間戳，保留較新的
-          if (current.timestamp > existing.timestamp) {
-            const index = acc.indexOf(existing)
-            acc[index] = current
-          }
+      // 強化去重處理：確保每個 line_user_id 只有一筆記錄
+      const userMap = new Map()
+      apiUsers.forEach(user => {
+        if (!user.lineUserId) return
+        
+        const existing = userMap.get(user.lineUserId)
+        if (!existing || user.timestamp > existing.timestamp) {
+          userMap.set(user.lineUserId, user)
         }
-        return acc
-      }, [])
+      })
       
-      // 排序處理
+      // 轉回陣列並排序
+      const uniqueUsers = Array.from(userMap.values())
       const sortedUsers = sortByTime(uniqueUsers)
       
       // 數據比較：只有在數據實際改變時才更新
-      const currentData = JSON.stringify(apiConversations.value.map(u => ({
-        lineUserId: u.lineUserId,
-        lastMessage: u.lastMessage,
-        timestamp: u.timestamp?.getTime(),
-        unreadCount: u.unreadCount
-      })))
-      
-      const newData = JSON.stringify(sortedUsers.map(u => ({
-        lineUserId: u.lineUserId,
-        lastMessage: u.lastMessage,
-        timestamp: u.timestamp?.getTime(),
-        unreadCount: u.unreadCount
-      })))
+      const currentDataHash = apiConversations.value.map(u => `${u.lineUserId}:${u.timestamp?.getTime()}:${u.unreadCount}`).sort().join('|')
+      const newDataHash = sortedUsers.map(u => `${u.lineUserId}:${u.timestamp?.getTime()}:${u.unreadCount}`).sort().join('|')
       
       // 只有在數據真正改變時才更新，避免不必要的重新渲染
-      if (currentData !== newData) {
+      if (currentDataHash !== newDataHash) {
         apiConversations.value = sortedUsers
-        console.log(`載入對話列表: ${uniqueUsers.length} 筆記錄 (已更新)`)
+        console.log(`載入對話列表: ${uniqueUsers.length} 筆唯一記錄 (已更新)`)
       } else {
         console.log(`載入對話列表: ${uniqueUsers.length} 筆記錄 (無變化)`)
       }
@@ -563,13 +549,20 @@ const sortByTime = (users) => {
 // 只使用 API 數據
 const combinedUsers = computed(() => {
   // 只使用 API 對話數據，移除所有模擬數據
-  // 數據已在 loadConversations 中排序和去重，直接返回避免重複處理
+  // 數據已在 loadConversations 中排序和去重，直接返回
   if (!Array.isArray(apiConversations.value)) {
     return []
   }
   
-  // 創建副本以避免直接修改原始數據，但不重新排序
-  return [...apiConversations.value]
+  // 最終確保去重：以 lineUserId 為唯一標識
+  const uniqueMap = new Map()
+  apiConversations.value.forEach(user => {
+    if (user?.lineUserId && !uniqueMap.has(user.lineUserId)) {
+      uniqueMap.set(user.lineUserId, user)
+    }
+  })
+  
+  return Array.from(uniqueMap.values())
 })
 
 // 搜尋結果
@@ -611,39 +604,27 @@ const performSearch = async (query) => {
         }
       }))
       
-      // 去重處理：根據 lineUserId 去重，保留最新的記錄
-      const uniqueSearchUsers = searchUsers.reduce((acc, current) => {
-        const existing = acc.find(item => item.lineUserId === current.lineUserId)
-        if (!existing) {
-          acc.push(current)
-        } else {
-          // 如果存在，比較時間戳，保留較新的
-          if (current.timestamp > existing.timestamp) {
-            const index = acc.indexOf(existing)
-            acc[index] = current
-          }
+      // 強化去重處理：使用 Map 確保唯一性
+      const userMap = new Map()
+      searchUsers.forEach(user => {
+        if (!user.lineUserId) return
+        
+        const existing = userMap.get(user.lineUserId)
+        if (!existing || user.timestamp > existing.timestamp) {
+          userMap.set(user.lineUserId, user)
         }
-        return acc
-      }, [])
+      })
       
-      // 排序處理
+      // 轉回陣列並使用統一排序
+      const uniqueSearchUsers = Array.from(userMap.values())
       const sortedSearchUsers = sortByTime(uniqueSearchUsers)
       
-      // 數據比較：只有在搜索結果實際改變時才更新
-      const currentSearchData = JSON.stringify(searchResults.value.map(u => ({
-        lineUserId: u.lineUserId,
-        lastMessage: u.lastMessage,
-        timestamp: u.timestamp?.getTime()
-      })))
-      
-      const newSearchData = JSON.stringify(sortedSearchUsers.map(u => ({
-        lineUserId: u.lineUserId,
-        lastMessage: u.lastMessage,
-        timestamp: u.timestamp?.getTime()
-      })))
+      // 數據比較：使用更簡單的雜湊比較
+      const currentSearchHash = searchResults.value.map(u => `${u.lineUserId}:${u.timestamp?.getTime()}`).sort().join('|')
+      const newSearchHash = sortedSearchUsers.map(u => `${u.lineUserId}:${u.timestamp?.getTime()}`).sort().join('|')
       
       // 只有在搜索結果真正改變時才更新
-      if (currentSearchData !== newSearchData) {
+      if (currentSearchHash !== newSearchHash) {
         searchResults.value = sortedSearchUsers
         console.log('Search results processed:', uniqueSearchUsers.length, '(已更新)') // Debug log
       } else {
@@ -932,8 +913,16 @@ const selectUserWithRealtime = async (user) => {
       loadingLocks.value.apiCallInProgress = true
       
       try {
-        await loadConversationMessages(user.lineUserId)
-        console.log('✓ 對話訊息載入完成')
+        const messages = await loadConversationMessages(user.lineUserId)
+        console.log('✓ 對話訊息載入完成:', messages?.length || 0, '筆訊息')
+        
+        // 立即檢查訊息是否正確載入
+        nextTick(() => {
+          const currentMsgs = apiMessages.value[user.lineUserId]
+          console.log('載入後的訊息檔案:', currentMsgs?.length || 0)
+          console.log('當前渲染的訊息:', currentMessages.value?.length || 0)
+        })
+        
       } catch (error) {
         console.error('✗ 載入對話訊息失敗:', error)
       } finally {
@@ -967,6 +956,7 @@ const selectUserWithRealtime = async (user) => {
     // 調試：檢查當前訊息
     nextTick(() => {
       console.log('Current messages after user selection:', currentMessages.value?.length || 0, 'messages')
+      console.log('Selected user info:', selectedUser.value?.lineUserId, selectedUser.value?.name)
     })
   } catch (error) {
     console.error('selectUserWithRealtime 發生錯誤:', error)

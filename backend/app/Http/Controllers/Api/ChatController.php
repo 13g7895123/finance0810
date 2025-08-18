@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use App\Models\ChatConversation;
 use App\Models\Customer;
 use App\Models\User;
@@ -30,44 +31,53 @@ class ChatController extends Controller
         try {
             $user = Auth::user();
             
-            // 簡化查詢，分步進行以避免複雜的 JOIN 問題
+            // 優化的查詢，使用單一 SQL 查詢獲取最新訊息
+            $query = ChatConversation::with(['customer'])
+                ->select([
+                    'line_user_id',
+                    'customer_id',
+                    DB::raw('MAX(message_timestamp) as last_message_time'),
+                    DB::raw('(
+                        SELECT message_content 
+                        FROM chat_conversations c2 
+                        WHERE c2.line_user_id = chat_conversations.line_user_id 
+                        ORDER BY message_timestamp DESC 
+                        LIMIT 1
+                    ) as last_message')
+                ])
+                ->whereNotNull('line_user_id')
+                ->whereNotNull('customer_id')
+                ->groupBy('line_user_id', 'customer_id');
+            
+            // 權限過濾：業務人員只能看自己的客戶
+            if ($user->isStaff()) {
+                $query->whereHas('customer', function($q) use ($user) {
+                    $q->where('assigned_to', $user->id);
+                });
+            }
+            
+            $conversationsRaw = $query->orderBy('last_message_time', 'desc')->get();
+            
+            // 轉換成最終格式並加上未讀訊息數
             $conversations = collect();
-            
-            // 首先獲取所有獨特的 line_user_id
-            $lineUserIds = ChatConversation::distinct('line_user_id')
-                ->pluck('line_user_id');
-            
-            foreach ($lineUserIds as $lineUserId) {
-                // 獲取每個用戶的最新訊息
-                $latestMessage = ChatConversation::with(['customer'])
-                    ->where('line_user_id', $lineUserId)
-                    ->orderBy('message_timestamp', 'desc')
-                    ->first();
-                
-                if (!$latestMessage) continue;
-                
-                // 檢查權限：如果是業務人員，只能看到自己分配的客戶
-                if ($user->isStaff() && $latestMessage->customer && $latestMessage->customer->assigned_to !== $user->id) {
-                    continue;
-                }
-                
+            foreach ($conversationsRaw as $conv) {
                 // 計算未讀訊息數
-                $unreadCount = ChatConversation::where('line_user_id', $lineUserId)
+                $unreadCount = ChatConversation::where('line_user_id', $conv->line_user_id)
                     ->where('status', 'unread')
                     ->where('is_from_customer', true)
                     ->count();
                 
                 $conversations->push([
-                    'line_user_id' => $lineUserId,
-                    'customer_id' => $latestMessage->customer_id,
-                    'customer' => $latestMessage->customer,
-                    'last_message' => $latestMessage->message_content,
-                    'last_message_time' => $latestMessage->message_timestamp,
+                    'line_user_id' => $conv->line_user_id,
+                    'customer_id' => $conv->customer_id,
+                    'customer' => $conv->customer,
+                    'last_message' => $conv->last_message,
+                    'last_message_time' => $conv->last_message_time,
                     'unread_count' => $unreadCount
                 ]);
             }
             
-            // 按最後訊息時間排序
+            // 確保排序：最新的在最上面
             $conversations = $conversations->sortByDesc('last_message_time')->values();
             
             // 手動分頁
@@ -107,11 +117,12 @@ class ChatController extends Controller
     {
         $user = Auth::user();
         
+        // 優化查詢，確保排序一致性
         $query = ChatConversation::with(['customer', 'user', 'replier'])
             ->where('line_user_id', $userId)
-            ->orderBy('message_timestamp', 'asc');
+            ->orderBy('message_timestamp', 'asc'); // 訊息按時間順序排列
 
-        // Staff can only see their assigned customers' chats
+        // 權限檢查：業務人員只能看自己的客戶
         if ($user->isStaff()) {
             $query->whereHas('customer', function($q) use ($user) {
                 $q->where('assigned_to', $user->id);
@@ -120,9 +131,10 @@ class ChatController extends Controller
 
         $messages = $query->paginate(50);
 
-        // Mark messages as read using safe method
+        // 標記訊息為已讀
         $unreadMessages = ChatConversation::where('line_user_id', $userId)
             ->where('status', 'unread')
+            ->where('is_from_customer', true) // 只標記客戶訊息為已讀
             ->get();
         
         foreach ($unreadMessages as $message) {
