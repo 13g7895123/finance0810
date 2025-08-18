@@ -55,30 +55,30 @@
               <td colspan="15" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">載入中...</td>
             </tr>
             <tr v-for="lead in leads" :key="lead.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-              <td class="px-6 py-4">
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
                 <div class="text-gray-900 dark:text-white">{{ extractDomain(lead.payload?.['頁面_URL'] || lead.source) || '-' }}</div>
                 <div class="text-sm text-gray-500 dark:text-gray-400">{{ lead.payload?.['頁面_URL'] || lead.source }}</div>
               </td>
-              <td class="px-6 py-4">{{ lead.channel || '-' }}</td>
-              <td class="px-6 py-4">
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.channel || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
                 <div>{{ formatDate(lead.created_at) }}</div>
                 <div class="text-sm">{{ formatTime(lead.created_at) }}</div>
               </td>
-              <td class="px-6 py-4">{{ lead.assignee?.name || '-' }}</td>
-              <td class="px-6 py-4">{{ lead.email || '-' }}</td>
-              <td class="px-6 py-4">{{ lead.line_id || lead.payload?.['LINE_ID'] || '-' }}</td>
-              <td class="px-6 py-4">{{ lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '-' }}</td>
-              <td class="px-6 py-4">{{ lead.payload?.['房屋地址'] || '-' }}</td>
-              <td class="px-6 py-4">{{ lead.payload?.['資金需求'] || '-' }}</td>
-              <td class="px-6 py-4">{{ lead.payload?.['貸款需求'] || '-' }}</td>
-              <td class="px-6 py-4">{{ lead.payload?.['方便聯絡時間'] || '-' }}</td>
-              <td class="px-6 py-4">{{ lead.ip_address || '-' }}</td>
-              <td class="px-6 py-4">{{ lead.notes || lead.payload?.['備註'] || '-' }}</td>
-              <td class="px-6 py-4">
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.assignee?.name || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.email || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.line_id || lead.payload?.['LINE_ID'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['房屋地址'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['資金需求'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['貸款需求'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['方便聯絡時間'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.ip_address || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.notes || lead.payload?.['備註'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
                 <span :class="['px-2 py-1 rounded text-xs', getStatusClass(lead.status)]">{{ LEAD_STATUS_LABELS[lead.status] || lead.status }}</span>
               </td>
-              <td class="px-6 py-4">
-                <button class="px-3 py-1 border rounded text-sm" @click="goPrev(lead)">上一步</button>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
+                <button class="py-1 border rounded text-sm text-blue-600" @click="goPrev(lead)">上一步</button>
               </td>
             </tr>
             <tr v-if="!loading && leads.length === 0">

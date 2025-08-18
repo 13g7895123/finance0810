@@ -54,7 +54,7 @@
           </thead>
           <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             <tr v-if="loading">
-              <td colspan="4" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">載入中...</td>
+              <td colspan="15" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">載入中...</td>
             </tr>
             <tr v-for="lead in leads" :key="lead.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
