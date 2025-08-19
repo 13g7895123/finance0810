@@ -17,70 +17,45 @@ use App\Models\CustomerActivity;
 use App\Events\NewChatMessage;
 use App\Services\ChatIncrementalService;
 use App\Http\Resources\ChatIncrementalResource;
+use App\Services\ChatQueryCacheService;
 
 class ChatController extends Controller
 {
-    public function __construct()
+    private $cacheService;
+    
+    public function __construct(ChatQueryCacheService $cacheService)
     {
+        $this->cacheService = $cacheService;
         $this->middleware('auth:api', ['except' => ['webhook']]);
     }
 
     /**
-     * Get chat conversations list.
+     * Get chat conversations list (優化版).
      */
     public function index(Request $request)
     {
         try {
             $user = Auth::user();
+            $forceRefresh = $request->boolean('refresh', false);
             
-            // 優化的查詢，使用單一 SQL 查詢獲取最新訊息
-            $query = ChatConversation::with(['customer'])
-                ->select([
-                    'line_user_id',
-                    'customer_id',
-                    DB::raw('MAX(message_timestamp) as last_message_time'),
-                    DB::raw('(
-                        SELECT message_content 
-                        FROM chat_conversations c2 
-                        WHERE c2.line_user_id = chat_conversations.line_user_id 
-                        ORDER BY message_timestamp DESC 
-                        LIMIT 1
-                    ) as last_message')
-                ])
-                ->whereNotNull('line_user_id')
-                ->whereNotNull('customer_id')
-                ->groupBy('line_user_id', 'customer_id');
+            // 使用緩存服務獲取數據
+            $conversations = $this->cacheService->getConversationList(
+                $user->isStaff() ? $user->id : null,
+                $forceRefresh
+            );
             
-            // 權限過濾：業務人員只能看自己的客戶
-            if ($user->isStaff()) {
-                $query->whereHas('customer', function($q) use ($user) {
-                    $q->where('assigned_to', $user->id);
+            // 批量獲取未讀計數
+            $lineUserIds = $conversations->pluck('line_user_id')->toArray();
+            if (!empty($lineUserIds)) {
+                $unreadCounts = $this->cacheService->getUnreadCounts($lineUserIds, $forceRefresh);
+                
+                // 組合數據
+                $conversations = $conversations->map(function ($conv) use ($unreadCounts) {
+                    $conv->unread_count = $unreadCounts[$conv->line_user_id] ?? 0;
+                    $conv->last_message = $conv->last_customer_message ?? $conv->last_system_message ?? '';
+                    return $conv;
                 });
             }
-            
-            $conversationsRaw = $query->orderBy('last_message_time', 'desc')->get();
-            
-            // 轉換成最終格式並加上未讀訊息數
-            $conversations = collect();
-            foreach ($conversationsRaw as $conv) {
-                // 計算未讀訊息數
-                $unreadCount = ChatConversation::where('line_user_id', $conv->line_user_id)
-                    ->where('status', 'unread')
-                    ->where('is_from_customer', true)
-                    ->count();
-                
-                $conversations->push([
-                    'line_user_id' => $conv->line_user_id,
-                    'customer_id' => $conv->customer_id,
-                    'customer' => $conv->customer,
-                    'last_message' => $conv->last_message,
-                    'last_message_time' => $conv->last_message_time,
-                    'unread_count' => $unreadCount
-                ]);
-            }
-            
-            // 確保排序：最新的在最上面
-            $conversations = $conversations->sortByDesc('last_message_time')->values();
             
             // 手動分頁
             $page = $request->get('page', 1);
@@ -90,60 +65,83 @@ class ChatController extends Controller
             $items = $conversations->slice($offset, $perPage)->values();
             
             return response()->json([
+                'success' => true,
                 'data' => $items,
                 'current_page' => $page,
                 'per_page' => $perPage,
                 'total' => $total,
                 'last_page' => ceil($total / $perPage),
                 'from' => $offset + 1,
-                'to' => min($offset + $perPage, $total)
+                'to' => min($offset + $perPage, $total),
+                'cached' => !$forceRefresh,
+                'timestamp' => now()->toISOString()
             ]);
             
         } catch (\Exception $e) {
             Log::error('ChatController@index error:', [
-                'message' => $e->getMessage(),
+                'user_id' => $user->id ?? null,
+                'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([
+                'success' => false,
                 'error' => '載入對話列表失敗',
-                'message' => $e->getMessage()
+                'message' => config('app.debug') ? $e->getMessage() : null
             ], 500);
         }
     }
 
     /**
-     * Get conversation with specific user/customer.
+     * Get conversation with specific user/customer (優化版).
      */
     public function getConversation(Request $request, $userId)
     {
-        $user = Auth::user();
-        
-        // 優化查詢，確保排序一致性
-        $query = ChatConversation::with(['customer', 'user', 'replier'])
-            ->where('line_user_id', $userId)
-            ->orderBy('message_timestamp', 'asc'); // 訊息按時間順序排列
-
-        // 權限檢查：業務人員只能看自己的客戶
-        if ($user->isStaff()) {
-            $query->whereHas('customer', function($q) use ($user) {
-                $q->where('assigned_to', $user->id);
-            });
+        try {
+            $user = Auth::user();
+            $limit = min($request->get('limit', 50), 100);
+            $offset = max($request->get('offset', 0), 0);
+            
+            // 權限檢查：業務人員只能看自己的客戶
+            if ($user->isStaff()) {
+                $customer = Customer::where('line_user_id', $userId)
+                    ->where('assigned_to', $user->id)
+                    ->first();
+                
+                if (!$customer) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => '您沒有權限查看此對話'
+                    ], 403);
+                }
+            }
+            
+            // 使用優化的查詢，避免 N+1 問題
+            $messages = $this->cacheService->getOptimizedMessages($userId, $limit, $offset);
+            
+            // 標記訊息為已讀（批量更新）
+            $this->markMessagesAsRead($userId);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $messages,
+                'has_more' => count($messages) === $limit,
+                'timestamp' => now()->toISOString()
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Chat conversation error:', [
+                'line_user_id' => $userId,
+                'user_id' => $user->id ?? null,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => '載入對話失敗',
+                'message' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
         }
-
-        $messages = $query->paginate(50);
-
-        // 標記訊息為已讀
-        $unreadMessages = ChatConversation::where('line_user_id', $userId)
-            ->where('status', 'unread')
-            ->where('is_from_customer', true) // 只標記客戶訊息為已讀
-            ->get();
-        
-        foreach ($unreadMessages as $message) {
-            $this->safeUpdateStatus($message, 'read');
-        }
-
-        return response()->json($messages);
     }
 
     /**
@@ -1840,6 +1838,203 @@ class ChatController extends Controller
                 'message' => 'WebSocket 測試失敗',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * 獲取查詢性能和緩存統計
+     */
+    public function getQueryStats()
+    {
+        try {
+            $user = Auth::user();
+            
+            // 檢查管理員權限
+            if (!$user->isAdmin() && !$user->isManager()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '權限不足'
+                ], 403);
+            }
+            
+            $performanceMonitor = app(\App\Services\QueryPerformanceMonitor::class);
+            
+            $stats = [
+                'cache_stats' => $this->cacheService->getCacheStats(),
+                'query_performance' => $performanceMonitor->getQueryStats(),
+                'database_stats' => $this->getDatabaseStats(),
+                'timestamp' => now()->toISOString()
+            ];
+            
+            return response()->json([
+                'success' => true,
+                'data' => $stats
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to get query stats', [
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => '獲取統計數據失敗',
+                'message' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+    
+    /**
+     * 清除查詢緩存
+     */
+    public function clearQueryCache(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            
+            // 檢查管理員權限
+            if (!$user->isAdmin() && !$user->isManager()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '權限不足'
+                ], 403);
+            }
+            
+            $type = $request->get('type', 'all');
+            $userId = $request->get('user_id');
+            $lineUserId = $request->get('line_user_id');
+            
+            $clearedCount = 0;
+            
+            switch ($type) {
+                case 'user':
+                    if ($userId) {
+                        $this->cacheService->clearUserCache($userId);
+                        $clearedCount = 1;
+                    }
+                    break;
+                    
+                case 'conversation':
+                    if ($lineUserId) {
+                        $this->cacheService->clearConversationCache($lineUserId);
+                        $clearedCount = 1;
+                    }
+                    break;
+                    
+                case 'all':
+                default:
+                    // 清除所有聊天相關緩存
+                    Cache::tags(['chat_query'])->flush();
+                    $clearedCount = 'all';
+                    break;
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => '緩存已清除',
+                'cleared_count' => $clearedCount
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to clear query cache', [
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => '清除緩存失敗',
+                'message' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+    
+    /**
+     * 獲取數據庫統計信息
+     */
+    private function getDatabaseStats()
+    {
+        try {
+            $stats = [
+                'total_conversations' => DB::table('chat_conversations')->count(),
+                'unread_conversations' => DB::table('chat_conversations')
+                    ->where('status', 'unread')
+                    ->where('is_from_customer', true)
+                    ->count(),
+                'active_customers' => DB::table('chat_conversations')
+                    ->where('message_timestamp', '>=', now()->subDays(7))
+                    ->distinct('line_user_id')
+                    ->count(),
+                'avg_response_time' => $this->getAverageResponseTime()
+            ];
+            
+            return $stats;
+        } catch (\Exception $e) {
+            return [
+                'error' => 'Failed to get database stats: ' . $e->getMessage()
+            ];
+        }
+    }
+    
+    /**
+     * 計算平均回應時間
+     */
+    private function getAverageResponseTime()
+    {
+        try {
+            // 計算系統回應客戶訊息的平均時間
+            $result = DB::select("
+                SELECT AVG(response_time) as avg_time
+                FROM (
+                    SELECT 
+                        TIMESTAMPDIFF(MINUTE, customer_msg.message_timestamp, system_msg.message_timestamp) as response_time
+                    FROM chat_conversations customer_msg
+                    JOIN chat_conversations system_msg ON (
+                        customer_msg.line_user_id = system_msg.line_user_id 
+                        AND customer_msg.is_from_customer = 1 
+                        AND system_msg.is_from_customer = 0
+                        AND system_msg.message_timestamp > customer_msg.message_timestamp
+                    )
+                    WHERE customer_msg.message_timestamp >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                    AND TIMESTAMPDIFF(MINUTE, customer_msg.message_timestamp, system_msg.message_timestamp) <= 1440
+                ) response_times
+            ");
+            
+            return $result[0]->avg_time ?? 0;
+        } catch (\Exception $e) {
+            return 0;
+        }
+    }
+    
+    /**
+     * 批量標記訊息為已讀（優化版）
+     */
+    private function markMessagesAsRead($lineUserId)
+    {
+        try {
+            // 批量更新未讀訊息狀態
+            $updated = DB::table('chat_conversations')
+                ->where('line_user_id', $lineUserId)
+                ->where('status', 'unread')
+                ->where('is_from_customer', true)
+                ->update(['status' => 'read']);
+            
+            if ($updated > 0) {
+                // 清除相關緩存
+                $this->cacheService->clearConversationCache($lineUserId);
+                
+                Log::info('Batch marked messages as read', [
+                    'line_user_id' => $lineUserId,
+                    'updated_count' => $updated
+                ]);
+            }
+            
+            return $updated;
+        } catch (\Exception $e) {
+            Log::error('Failed to batch mark messages as read', [
+                'line_user_id' => $lineUserId,
+                'error' => $e->getMessage()
+            ]);
+            return 0;
         }
     }
 }

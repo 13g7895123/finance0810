@@ -102,6 +102,12 @@ Route::middleware(['auth:api'])->group(function () {
     Route::delete('/chats/{userId}', [ChatController::class, 'deleteConversation']);
     Route::post('/chats/test-websocket', [ChatController::class, 'testWebSocketBroadcast']);
     
+    // Query Performance and Cache Management (Admin/Manager only)
+    Route::middleware(['role:admin|executive|manager'])->group(function () {
+        Route::get('/chats/admin/query-stats', [ChatController::class, 'getQueryStats']);
+        Route::post('/chats/admin/clear-cache', [ChatController::class, 'clearQueryCache']);
+    });
+    
     // User Management (Admin and Manager only)
     Route::middleware(['role:admin|executive|manager'])->group(function () {
         Route::get('/users', [UserController::class, 'index']);
