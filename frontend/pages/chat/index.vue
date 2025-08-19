@@ -276,8 +276,8 @@ const manualRefresh = async () => {
   }
 }
 
-// 定時輪詢功能（增強防競爭版）
-const startPolling = (intervalMs = 1000) => {
+// 定時輪詢功能（增強防競爭版）- 重新命名避免與Long Polling衝突
+const startLegacyPolling = (intervalMs = 1000) => {
   if (pageState.value.isUnloading) {
     console.log('頁面已離開，不啟動輪詢')
     return
@@ -314,7 +314,7 @@ const startPolling = (intervalMs = 1000) => {
     // 檢查是否達到最大重試次數
     if (pollingConfig.value.retryCount >= pollingConfig.value.maxRetries) {
       console.warn('輪詢重試次數過多，暫停輪詢')
-      stopPolling()
+      stopLegacyPolling()
       return
     }
     
@@ -339,6 +339,16 @@ const startPolling = (intervalMs = 1000) => {
       poll()
     }
   }, 1000)
+}
+
+// 停止舊版定時輪詢
+const stopLegacyPolling = () => {
+  pollingConfig.value.enabled = false
+  if (pollingConfig.value.timer) {
+    clearTimeout(pollingConfig.value.timer)
+    pollingConfig.value.timer = null
+  }
+  console.log('已停止舊版定時輪詢')
 }
 
 // 獲取連接狀態文字
@@ -898,13 +908,13 @@ const sendMessage = async (content) => {
       // 如果輪詢被停止，發送訊息後短時啟動輪詢
       if (!pollingConfig.value.enabled) {
         console.log('發送訊息後短時啟動輪詢')
-        safeStartPolling(pollingConfig.value.interval)
+        safeStartLegacyPolling(pollingConfig.value.interval)
         
         // 30秒後自動停止（節省資源）
         safeSetTimeout(() => {
           if (pollingConfig.value.enabled) {
             console.log('自動停止短時輪詢')
-            stopPolling()
+            stopLegacyPolling()
           }
         }, 30000)
       }
@@ -942,7 +952,7 @@ const selectUserWithRealtime = async (user) => {
     const wasPollingEnabled = pollingConfig.value.enabled
     if (wasPollingEnabled) {
       console.log('暫停輪詢以避免競態條件')
-      stopPolling()
+      stopLegacyPolling()
     }
     
     // 等待所有正在進行的API調用完成
@@ -1008,7 +1018,7 @@ const selectUserWithRealtime = async (user) => {
     if (wasPollingEnabled) {
       console.log('恢復輪詢')
       safeSetTimeout(() => {
-        safeStartPolling(pollingConfig.value.interval)
+        safeStartLegacyPolling(pollingConfig.value.interval)
       }, 1500) // 延遲1.5秒恢復，確保操作完成
     }
     
@@ -1097,13 +1107,13 @@ const safeSetTimeout = (callback, delay) => {
   return timeoutId
 }
 
-// 安全的輪詢啟動函數
-const safeStartPolling = (intervalMs = 1000) => {
+// 安全的輪詢啟動函數（舊版setInterval）
+const safeStartLegacyPolling = (intervalMs = 1000) => {
   if (pageState.value.isUnloading) {
     console.log('頁面已離開，不啟動輪詢')
     return
   }
-  startPolling(intervalMs)
+  startLegacyPolling(intervalMs)
 }
 
 // 全域資源清理函數（增強版）
@@ -1116,6 +1126,7 @@ const cleanupAllResources = () => {
   
   // 停止定時輪詢
   stopPolling()
+  stopLegacyPolling()
   
   // 清理所有待處理的計時器
   pageState.value.pendingTimeouts.forEach(timeoutId => {
