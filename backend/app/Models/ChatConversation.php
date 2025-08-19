@@ -26,6 +26,7 @@ class ChatConversation extends Model
         'replied_by',
         'status',
         'metadata',
+        'version',
     ];
 
     /**
@@ -36,7 +37,31 @@ class ChatConversation extends Model
         'replied_at' => 'datetime',
         'is_from_customer' => 'boolean',
         'metadata' => 'array',
+        'version' => 'integer',
     ];
+    
+    /**
+     * Boot the model and register event listeners.
+     */
+    protected static function booted()
+    {
+        // 當創建新訊息時
+        static::creating(function ($conversation) {
+            $versionService = app(\App\Services\ChatVersionService::class);
+            $newVersion = $versionService->incrementVersion();
+            $conversation->version = $newVersion;
+        });
+        
+        // 當更新訊息時
+        static::updating(function ($conversation) {
+            // 如果 version 字段沒有被明確設置，則自動增加版本號
+            if (!$conversation->isDirty('version')) {
+                $versionService = app(\App\Services\ChatVersionService::class);
+                $newVersion = $versionService->incrementVersion();
+                $conversation->version = $newVersion;
+            }
+        });
+    }
 
     /**
      * Get the customer this conversation belongs to

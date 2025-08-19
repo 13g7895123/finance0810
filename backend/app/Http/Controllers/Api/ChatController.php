@@ -1557,38 +1557,43 @@ class ChatController extends Controller
     {
         try {
             $user = Auth::user();
-            $timeout = min($request->get('timeout', 10), 30); // 縮短最大timeout
-            $lastUpdate = $request->get('last_update');
+            $timeout = min($request->get('timeout', 20), 30); // 預設 20 秒
+            $clientVersion = $request->get('version', 0);
             $lineUserId = $request->get('line_user_id');
             
-            $startTime = microtime(true);
-            $pollingInterval = 0.5; // 500毫秒檢查一次，提升響應速度
-            $maxChecks = 20; // 最多檢查20次，避免過度消耗資源
-            $checkCount = 0;
+            // 注入版本服務
+            $versionService = app(\App\Services\ChatVersionService::class);
             
-            while ((microtime(true) - $startTime) < $timeout && $checkCount < $maxChecks) {
-                // 檢查是否有新的訊息或更新
-                $updates = $this->checkForUpdates($user, $lastUpdate, $lineUserId);
-                
-                if (!empty($updates)) {
-                    return response()->json([
-                        'success' => true,
-                        'data' => $updates,
-                        'timestamp' => now()->toISOString(),
-                        'response_time' => round((microtime(true) - $startTime) * 1000, 2) // 回應時間(毫秒)
-                    ]);
+            $startTime = microtime(true);
+            $pollingInterval = 0.5; // 500毫秒檢查一次
+            $maxChecks = (int)($timeout / $pollingInterval);
+            
+            // Long Polling 循環
+            for ($i = 0; $i < $maxChecks; $i++) {
+                // 檢查是否有新版本
+                if ($versionService->needsUpdate($clientVersion)) {
+                    // 獲取變化的數據
+                    $changes = $versionService->getChangesSince($clientVersion, $lineUserId);
+                    
+                    if ($changes->isNotEmpty()) {
+                        return response()->json([
+                            'success' => true,
+                            'version' => $versionService->getCurrentVersion(),
+                            'data' => $this->formatChanges($changes),
+                            'timestamp' => now()->toISOString(),
+                            'response_time' => round((microtime(true) - $startTime) * 1000, 2)
+                        ]);
+                    }
                 }
                 
-                $checkCount++;
-                
-                // 動態調整間隔：前幾次檢查使用更短間隔
-                $currentInterval = $checkCount <= 5 ? 0.2 : $pollingInterval;
-                usleep($currentInterval * 1000000); // 使用微秒精度
+                // 如果沒有更新，等待後繼續檢查
+                usleep($pollingInterval * 1000000);
             }
             
-            // 超時，返回空的更新
+            // 超時返回，告知客戶端當前版本
             return response()->json([
                 'success' => true,
+                'version' => $versionService->getCurrentVersion(),
                 'data' => [],
                 'timestamp' => now()->toISOString(),
                 'timeout' => true
@@ -1602,7 +1607,8 @@ class ChatController extends Controller
             
             return response()->json([
                 'success' => false,
-                'error' => 'Polling failed'
+                'error' => 'Polling failed',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal error'
             ], 500);
         }
     }
@@ -1683,6 +1689,29 @@ class ChatController extends Controller
         }
         
         return $updates;
+    }
+
+    /**
+     * 格式化變化數據
+     */
+    private function formatChanges($changes)
+    {
+        return $changes->map(function ($change) {
+            return [
+                'type' => $change->is_from_customer ? 'customer_message' : 'system_message',
+                'data' => [
+                    'id' => $change->id,
+                    'line_user_id' => $change->line_user_id,
+                    'content' => $change->message_content,
+                    'timestamp' => $change->message_timestamp,
+                    'is_from_customer' => $change->is_from_customer,
+                    'status' => $change->status,
+                    'version' => $change->version,
+                    'message_type' => $change->message_type ?? 'text',
+                    'metadata' => is_string($change->metadata) ? json_decode($change->metadata, true) : $change->metadata
+                ]
+            ];
+        });
     }
 
     /**
