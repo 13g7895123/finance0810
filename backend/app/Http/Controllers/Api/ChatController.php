@@ -15,6 +15,8 @@ use App\Models\LineIntegrationSetting;
 use App\Models\CustomerIdentifier;
 use App\Models\CustomerActivity;
 use App\Events\NewChatMessage;
+use App\Services\ChatIncrementalService;
+use App\Http\Resources\ChatIncrementalResource;
 
 class ChatController extends Controller
 {
@@ -1712,6 +1714,74 @@ class ChatController extends Controller
                 ]
             ];
         });
+    }
+
+    /**
+     * 獲取增量更新（新方法）
+     */
+    public function getIncrementalUpdates(Request $request)
+    {
+        $request->validate([
+            'version' => 'required|integer|min:0',
+            'type' => 'required|in:conversations,messages',
+            'line_user_id' => 'required_if:type,messages',
+            'timestamp' => 'nullable|date',
+        ]);
+        
+        $user = Auth::user();
+        $incrementalService = app(ChatIncrementalService::class);
+        
+        try {
+            if ($request->type === 'conversations') {
+                // 獲取對話列表增量
+                $changes = $incrementalService->getConversationListChanges(
+                    $user->id,
+                    $request->version,
+                    $request->timestamp
+                );
+            } else {
+                // 獲取消息列表增量
+                $changes = $incrementalService->getMessageListChanges(
+                    $request->line_user_id,
+                    $request->version,
+                    $request->timestamp
+                );
+            }
+            
+            return new ChatIncrementalResource($changes);
+            
+        } catch (\Exception $e) {
+            Log::error('Incremental update error:', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to get incremental updates',
+                'message' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * 驗證增量數據完整性
+     */
+    public function validateChecksum(Request $request)
+    {
+        $request->validate([
+            'checksum' => 'required|string',
+            'data' => 'required|array',
+        ]);
+        
+        $calculatedChecksum = md5(json_encode($request->data, JSON_SORT_KEYS | JSON_UNESCAPED_UNICODE));
+        $isValid = $calculatedChecksum === $request->checksum;
+        
+        return response()->json([
+            'valid' => $isValid,
+            'expected' => $request->checksum,
+            'calculated' => $calculatedChecksum,
+        ]);
     }
 
     /**
