@@ -87,6 +87,7 @@ class WebhookController extends Controller
         }
 
         $isSuspectedBlacklist = $ipDifferentNames || $ipLineOrPhoneDifferentName;
+        $isSuspectedBlacklist = false; // TODO: 先關閉黑名單偵測，等後續調整
         if ($ipDifferentNames) {
             $suspectedReason = '同一 IP 多姓名提交（疑似黑名單）';
         } elseif ($ipLineOrPhoneDifferentName) {
