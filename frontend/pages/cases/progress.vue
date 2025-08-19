@@ -178,6 +178,7 @@ const getStatusClass = (status) => {
     case 'approved': return base + 'bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-200'
     case 'submitted': return base + 'bg-blue-100 text-blue-700 dark:bg-blue-700 dark:text-blue-200'
     case 'disbursed': return base + 'bg-purple-100 text-purple-700 dark:bg-purple-700 dark:text-purple-200'
+    case 'blacklist': return base + 'bg-red-100 text-red-700 dark:bg-red-700 dark:text-red-200'
     default: return base + 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
   }
 }

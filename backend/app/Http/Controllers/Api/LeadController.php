@@ -121,7 +121,7 @@ class LeadController extends Controller
             'assigned_to' => 'sometimes|nullable|exists:users,id',
             'notes' => 'sometimes|nullable|string|max:1000',
             'payload' => 'sometimes|array',
-            'status' => 'sometimes|in:pending,intake,approved,submitted,disbursed', // see App\\Enums\\LeadStatus
+            'status' => 'sometimes|in:pending,intake,approved,submitted,disbursed,blacklist', // see App\\Enums\\LeadStatus
         ]);
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);

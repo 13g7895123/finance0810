@@ -9,6 +9,7 @@ enum LeadStatus: string
     case Approved = 'approved';    // 已核准（內部核准）
     case Submitted = 'submitted';  // 已送件（對外送件）
     case Disbursed = 'disbursed';  // 已撥款
+    case Blacklist = 'blacklist';  // 黑名單
 
     public static function values(): array
     {

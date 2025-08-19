@@ -107,7 +107,7 @@
               </td>
             </tr>
             <tr v-if="!loading && leads.length === 0">
-              <td colspan="6" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">沒有資料</td>
+              <td colspan="15" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">沒有資料</td>
             </tr>
           </tbody>
         </table>
@@ -260,7 +260,8 @@ const STATUS_OPTIONS = [
   { value: 'intake', label: '已進件' },
   { value: 'approved', label: '已核准' },
   { value: 'submitted', label: '已送件' },
-  { value: 'disbursed', label: '已撥款' }
+  { value: 'disbursed', label: '已撥款' },
+  { value: 'blacklist', label: '黑名單' }
 ]
 
 // state

@@ -85,7 +85,7 @@
               </td>
             </tr>
             <tr v-if="!loading && leads.length === 0">
-              <td colspan="4" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">沒有資料</td>
+              <td colspan="15" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">沒有資料</td>
             </tr>
           </tbody>
         </table>

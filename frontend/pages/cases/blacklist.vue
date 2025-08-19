@@ -2,8 +2,8 @@
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">已完成案件</h1>
-        <p class="text-gray-600 dark:text-gray-400 mt-2">顯示已撥款（disbursed）的案件</p>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">黑名單案件</h1>
+        <p class="text-gray-600 dark:text-gray-400 mt-2">顯示黑名單（blacklist）的案件，僅供檢視</p>
       </div>
       <div class="flex items-center space-x-3">
         <input
@@ -47,7 +47,6 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">IP 位址</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">備註</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">狀態</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">操作</th>
             </tr>
           </thead>
           <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -55,30 +54,27 @@
               <td colspan="15" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">載入中...</td>
             </tr>
             <tr v-for="lead in leads" :key="lead.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">
                 <div class="text-gray-900 dark:text-white">{{ extractDomain(lead.payload?.['頁面_URL'] || lead.source) || '-' }}</div>
                 <div class="text-sm text-gray-500 dark:text-gray-400">{{ lead.payload?.['頁面_URL'] || lead.source }}</div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.channel || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.channel || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">
                 <div>{{ formatDate(lead.created_at) }}</div>
                 <div class="text-sm">{{ formatTime(lead.created_at) }}</div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.assignee?.name || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.email || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.line_id || lead.payload?.['LINE_ID'] || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['房屋地址'] || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['資金需求'] || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['貸款需求'] || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['方便聯絡時間'] || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.ip_address || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.notes || lead.payload?.['備註'] || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.assignee?.name || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.email || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.line_id || lead.payload?.['LINE_ID'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.payload?.['房屋地址'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.payload?.['資金需求'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.payload?.['貸款需求'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.payload?.['方便聯絡時間'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.ip_address || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.notes || lead.payload?.['備註'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">
                 <span :class="['px-2 py-1 rounded text-xs', getStatusClass(lead.status)]">{{ LEAD_STATUS_LABELS[lead.status] || lead.status }}</span>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
-                <button class="py-1 border rounded text-sm text-blue-600" @click="goPrev(lead)">上一步</button>
               </td>
             </tr>
             <tr v-if="!loading && leads.length === 0">
@@ -103,7 +99,6 @@ definePageMeta({ middleware: 'auth' })
 
 const { list, updateOne: updateLead } = useLeads()
 const { pagination, totalPages, startIndex, endIndex, nextPage, prevPage, updatePagination } = usePagination(10)
-const { success, error: showError } = useNotification()
 const { PAGINATION_OPTIONS, SEARCH_CONFIG, LEAD_STATUS_LABELS } = useConstants()
 const auth = useAuthStore()
 
@@ -122,7 +117,7 @@ const load = async () => {
   }
 
   const { items, meta, success: ok } = await list({
-    status: 'disbursed',
+    status: 'blacklist',
     assigned_to: auth.user?.value?.id || '',
     search: s,
     page: pagination.currentPage,
@@ -143,15 +138,6 @@ watch([() => pagination.currentPage, () => pagination.perPage], load)
 watch(search, debounced)
 
 onUnmounted(() => clearTimeout(timer))
-
-const goPrev = async (lead) => {
-  // disbursed -> submitted
-  const payload = { status: 'submitted' }
-  try {
-    const { error } = await updateLead(lead.id, payload)
-    if (!error) { success('已回退狀態'); await load() } else { showError(error.message || '回退失敗') }
-  } catch (e) { console.error(e); showError('系統錯誤，請稍後再試') }
-}
 
 const extractDomain = (url) => {
   if (!url) return ''

@@ -208,6 +208,7 @@ class WebhookController extends Controller
                 'payload' => $payload,
                 'is_suspected_blacklist' => $isSuspectedBlacklist,
                 'suspected_reason' => $suspectedReason,
+                'status' => $isSuspectedBlacklist ? 'blacklist' : 'pending',
             ]);
 
             // 寫入對應的自訂欄位（lead）
