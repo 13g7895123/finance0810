@@ -22,6 +22,7 @@ class CaseController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'loan_amount' => 'required|numeric|min:0',
+            'lead_id' => 'sometimes|nullable|exists:customer_leads,id',
             'loan_type' => 'sometimes|nullable|string|max:50',
             'loan_term' => 'sometimes|nullable|integer|min:0',
             'interest_rate' => 'sometimes|nullable|numeric|min:0',
@@ -35,6 +36,7 @@ class CaseController extends Controller
 
         $case = CustomerCase::create([
             'customer_id' => $customer->id,
+            'lead_id' => $data['lead_id'] ?? null,
             'case_number' => CustomerCase::generateCaseNumber(),
             'loan_amount' => $data['loan_amount'],
             'loan_type' => $data['loan_type'] ?? null,

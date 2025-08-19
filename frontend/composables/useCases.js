@@ -20,5 +20,16 @@ export const useCases = () => {
     return await put(`/cases/${id}`, payload)
   }
 
-  return { list, updateOne }
+  // Create a new case for a specific customer
+  const createForCustomer = async (customerId, payload) => {
+    return await post(`/customers/${customerId}/cases`, payload)
+  }
+
+  // Helper: get latest case for a customer (by created_at desc)
+  const getLatestForCustomer = async (customerId) => {
+    const { success, items } = await list({ customer_id: customerId, per_page: 1 })
+    return success && items.length > 0 ? items[0] : null
+  }
+
+  return { list, updateOne, createForCustomer, getLatestForCustomer }
 }

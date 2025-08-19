@@ -15,6 +15,7 @@ class CustomerCase extends Model
      */
     protected $fillable = [
         'customer_id',
+        'lead_id',
         'case_number',
         'loan_amount',
         'loan_type',
@@ -54,6 +55,14 @@ class CustomerCase extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /**
+     * Get the lead this case originated from (optional)
+     */
+    public function lead()
+    {
+        return $this->belongsTo(\App\Models\CustomerLead::class, 'lead_id');
     }
 
     /**
