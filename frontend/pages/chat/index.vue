@@ -7,11 +7,21 @@
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center space-x-3">
             <h2 class="text-lg font-semibold text-gray-900">聊天室</h2>
-            <!-- 連線狀態指示器 -->
+            <!-- 連線狀態指示器 - 使用新的 Long Polling 狀態 -->
             <ClientOnly>
               <div class="flex items-center space-x-1">
-                <div class="w-2 h-2 rounded-full bg-green-400"></div>
-                <span class="text-xs text-gray-500">已連線</span>
+                <div 
+                  class="w-2 h-2 rounded-full"
+                  :class="{
+                    'bg-green-400': connectionStatus === 'connected',
+                    'bg-yellow-400': connectionStatus === 'connecting',
+                    'bg-red-400': connectionStatus === 'error',
+                    'bg-gray-400': connectionStatus === 'disconnected'
+                  }"
+                ></div>
+                <span class="text-xs text-gray-500">
+                  {{ getConnectionStatusText() }}
+                </span>
               </div>
             </ClientOnly>
             
@@ -27,34 +37,28 @@
                   <span v-else>手動刷新</span>
                 </button>
                 
-                <!-- 輪詢控制按鈕 -->
+                <!-- Long Polling 控制按鈕 -->
                 <button 
-                  @click="togglePolling"
+                  @click="toggleLongPolling"
                   :class="[
                     'text-xs px-2 py-1 rounded transition-colors',
-                    pollingConfig.enabled 
+                    isPolling 
                       ? 'bg-green-100 text-green-600 hover:bg-green-200' 
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   ]"
                 >
-                  <span v-if="pollingConfig.enabled">停止輪詢</span>
-                  <span v-else>啟動輪詢</span>
+                  <span v-if="isPolling">停止連接</span>
+                  <span v-else>開始連接</span>
                 </button>
                 
-                <!-- 輪詢間隔選擇 -->
-                <select 
-                  @change="changePollingInterval(parseInt($event.target.value))"
-                  :value="pollingConfig.interval"
-                  class="text-xs px-1 py-1 border border-gray-300 rounded bg-white"
-                >
-                  <option value="500">0.5秒</option>
-                  <option value="1000">1秒</option>
-                  <option value="2000">2秒</option>
-                  <option value="5000">5秒</option>
-                </select>
-                
+                <!-- 連接狀態信息 -->
                 <span class="text-xs text-gray-500">
-                  {{ formatTime(lastRefreshTime) }}
+                  <span v-if="lastError && retryCount > 0">
+                    重試 {{ retryCount }}/5
+                  </span>
+                  <span v-else>
+                    {{ formatTime(lastRefreshTime) }}
+                  </span>
                 </span>
               </div>
             </ClientOnly>
@@ -152,7 +156,20 @@ const { error: showError } = useNotification()
 const authStore = useAuthStore()
 const { getConversations, getConversation, replyMessage, getChatStats, searchConversations } = useChat()
 
-// 簡化的聊天室更新策略 - 移除複雜的實時技術
+// 使用新的 Long Polling 替換舊的 setInterval 方式
+const {
+  isPolling,
+  connectionStatus,
+  lastError,
+  retryCount,
+  startPolling,
+  stopPolling,
+  restartPolling,
+  onUpdate,
+  cleanup
+} = useLongPolling()
+
+// 向下兼容的狀態
 const isRefreshing = ref(false)
 const lastRefreshTime = ref(new Date())
 const autoRefreshEnabled = ref(true)
@@ -324,39 +341,83 @@ const startPolling = (intervalMs = 1000) => {
   }, 1000)
 }
 
-// 停止輪詢
-const stopPolling = () => {
-  console.log('停止定時輪詢')
-  pollingConfig.value.enabled = false
-  
-  if (pollingConfig.value.timer) {
-    clearTimeout(pollingConfig.value.timer)
-    pollingConfig.value.timer = null
+// 獲取連接狀態文字
+const getConnectionStatusText = () => {
+  switch (connectionStatus.value) {
+    case 'connected':
+      return '已連接'
+    case 'connecting':
+      return '連接中...'
+    case 'error':
+      return '連接錯誤'
+    default:
+      return '未連接'
   }
-  
-  // 重設重試計數
-  pollingConfig.value.retryCount = 0
-  
-  console.log('輪詢已停止，重試計數已重設')
 }
 
-// 調整輪詢間隔
-const changePollingInterval = (intervalMs) => {
-  if (pollingConfig.value.enabled) {
+// 切換 Long Polling 狀態
+const toggleLongPolling = async () => {
+  if (isPolling.value) {
     stopPolling()
-    safeStartPolling(intervalMs)
   } else {
-    pollingConfig.value.interval = intervalMs
+    await startLongPollingWithHandlers()
   }
-  console.log(`輪詢間隔已設定為: ${intervalMs}ms`)
 }
 
-// 切換輪詢狀態
-const togglePolling = () => {
-  if (pollingConfig.value.enabled) {
-    stopPolling()
-  } else {
-    safeStartPolling(pollingConfig.value.interval)
+// 啟動 Long Polling 並設置處理器
+const startLongPollingWithHandlers = async () => {
+  await startPolling({
+    lineUserId: selectedUser.value?.lineUserId || null,
+    onUpdate: handleLongPollingUpdate,
+    onError: handleLongPollingError
+  })
+}
+
+// 處理 Long Polling 更新
+const handleLongPollingUpdate = async (updates) => {
+  console.log('收到 Long Polling 更新:', updates)
+  
+  for (const update of updates) {
+    try {
+      switch (update.type) {
+        case 'conversation_list':
+        case 'customer_message':
+        case 'system_message':
+          // 刷新對話列表
+          await loadConversations()
+          break
+          
+        case 'message_update':
+          // 如果是當前選中的對話，刷新消息
+          if (selectedUser.value?.lineUserId === update.data?.line_user_id) {
+            await loadConversationMessages(selectedUser.value.lineUserId)
+          }
+          break
+          
+        case 'status_change':
+          // 處理狀態變更
+          console.log('消息狀態變更:', update.data)
+          break
+          
+        default:
+          console.log('未知更新類型:', update.type)
+      }
+    } catch (error) {
+      console.error('處理更新時發生錯誤:', error)
+    }
+  }
+  
+  // 更新最後刷新時間
+  lastRefreshTime.value = new Date()
+}
+
+// 處理 Long Polling 錯誤
+const handleLongPollingError = (error) => {
+  console.error('Long Polling 錯誤:', error)
+  
+  // 顯示錯誤提示（如果重試次數過多）
+  if (retryCount.value >= 3) {
+    showError('連接失敗，請檢查網絡連接')
   }
 }
 
@@ -1000,7 +1061,7 @@ onBeforeRouteLeave((to, from) => {
 
 // 初始化數據載入
 onMounted(async () => {
-  console.log('聊天室初始化開始')
+  console.log('聊天室初始化開始 - 使用 Long Polling')
   
   // 設定頁面為活躍狀態
   pageState.value.isActive = true
@@ -1012,14 +1073,10 @@ onMounted(async () => {
   // 設置頁面可見性監聽
   setupVisibilityListener()
   
-  // 更新連線狀態
-  updateChatConnectionStatus()
+  // 啟動 Long Polling（自動開始）
+  await startLongPollingWithHandlers()
   
-  // 默認啟動輪詢（可選擇）
-  safeStartPolling(1000) // 1秒間隔，自動啟動輪詢
-  
-  console.log('聊天室初始化完成')
-  console.log('可使用「啟動輪詢」按鈕啟動定時更新')
+  console.log('聊天室初始化完成 - Long Polling 已啟動')
 })
 
 // 安全的 setTimeout 包裝器
@@ -1095,24 +1152,24 @@ const cleanupAllResources = () => {
   console.log('所有資源已清理完成，頁面設定為已離開')
 }
 
-// 頁面可見性變化時的額外清理
-const handleVisibilityChange = () => {
+// 頁面可見性變化時使用 Long Polling
+const handleVisibilityChange = async () => {
   if (process.client && !pageState.value.isUnloading) {
     if (!document.hidden && pageState.value.isActive) {
-      console.log('頁面變可見，檢查更新')
+      console.log('頁面變可見，恢復 Long Polling')
       
       // 手動刷新一次
       if (autoRefreshEnabled.value && !globalLock.value) {
-        manualRefresh()
+        await manualRefresh()
       }
       
-      // 如果輪詢被停止且用戶在聊天室，則重新啟動
-      if (!pollingConfig.value.enabled && selectedUser.value && !globalLock.value && pageState.value.isActive) {
-        console.log('頁面可見且有選中用戶，重新啟動輪詢')
-        safeStartPolling(pollingConfig.value.interval)
+      // 如果 Long Polling 被停止，則重新啟動
+      if (!isPolling.value && !globalLock.value && pageState.value.isActive) {
+        console.log('頁面可見，重新啟動 Long Polling')
+        await startLongPollingWithHandlers()
       }
     } else {
-      console.log('頁面隱藏，停止輪詢節省資源')
+      console.log('頁面隱藏，暫停 Long Polling 節省資源')
       stopPolling()
     }
   }
@@ -1121,12 +1178,24 @@ const handleVisibilityChange = () => {
 // 頁面卸載清理增強版
 onUnmounted(() => {
   console.log('聊天室頁面卸載，執行資源清理')
+  
+  // 停止 Long Polling 並清理資源
+  stopPolling()
+  cleanup()
+  
+  // 原有的清理邏輯
   cleanupAllResources()
 })
 
 // 頁面導航前清理（Nuxt 3 方式）
 onBeforeUnmount(() => {
   console.log('頁面即將卸載，執行預清理')
+  
+  // 停止 Long Polling
+  stopPolling()
+  cleanup()
+  
+  // 原有的清理邏輯
   cleanupAllResources()
 })
 

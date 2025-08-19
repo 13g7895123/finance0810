@@ -1,158 +1,264 @@
 /**
  * Long Polling Composable for Real-time Updates
- * 長輪詢實時更新組合函數
+ * 真正的長輪詢實時更新組合函數（替換原有的 setInterval 方式）
  */
 
 export const useLongPolling = () => {
+  // 狀態管理
   const isPolling = ref(false)
-  const isConnected = ref(false)
-  const lastUpdate = ref(null)
-  const pollingInterval = ref(null)
+  const currentVersion = ref(0)
+  const connectionStatus = ref('disconnected') // disconnected, connecting, connected, error
+  const lastError = ref(null)
+  const retryCount = ref(0)
   const activeListeners = ref(new Map())
-  const isAggressiveMode = ref(false)
   const currentLineUserId = ref(null)
   
   const { $api } = useNuxtApp()
-  const route = useRoute()
   
-  // 輪詢間隔配置
-  const AGGRESSIVE_POLLING_INTERVAL = 300 // 300ms for chat page
-  const NORMAL_POLLING_INTERVAL = 1000 // 1s for normal usage
-  const ERROR_RETRY_INTERVAL = 5000 // 5s for error retry
-  
-  /**
-   * 根據模式取得輪詢間隔
-   */
-  const getPollingInterval = () => {
-    return isAggressiveMode.value ? AGGRESSIVE_POLLING_INTERVAL : NORMAL_POLLING_INTERVAL
+  // 配置參數
+  const maxRetries = 5
+  const config = {
+    timeout: 25000, // 25 秒超時
+    retryDelays: [1000, 2000, 4000, 8000, 16000], // 指數退避
+    endpoint: '/api/chats/poll-updates'
   }
   
+  // AbortController 用於取消請求
+  let abortController = null
+  
   /**
-   * 開始長輪詢
+   * 開始 Long Polling
    */
-  const startPolling = (lineUserId = null, aggressive = false) => {
+  const startPolling = async (options = {}) => {
     if (isPolling.value) {
+      console.log('Long polling already active')
       return
     }
     
     isPolling.value = true
-    isConnected.value = true
-    isAggressiveMode.value = aggressive
-    currentLineUserId.value = lineUserId
-    lastUpdate.value = new Date().toISOString()
+    connectionStatus.value = 'connecting'
+    lastError.value = null
+    currentLineUserId.value = options.lineUserId || null
     
-    console.log(`開始長輪詢 - 模式: ${aggressive ? '積極' : '正常'}, 間隔: ${getPollingInterval()}ms`)
+    // 合併選項
+    const pollOptions = {
+      lineUserId: options.lineUserId || null,
+      onUpdate: options.onUpdate || null,
+      onError: options.onError || null
+    }
+    
+    console.log('開始真正的 Long Polling...', { lineUserId: pollOptions.lineUserId })
     
     // 開始輪詢循環
-    pollForUpdates(lineUserId)
+    await pollLoop(pollOptions)
   }
   
   /**
-   * 開始積極輪詢（聊天室專用）
+   * 開始積極輪詢（聊天室專用）- 向下兼容
    */
   const startAggressivePolling = (lineUserId = null) => {
-    startPolling(lineUserId, true)
+    return startPolling({ 
+      lineUserId,
+      onUpdate: (updates) => handleUpdates(updates),
+      onError: (error) => console.error('Polling error:', error)
+    })
   }
   
+  /**
+   * Long Polling 主循環
+   */
+  const pollLoop = async (options) => {
+    while (isPolling.value) {
+      try {
+        // 創建新的 AbortController
+        abortController = new AbortController()
+        
+        // 發送 Long Polling 請求
+        const response = await executePollRequest(options)
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        
+        const data = await response.json()
+        
+        // 更新連接狀態
+        connectionStatus.value = 'connected'
+        retryCount.value = 0 // 重置重試計數
+        
+        // 處理響應數據
+        if (data.success) {
+          // 更新版本號
+          if (data.version) {
+            currentVersion.value = data.version
+          }
+          
+          // 如果有數據更新，處理更新
+          if (data.data && data.data.length > 0) {
+            await handleUpdates(data.data)
+            
+            // 調用外部回調
+            if (options.onUpdate) {
+              await options.onUpdate(data.data)
+            }
+          }
+          
+          // 如果是超時響應，立即發起下一次請求
+          if (data.timeout) {
+            console.debug('Long polling timeout, reconnecting...')
+            continue
+          }
+        }
+        
+        // 短暫延遲後繼續（避免過於頻繁的請求）
+        await sleep(100)
+        
+      } catch (error) {
+        // 處理錯誤
+        await handlePollingError(error, options)
+      }
+    }
+    
+    connectionStatus.value = 'disconnected'
+  }
+
   /**
    * 停止長輪詢
    */
   const stopPolling = () => {
     console.log('停止長輪詢')
     isPolling.value = false
-    isConnected.value = false
-    isAggressiveMode.value = false
-    currentLineUserId.value = null
     
-    if (pollingInterval.value) {
-      clearTimeout(pollingInterval.value)
-      pollingInterval.value = null
+    // 取消當前請求
+    if (abortController) {
+      abortController.abort()
+      abortController = null
     }
+    
+    connectionStatus.value = 'disconnected'
+    lastError.value = null
+    retryCount.value = 0
   }
   
   /**
-   * 暫停輪詢（保持狀態）
+   * 暫停輪詢（保持狀態）- 向下兼容
    */
   const pausePolling = () => {
     console.log('暫停長輪詢')
-    if (pollingInterval.value) {
-      clearTimeout(pollingInterval.value)
-      pollingInterval.value = null
-    }
+    stopPolling()
   }
   
   /**
-   * 恢復輪詢
+   * 恢復輪詢 - 向下兼容
    */
   const resumePolling = () => {
-    if (isPolling.value && !pollingInterval.value) {
+    if (!isPolling.value) {
       console.log('恢復長輪詢')
-      pollForUpdates(currentLineUserId.value)
+      startPolling({ 
+        lineUserId: currentLineUserId.value,
+        onUpdate: (updates) => handleUpdates(updates)
+      })
     }
   }
   
   /**
-   * 執行輪詢請求
+   * 執行單次 Poll 請求
    */
-  const pollForUpdates = async (lineUserId = null) => {
-    if (!isPolling.value) {
+  const executePollRequest = async (options) => {
+    const params = new URLSearchParams({
+      version: currentVersion.value,
+      timeout: config.timeout / 1000 // 轉換為秒
+    })
+    
+    if (options.lineUserId) {
+      params.append('line_user_id', options.lineUserId)
+    }
+    
+    // 設置請求超時
+    const timeoutId = setTimeout(() => {
+      if (abortController) {
+        abortController.abort()
+      }
+    }, config.timeout + 5000) // 額外 5 秒緩衝
+    
+    try {
+      const response = await fetch(`${config.endpoint}?${params}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${getAuthToken()}`
+        },
+        signal: abortController.signal
+      })
+      
+      clearTimeout(timeoutId)
+      return response
+      
+    } catch (error) {
+      clearTimeout(timeoutId)
+      throw error
+    }
+  }
+  
+  /**
+   * 處理輪詢錯誤
+   */
+  const handlePollingError = async (error, options) => {
+    console.error('Long polling error:', error)
+    lastError.value = error.message
+    
+    // 如果是主動停止，不重試
+    if (!isPolling.value || error.name === 'AbortError') {
       return
     }
     
-    try {
-      const params = {
-        timeout: 30,
-        last_update: lastUpdate.value
-      }
+    connectionStatus.value = 'error'
+    
+    // 調用錯誤回調
+    if (options.onError) {
+      options.onError(error)
+    }
+    
+    // 重試邏輯
+    if (retryCount.value < maxRetries) {
+      const delay = config.retryDelays[retryCount.value] || 30000
+      console.log(`Retrying in ${delay}ms... (attempt ${retryCount.value + 1}/${maxRetries})`)
       
-      if (lineUserId) {
-        params.line_user_id = lineUserId
-      }
+      retryCount.value++
+      await sleep(delay)
       
-      const response = await $api('/api/chats/poll-updates', {
-        params,
-        timeout: 35000 // 稍微大於服務器超時時間
-      })
-      
-      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-        // 處理收到的更新
-        response.data.forEach(update => {
-          if (update && typeof update === 'object') {
-            handleUpdate(update)
-          } else {
-            console.warn('Invalid update object:', update)
-          }
-        })
-      }
-      
-      // 更新最後更新時間
-      if (response.timestamp) {
-        lastUpdate.value = response.timestamp
-      }
-      
-      // 如果還在輪詢，繼續下一次輪詢
+      // 如果仍在輪詢狀態，繼續重試
       if (isPolling.value) {
-        pollingInterval.value = setTimeout(() => {
-          pollForUpdates(lineUserId)
-        }, getPollingInterval())
+        connectionStatus.value = 'connecting'
       }
-      
-    } catch (error) {
-      console.error('Long polling error:', error)
-      
-      // 如果還在輪詢，等待更長時間後重試
-      if (isPolling.value) {
-        pollingInterval.value = setTimeout(() => {
-          pollForUpdates(lineUserId)
-        }, ERROR_RETRY_INTERVAL)
-      }
+    } else {
+      // 達到最大重試次數，停止輪詢
+      console.error('Max retries reached, stopping long polling')
+      stopPolling()
     }
   }
   
   /**
-   * 處理更新
+   * 處理更新（批量處理）
    */
-  const handleUpdate = (update) => {
+  const handleUpdates = (updates) => {
+    if (!Array.isArray(updates)) {
+      updates = [updates]
+    }
+    
+    updates.forEach(update => {
+      if (update && typeof update === 'object') {
+        handleSingleUpdate(update)
+      } else {
+        console.warn('Invalid update object:', update)
+      }
+    })
+  }
+
+  /**
+   * 處理單個更新
+   */
+  const handleSingleUpdate = (update) => {
     const { type } = update
     
     // 調用對應的監聽器
@@ -238,6 +344,30 @@ export const useLongPolling = () => {
   }
   
   /**
+   * 重啟 Long Polling
+   */
+  const restartPolling = async (options = {}) => {
+    stopPolling()
+    await sleep(500) // 短暫延遲
+    await startPolling(options)
+  }
+  
+  /**
+   * 獲取認證 Token
+   */
+  const getAuthToken = () => {
+    // 從 Cookie 或 localStorage 獲取 token
+    const token = useCookie('auth-token').value || 
+                  localStorage.getItem('auth_token')
+    return token
+  }
+  
+  /**
+   * 延遲函數
+   */
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+  /**
    * 清理所有監聽器
    */
   const cleanup = () => {
@@ -264,13 +394,25 @@ export const useLongPolling = () => {
   }
 
   return {
+    // 狀態 - 新的 Long Polling API
     isPolling: readonly(isPolling),
-    isConnected: readonly(isConnected),
-    lastUpdate: readonly(lastUpdate),
-    isAggressiveMode: readonly(isAggressiveMode),
+    currentVersion: readonly(currentVersion),
+    connectionStatus: readonly(connectionStatus),
+    lastError: readonly(lastError),
+    retryCount: readonly(retryCount),
+    
+    // 向下兼容的狀態
+    isConnected: computed(() => connectionStatus.value === 'connected'),
+    lastUpdate: computed(() => new Date().toISOString()),
+    isAggressiveMode: computed(() => false), // 不再區分模式
+    
+    // 方法 - 新的 Long Polling API
     startPolling,
-    startAggressivePolling,
     stopPolling,
+    restartPolling,
+    
+    // 向下兼容的方法
+    startAggressivePolling,
     pausePolling,
     resumePolling,
     onUpdate,
