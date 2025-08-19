@@ -79,7 +79,7 @@
               </td>
               <!-- 承辦業務 -->
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
-                {{ (users.find(u => u.id === lead.assigned_to)?.name) || (users.find(u => u.id === lead.payload?.assigned_to)?.name) || '-' }}
+                {{ lead.assignee?.name || '-' }}
               </td>
               <!-- Email -->
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.email || '-' }}</td>
@@ -309,7 +309,7 @@ const loadLeads = async () => {
     return
   }
   
-  const { items, meta, success: apiSuccess } = await listLeads({
+  const { items, meta, success: ok } = await listLeads({
     page: pagination.currentPage,
     per_page: pagination.perPage,
     search: searchValue,
@@ -317,7 +317,7 @@ const loadLeads = async () => {
     assigned_to: selectedAssignee.value,
     status: 'pending'
   })
-  if (apiSuccess) {
+  if (ok) {
     leads.value = items
     updatePagination(meta)
   }
@@ -363,13 +363,14 @@ const formatTime = (d) => new Date(d).toLocaleTimeString('zh-TW', { hour: '2-dig
 
 // edit & delete
 const onEdit = (lead) => {
+  console.log('Editing lead:', lead);
   editingId.value = lead.id
   Object.assign(form, {
     page_url: lead.payload?.['頁面_URL'] || lead.source || '',
     channel: lead.channel || 'wp',
     status: lead.status || 'pending',
     created_at: lead.created_at ? new Date(lead.created_at).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
-    assigned_to: lead.assigned_to || lead.payload?.assigned_to || null,
+    assigned_to: lead.assigned_to || null,
     email: lead.email || null,
     line_id: lead.line_id || lead.payload?.['LINE_ID'] || '',
     region: lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '',

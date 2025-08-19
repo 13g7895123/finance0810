@@ -18,13 +18,13 @@ export const useSettingsStore = defineStore('settings', () => {
       icon: 'DocumentTextIcon',
       children: [
         { name: '待處理案件', href: '/cases/pending', permissions: ['customer_management', 'all_access'] },
-        { name: '可送件案件', href: '/cases/submittable', permissions: ['customer_management', 'all_access'] },
-        { name: '進行中案件', href: '/cases/progress', permissions: ['customer_management', 'all_access'] },
-        { name: '已完成案件', href: '/cases/completed', permissions: ['customer_management', 'all_access'] },
+        { name: '可送件案件', href: '/cases/submittable', permissions: ['case.view', 'all_access'] },
+        { name: '進行中案件', href: '/cases/progress', permissions: ['case.view', 'all_access'] },
+        { name: '已完成案件', href: '/cases/completed', permissions: ['case.view', 'all_access'] },
         { name: '黑名單案件', href: '/cases/blacklist', permissions: ['customer_management', 'all_access'] },
         { name: '協商客戶', href: '/cases/negotiated', permissions: ['customer_management', 'all_access'] }
       ],
-      permissions: ['customer_management', 'all_access']
+      permissions: ['case.view', 'all_access']
     },
     {
       name: '業務管理',

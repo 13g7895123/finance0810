@@ -41,25 +41,23 @@ class LeadController extends Controller
 
         // 篩選：案件狀態 status
         if ($request->filled('status')) {
-            if ($request->get('status') === LeadStatus::Pending->value) {
-                $query->where('assigned_to', null);
-            } else {
-                $query->where('status', $request->get('status'));
-            }
+            $query->where('status', $request->get('status'));
         }
 
         // 角色權限：非 admin/executive/manager 則自動限制為只看自己（staff）
         $isPrivileged = $user && $user->hasAnyRole(['admin', 'executive', 'manager']);
-        if (!$isPrivileged) {
-            $query->where(function ($q) use ($user, $request) {
-                // 未指派也要能看見（例如回退後）
-                if ($request->get('assigned_to') === 'null' || $request->get('assigned_to') === '') {
-                    $q->whereNull('assigned_to');
-                } else {
-                    $q->where('assigned_to', $user->id);
-                }
-            });
-        }
+        $query->when(!$isPrivileged, function ($q) use ($user) {
+            $q->where('assigned_to', $user->id);
+        }, function ($q) use ($request) {
+            // 未指派也要能看見（例如回退後)
+            if ($request->get('assigned_to') === 'all') {
+                //
+            } elseif ($request->get('assigned_to') === 'null') {
+                $q->whereNull('assigned_to');
+            } elseif ($request->get('assigned_to')) {
+                $q->where('assigned_to', $request->get('assigned_to'));
+            }
+        });
 
         if ($request->has('is_suspected_blacklist')) {
             $query->where('is_suspected_blacklist', (bool)$request->get('is_suspected_blacklist'));
@@ -68,7 +66,9 @@ class LeadController extends Controller
         if ($request->has('website_source')) {
             $query->where('source', 'like', "%".$request->get('website_source')."%");
         }
-
+        // return response()->json(
+        //     $query->toRawSql()
+        // );
         $perPage = (int)($request->get('per_page', 15));
         $leads = $query->orderByDesc('created_at')->paginate($perPage);
         return response()->json($leads);
@@ -103,7 +103,9 @@ class LeadController extends Controller
         if (!$isPrivileged) {
             $query->where('assigned_to', $user->id);
         }
-
+        // return response()->json(
+        //     $query->toRawSql()
+        // );
         $perPage = (int)($request->get('per_page', 15));
         $leads = $query->orderByDesc('created_at')->paginate($perPage);
         return response()->json($leads);
@@ -138,9 +140,6 @@ class LeadController extends Controller
             $payload = array_merge($payload, $request->payload);
         }
         // 將未持久化的欄位也保存到 payload 內
-        if ($request->filled('assigned_to')) {
-            $payload['assigned_to'] = (int)$request->assigned_to;
-        }
         if ($request->filled('notes')) {
             $payload['notes'] = (string)$request->notes;
         }

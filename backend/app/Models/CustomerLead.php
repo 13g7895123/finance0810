@@ -12,7 +12,8 @@ class CustomerLead extends Model
     use HasFactory;
 
     protected $fillable = [
-        'customer_id', 'assigned_to', 'status',
+        'customer_id',
+        'status',
         'assigned_to',
         'channel', // wp_form, phone_call, line, email
         'source', // page url / website
