@@ -13,6 +13,7 @@ use App\Services\QueryPerformanceMonitor;
 use App\Services\ChatQueryCacheService;
 use App\Services\VersionTrackingService;
 use App\Services\IncrementalSyncService;
+use App\Services\ChatVersionService;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -26,6 +27,9 @@ class AppServiceProvider extends ServiceProvider
         
         // 註冊增量同步服務
         $this->app->singleton(IncrementalSyncService::class);
+        
+        // 註冊聊天版本服務
+        $this->app->singleton(ChatVersionService::class);
     }
 
     /**
