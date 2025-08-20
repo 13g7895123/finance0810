@@ -110,20 +110,40 @@ return new class extends Migration
     private function setInitialVersions()
     {
         if (Schema::hasTable('chat_conversations') && Schema::hasColumn('chat_conversations', 'version')) {
-            $updateData = ['version' => 1];
-            
-            // 只有當 version_updated_at 欄位存在時才更新它
-            if (Schema::hasColumn('chat_conversations', 'version_updated_at')) {
-                $updateData['version_updated_at'] = now();
-            }
-            
-            $count = DB::table('chat_conversations')
-                ->whereNull('version')
-                ->orWhere('version', 0)
-                ->update($updateData);
+            try {
+                // 重新檢查欄位存在性，確保 DDL 操作已完成
+                $columns = Schema::getColumnListing('chat_conversations');
+                $hasVersionUpdatedAt = in_array('version_updated_at', $columns);
                 
-            if ($count > 0) {
-                \Log::info("Updated {$count} chat conversations with initial version");
+                if ($hasVersionUpdatedAt) {
+                    // 如果 version_updated_at 欄位存在，更新兩個欄位
+                    $count = DB::table('chat_conversations')
+                        ->where(function($query) {
+                            $query->whereNull('version')
+                                  ->orWhere('version', 0);
+                        })
+                        ->update([
+                            'version' => 1,
+                            'version_updated_at' => now()
+                        ]);
+                } else {
+                    // 如果 version_updated_at 欄位不存在，只更新 version
+                    $count = DB::table('chat_conversations')
+                        ->where(function($query) {
+                            $query->whereNull('version')
+                                  ->orWhere('version', 0);
+                        })
+                        ->update(['version' => 1]);
+                }
+                
+                if ($count > 0) {
+                    \Log::info("Updated {$count} chat conversations with initial version", [
+                        'has_version_updated_at' => $hasVersionUpdatedAt
+                    ]);
+                }
+            } catch (\Exception $e) {
+                \Log::error('Failed to set initial versions: ' . $e->getMessage());
+                // 不拋出異常，讓 migration 繼續執行
             }
         }
     }
