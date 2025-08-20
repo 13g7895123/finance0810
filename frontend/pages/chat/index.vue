@@ -211,6 +211,40 @@ const pageState = ref({
   pendingTimeouts: new Set() // 追蹤所有待處理的計時器
 })
 
+// 安全的 setTimeout 包裝器 - 提前定義以避免引用錯誤
+const safeSetTimeout = (callback, delay) => {
+  if (pageState.value.isUnloading) {
+    console.log('頁面已離開，取消計時器')
+    return null
+  }
+  
+  const timeoutId = setTimeout(() => {
+    pageState.value.pendingTimeouts.delete(timeoutId)
+    if (!pageState.value.isUnloading && callback) {
+      callback()
+    }
+  }, delay)
+  
+  pageState.value.pendingTimeouts.add(timeoutId)
+  return timeoutId
+}
+
+// 前向聲明 - 將在後面定義實際函數
+let startLegacyPolling
+let stopLegacyPolling
+
+// 安全的輪詢啟動函數（舊版setInterval）
+const safeStartLegacyPolling = (intervalMs) => {
+  if (pageState.value.isUnloading) {
+    console.log('頁面已離開，不啟動輪詢')
+    return
+  }
+  // startLegacyPolling 將在稍後定義
+  if (typeof startLegacyPolling === 'function') {
+    startLegacyPolling(intervalMs)
+  }
+}
+
 // 搜尋查詢
 const searchQuery = ref('')
 
@@ -242,14 +276,19 @@ const refreshStatus = ref({
 // 簡化的時間格式化函數
 const formatTime = (timestamp) => {
   if (!timestamp) return ''
-  const now = new Date()
-  const time = new Date(timestamp)
-  const diffInMinutes = Math.floor((now - time) / (1000 * 60))
-  
-  if (diffInMinutes < 1) return '剛剛'
-  if (diffInMinutes < 60) return `${diffInMinutes}分鐘前`
-  if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}小時前`
-  return `${Math.floor(diffInMinutes / 1440)}天前`
+  try {
+    const now = new Date()
+    const time = new Date(timestamp)
+    const diffInMinutes = Math.floor((now - time) / (1000 * 60))
+    
+    if (diffInMinutes < 1) return '剛剛'
+    if (diffInMinutes < 60) return `${diffInMinutes}分鐘前`
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}小時前`
+    return `${Math.floor(diffInMinutes / 1440)}天前`
+  } catch (e) {
+    console.warn('Time formatting error:', e)
+    return ''
+  }
 }
 
 // 簡化的連線狀態管理
@@ -288,7 +327,7 @@ const performManualRefresh = async () => {
 }
 
 // 定時輪詢功能（增強防競爭版）- 重新命名避免與Long Polling衝突
-const startLegacyPolling = (intervalMs = 1000) => {
+startLegacyPolling = (intervalMs = 1000) => {
   if (pageState.value.isUnloading) {
     console.log('頁面已離開，不啟動輪詢')
     return
@@ -353,7 +392,7 @@ const startLegacyPolling = (intervalMs = 1000) => {
 }
 
 // 停止舊版定時輪詢
-const stopLegacyPolling = () => {
+stopLegacyPolling = () => {
   pollingConfig.value.enabled = false
   if (pollingConfig.value.timer) {
     clearTimeout(pollingConfig.value.timer)
@@ -405,22 +444,25 @@ const handlePollingUpdate = async (data) => {
           console.warn('對話數據校驗失敗:', validationResult.errors, conv)
         }
         
+        // 確保客戶名稱正確顯示
+        const customerName = conv.customer?.name || conv.customer_name || conv.last_customer_name || '客戶'
+        
         return {
           id: parseInt(conv.line_user_id),
-          name: conv.customer?.name || '客戶',
+          name: customerName,
           role: 'line_customer',
-          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.customer?.name || '客戶')}&background=00C300&color=fff`,
-          lastMessage: conv.last_message || '',
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(customerName)}&background=00C300&color=fff`,
+          lastMessage: conv.last_message || conv.last_customer_message || conv.last_system_message || '',
           timestamp: new Date(conv.last_message_time),
           unreadCount: conv.unread_count || 0,
           online: false,
           isBot: true,
           lineUserId: conv.line_user_id,
           customerInfo: {
-            phone: conv.customer?.phone || '',
-            region: conv.customer?.region || '',
-            source: conv.customer?.source || '',
-            status: conv.customer?.status || ''
+            phone: conv.customer?.phone || conv.customer_phone || '',
+            region: conv.customer?.region || conv.customer_region || '',
+            source: conv.customer?.source || conv.customer_source || '',
+            status: conv.customer?.status || conv.customer_status || ''
           }
         }
       })
@@ -535,22 +577,25 @@ const loadConversations = async () => {
           console.warn('對話數據校驗失敗:', validationResult.errors, conv)
         }
         
+        // 確保客戶名稱正確顯示
+        const customerName = conv.customer?.name || conv.customer_name || conv.last_customer_name || '客戶'
+        
         return {
           id: parseInt(conv.line_user_id),
-          name: conv.customer?.name || '客戶',
+          name: customerName,
           role: 'line_customer',
-          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.customer?.name || '客戶')}&background=00C300&color=fff`,
-          lastMessage: conv.last_message || '',
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(customerName)}&background=00C300&color=fff`,
+          lastMessage: conv.last_message || conv.last_customer_message || conv.last_system_message || '',
           timestamp: new Date(conv.last_message_time),
           unreadCount: conv.unread_count || 0,
           online: false,
           isBot: true,
           lineUserId: conv.line_user_id,
           customerInfo: {
-            phone: conv.customer?.phone || '',
-            region: conv.customer?.region || '',
-            source: conv.customer?.source || '',
-            status: conv.customer?.status || ''
+            phone: conv.customer?.phone || conv.customer_phone || '',
+            region: conv.customer?.region || conv.customer_region || '',
+            source: conv.customer?.source || conv.customer_source || '',
+            status: conv.customer?.status || conv.customer_status || ''
           }
         }
       })
@@ -1197,32 +1242,7 @@ onMounted(async () => {
   console.log('聊天室初始化完成 - 簡化輪詢已啟動')
 })
 
-// 安全的 setTimeout 包裝器
-const safeSetTimeout = (callback, delay) => {
-  if (pageState.value.isUnloading) {
-    console.log('頁面已離開，取消計時器')
-    return null
-  }
-  
-  const timeoutId = setTimeout(() => {
-    pageState.value.pendingTimeouts.delete(timeoutId)
-    if (!pageState.value.isUnloading) {
-      callback()
-    }
-  }, delay)
-  
-  pageState.value.pendingTimeouts.add(timeoutId)
-  return timeoutId
-}
-
-// 安全的輪詢啟動函數（舊版setInterval）
-const safeStartLegacyPolling = (intervalMs = 1000) => {
-  if (pageState.value.isUnloading) {
-    console.log('頁面已離開，不啟動輪詢')
-    return
-  }
-  startLegacyPolling(intervalMs)
-}
+// 安全函數已移至頂部定義
 
 // 全域資源清理函數（增強版）
 const cleanupAllResources = () => {
