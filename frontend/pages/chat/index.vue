@@ -1229,28 +1229,6 @@ const cleanupAllResources = () => {
   console.log('所有資源已清理完成，頁面設定為已離開')
 }
 
-// 頁面可見性變化時使用 Long Polling
-const handleVisibilityChange = async () => {
-  if (process.client && !pageState.value.isUnloading) {
-    if (!document.hidden && pageState.value.isActive) {
-      console.log('頁面變可見，恢復 Long Polling')
-      
-      // 手動刷新一次
-      if (autoRefreshEnabled.value && !globalLock.value) {
-        await manualRefresh()
-      }
-      
-      // 如果 Long Polling 被停止，則重新啟動
-      if (!isPolling.value && !globalLock.value && pageState.value.isActive) {
-        console.log('頁面可見，重新啟動 Long Polling')
-        await startLongPollingWithHandlers()
-      }
-    } else {
-      console.log('頁面隱藏，暫停 Long Polling 節省資源')
-      stopPolling()
-    }
-  }
-}
 
 // 頁面卸載清理增強版
 onUnmounted(() => {
