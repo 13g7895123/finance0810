@@ -81,20 +81,24 @@ return new class extends Migration
      */
     private function setInitialVersions()
     {
-        // 為現有聊天記錄設置版本
-        DB::table('chat_conversations')
-            ->whereNull('version')
-            ->update([
-                'version' => 1,
-                'version_updated_at' => now()
-            ]);
+        // 為現有聊天記錄設置版本 (只有在欄位存在時才更新)
+        if (Schema::hasColumn('chat_conversations', 'version') && Schema::hasColumn('chat_conversations', 'version_updated_at')) {
+            DB::table('chat_conversations')
+                ->whereNull('version')
+                ->update([
+                    'version' => 1,
+                    'version_updated_at' => now()
+                ]);
+        }
         
-        // 為現有客戶設置版本
-        DB::table('customers')
-            ->whereNull('version')
-            ->update([
-                'version' => 1,
-                'version_updated_at' => now()
-            ]);
+        // 為現有客戶設置版本 (只有在欄位存在時才更新)
+        if (Schema::hasColumn('customers', 'version') && Schema::hasColumn('customers', 'version_updated_at')) {
+            DB::table('customers')
+                ->whereNull('version')
+                ->update([
+                    'version' => 1,
+                    'version_updated_at' => now()
+                ]);
+        }
     }
 };
