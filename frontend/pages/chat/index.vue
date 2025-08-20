@@ -20,11 +20,7 @@
                   }"
                 ></div>
                 <span class="text-xs text-gray-500">
-                  {{ getConnectionStatusText() }}
-                </span>
-                <!-- 顯示當前模式 -->
-                <span v-if="currentStrategy === 'fallback'" class="text-xs text-orange-500">
-                  (備用模式)
+                  {{ getPollingStatusText() }}
                 </span>
               </div>
             </ClientOnly>
@@ -33,7 +29,7 @@
             <ClientOnly>
               <div class="flex space-x-1" style="display: none;">
                 <button 
-                  @click="manualRefresh"
+                  @click="performManualRefresh"
                   :disabled="isRefreshing"
                   class="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -153,6 +149,7 @@ import {
 
 import { DataValidator } from '~/utils/dataValidator'
 import { PerformanceMonitorService } from '~/services/PerformanceMonitorService'
+import { useSimplePolling } from '~/composables/useSimplePolling'
 
 definePageMeta({
   middleware: 'auth'
@@ -178,34 +175,22 @@ if (process.dev) {
   window.getPerformanceMetrics = getPerformanceMetrics
 }
 
-// 使用具備降級機制的 Long Polling
+// 使用簡化的輪詢機制
 const {
   isPolling,
-  currentStrategy,
-  fallbackReason,
+  connectionStatus,
+  lastUpdateTime,
   errorCount,
   startPolling,
   stopPolling,
-  getStrategyStatus
-} = usePollingWithFallback()
-
-// 連接狀態映射
-const connectionStatus = computed(() => {
-  switch (currentStrategy.value) {
-    case 'longPolling':
-      return isPolling.value ? 'connected' : 'disconnected'
-    case 'fallback':
-      return 'connecting'
-    case 'disabled':
-      return 'error'
-    default:
-      return 'disconnected'
-  }
-})
+  manualRefresh,
+  resetErrors,
+  getConnectionStatusText
+} = useSimplePolling()
 
 // 向下兼容的狀態
 const isRefreshing = ref(false)
-const lastRefreshTime = ref(new Date())
+const lastRefreshTime = computed(() => lastUpdateTime.value || new Date())
 const autoRefreshEnabled = ref(true)
 const lastError = ref(null)
 const retryCount = computed(() => errorCount.value)
@@ -272,45 +257,33 @@ const updateChatConnectionStatus = () => {
   chatConnectionStatus.value = 'ready' // 始終顯示為準備就緒
 }
 
-// 手動刷新功能（增強防競爭版）
-const manualRefresh = async () => {
-  if (isRefreshing.value || globalLock.value || loadingLocks.value.apiCallInProgress) {
-    console.log('刷新已在進行中或有其他API操作，跳過')
+// 簡化的手動刷新方法
+const performManualRefresh = async () => {
+  if (isRefreshing.value) {
+    console.log('刷新已在進行中，跳過')
     return
   }
   
   isRefreshing.value = true
-  loadingLocks.value.apiCallInProgress = true
   
   try {
     console.log('手動刷新聊天室數據...')
     
-    // API 序列化：確保只有一個API調用可以進行
-    if (selectedUser.value && selectedUser.value.lineUserId) {
-      // 有選中用戶時，僅更新該用戶的訊息，不更新主列表以避免競爭
-      console.log('有選中用戶，僅更新該用戶訊息:', selectedUser.value.lineUserId)
-      await loadConversationMessages(selectedUser.value.lineUserId)
+    // 使用簡化輪詢的手動刷新
+    const success = await manualRefresh() // 從 useSimplePolling 來的方法
+    
+    if (success) {
+      console.log('聊天室數據刷新完成')
+      resetErrors() // 重置錯誤計數
     } else {
-      // 沒有選中用戶時，更新主對話列表
-      console.log('沒有選中用戶，更新主對話列表')
-      await loadConversations()
+      console.warn('聊天室數據刷新失敗')
     }
-    
-    lastRefreshTime.value = new Date()
-    console.log('聊天室數據刷新完成')
-    
-    // 成功後重置重試計數
-    pollingConfig.value.retryCount = 0
     
   } catch (error) {
     console.error('刷新聊天室數據失敗:', error)
-    pollingConfig.value.retryCount++
-    // 性能監控 - 記錄錯誤
     performanceMonitor.recordError('refresh_error', error)
   } finally {
     isRefreshing.value = false
-    loadingLocks.value.apiCallInProgress = false
-    console.log('API調用鎖定已釋放')
   }
 }
 
@@ -357,7 +330,7 @@ const startLegacyPolling = (intervalMs = 1000) => {
     }
     
     try {
-      await manualRefresh()
+      await performManualRefresh()
     } catch (error) {
       console.error('輪詢更新失敗:', error)
     }
@@ -389,18 +362,10 @@ const stopLegacyPolling = () => {
   console.log('已停止舊版定時輪詢')
 }
 
-// 獲取連接狀態文字
-const getConnectionStatusText = () => {
-  switch (connectionStatus.value) {
-    case 'connected':
-      return currentStrategy.value === 'longPolling' ? '已連接' : '備用連接'
-    case 'connecting':
-      return currentStrategy.value === 'fallback' ? '備用模式' : '連接中...'
-    case 'error':
-      return '連接錯誤'
-    default:
-      return '未連接'
-  }
+// 獲取連接狀態文字 - 使用簡化的輪詢狀態
+const getPollingStatusText = () => {
+  // 使用從 useSimplePolling 來的方法
+  return getConnectionStatusText()
 }
 
 // 切換 Long Polling 狀態
@@ -408,71 +373,64 @@ const toggleLongPolling = async () => {
   if (isPolling.value) {
     stopPolling()
   } else {
-    await startLongPollingWithHandlers()
+    await startSimplePolling()
   }
 }
 
-// 啟動 Long Polling 並設置處理器
-const startLongPollingWithHandlers = async () => {
-  await startPolling({
-    lineUserId: selectedUser.value?.lineUserId || null,
-    onUpdate: handleLongPollingUpdate,
-    onError: handleLongPollingError
+// 啟動簡化的輪詢
+const startSimplePolling = async () => {
+  startPolling({
+    interval: 2000, // 2秒輪詢間隔
+    onUpdate: handlePollingUpdate,
+    onError: handlePollingError,
+    onAuthError: handleAuthError
   })
 }
 
-// 處理 Long Polling 更新
-const handleLongPollingUpdate = async (updates) => {
-  console.log('收到 Long Polling 更新:', updates)
+// 處理輪詢更新
+const handlePollingUpdate = async (data) => {
+  console.log('收到輪詢更新:', data)
   
-  for (const update of updates) {
-    try {
-      switch (update.type) {
-        case 'conversation_list':
-        case 'customer_message':
-        case 'system_message':
-          // 刷新對話列表
-          await loadConversations()
-          break
-          
-        case 'message_update':
-          // 如果是當前選中的對話，刷新消息
-          if (selectedUser.value?.lineUserId === update.data?.line_user_id) {
-            await loadConversationMessages(selectedUser.value.lineUserId)
-          }
-          break
-          
-        case 'status_change':
-          // 處理狀態變更
-          console.log('消息狀態變更:', update.data)
-          break
-          
-        default:
-          console.log('未知更新類型:', update.type)
-      }
-    } catch (error) {
-      console.error('處理更新時發生錯誤:', error)
+  try {
+    if (data && Array.isArray(data)) {
+      // 更新對話列表
+      conversations.value = data.map(conv => ({
+        ...conv,
+        displayName: conv.customer?.name || conv.line_user_id || '未知用戶',
+        lastMessage: conv.last_message || '',
+        unreadCount: conv.unread_count || 0,
+        lastMessageTime: new Date(conv.last_message_time)
+      }))
+      
+      // 觸發數據驗證
+      conversations.value.forEach(conv => {
+        const validation = DataValidator.validateConversation(conv)
+        if (!validation.valid) {
+          console.warn('對話數據驗證失敗:', validation.errors)
+        }
+      })
+      
+      // 性能監控
+      performanceMonitor.recordApiCall('/api/chats', 200, true)
     }
+  } catch (error) {
+    console.error('處理輪詢更新時發生錯誤:', error)
   }
-  
-  // 更新最後刷新時間
-  lastRefreshTime.value = new Date()
 }
 
-// 處理 Long Polling 錯誤
-const handleLongPollingError = (error) => {
-  console.error('Long Polling 錯誤:', error)
-  lastError.value = error
+// 處理輪詢錯誤
+const handlePollingError = (error) => {
+  console.error('輪詢錯誤:', error)
   
-  // 顯示錯誤提示（如果重試次數過多）
   if (retryCount.value >= 3) {
     showError('連接失敗，請檢查網絡連接')
   }
-  
-  // 如果降級到傳統輪詢，顯示提示
-  if (currentStrategy.value === 'fallback' && fallbackReason.value) {
-    console.warn(`已切換到備用模式: ${fallbackReason.value}`)
-  }
+}
+
+// 處理認證錯誤
+const handleAuthError = (error) => {
+  console.error('認證錯誤:', error)
+  showError('認證失敗，請重新登入')
 }
 
 // API 數據狀態
@@ -911,6 +869,29 @@ const setupVisibilityListener = () => {
   }
 }
 
+// 頁面可見性變化使用簡化輪詢
+const handleVisibilityChange = async () => {
+  if (process.client && !pageState.value.isUnloading) {
+    if (!document.hidden && pageState.value.isActive) {
+      console.log('頁面變可見，恢復簡化輪詢')
+      
+      // 手動刷新一次
+      if (autoRefreshEnabled.value && !globalLock.value) {
+        await performManualRefresh()
+      }
+      
+      // 如果輪詢被停止，則重新啟動
+      if (!isPolling.value && !globalLock.value && pageState.value.isActive) {
+        console.log('頁面可見，重新啟動簡化輪詢')
+        await startSimplePolling()
+      }
+    } else {
+      console.log('頁面隱藏，暫停輪詢節省資源')
+      stopPolling()
+    }
+  }
+}
+
 // 當前聊天訊息
 const currentMessages = computed(() => {
   try {
@@ -991,20 +972,12 @@ const sendMessage = async (content) => {
     
     // 發送訊息後延遲刷新
     setTimeout(() => {
-      manualRefresh()
+      performManualRefresh()
       
-      // 如果輪詢被停止，發送訊息後短時啟動輪詢
-      if (!pollingConfig.value.enabled) {
-        console.log('發送訊息後短時啟動輪詢')
-        safeStartLegacyPolling(pollingConfig.value.interval)
-        
-        // 30秒後自動停止（節省資源）
-        safeSetTimeout(() => {
-          if (pollingConfig.value.enabled) {
-            console.log('自動停止短時輪詢')
-            stopLegacyPolling()
-          }
-        }, 30000)
+      // 如果輪詢被停止，發送訊息後確保輪詢運行
+      if (!isPolling.value) {
+        console.log('發送訊息後啟動輪詢')
+        startSimplePolling()
       }
     }, 1000)
     
@@ -1159,7 +1132,7 @@ onBeforeRouteLeave((to, from) => {
 
 // 初始化數據載入
 onMounted(async () => {
-  console.log('聊天室初始化開始 - 使用 Long Polling')
+  console.log('聊天室初始化開始 - 使用簡化輪詢')
   
   // 設定頁面為活躍狀態
   pageState.value.isActive = true
@@ -1171,15 +1144,15 @@ onMounted(async () => {
   // 設置頁面可見性監聽
   setupVisibilityListener()
   
-  // 啟動 Long Polling（自動開始）
-  await startLongPollingWithHandlers()
+  // 啟動簡化輪詢（自動開始）
+  await startSimplePolling()
   
   // 性能監控 - 定期記錄內存使用情況
   setInterval(() => {
     performanceMonitor.recordMemoryUsage()
   }, 10000) // 每10秒記錄一次
   
-  console.log('聊天室初始化完成 - Long Polling 已啟動')
+  console.log('聊天室初始化完成 - 簡化輪詢已啟動')
 })
 
 // 安全的 setTimeout 包裝器

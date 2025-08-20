@@ -38,6 +38,16 @@ class ChatController extends Controller
             $user = Auth::user();
             $forceRefresh = $request->boolean('refresh', false);
             
+            // 基本的系統健康檢查
+            if (!\Schema::hasTable('chat_conversations')) {
+                Log::error('chat_conversations table does not exist');
+                return response()->json([
+                    'success' => false,
+                    'error' => '聊天系統未正確初始化',
+                    'message' => 'Chat system tables are missing'
+                ], 503);
+            }
+            
             // 使用緩存服務獲取數據
             $conversations = $this->cacheService->getConversationList(
                 $user->isStaff() ? $user->id : null,
@@ -1564,26 +1574,51 @@ class ChatController extends Controller
             // 注入版本服務
             $versionService = app(\App\Services\ChatVersionService::class);
             
+            // 檢查系統健康狀態並嘗試初始化
+            $systemHealth = $versionService->checkSystemHealth();
+            
+            if ($systemHealth === 'critical_error') {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'System not ready',
+                    'message' => 'Chat system is not properly initialized'
+                ], 503);
+            }
+            
+            if ($systemHealth === 'degraded') {
+                Log::info('Attempting to initialize version system due to degraded health');
+                $versionService->initializeVersionSystem();
+            }
+            
             $startTime = microtime(true);
             $pollingInterval = 0.5; // 500毫秒檢查一次
             $maxChecks = (int)($timeout / $pollingInterval);
             
             // Long Polling 循環
             for ($i = 0; $i < $maxChecks; $i++) {
-                // 檢查是否有新版本
-                if ($versionService->needsUpdate($clientVersion)) {
-                    // 獲取變化的數據
-                    $changes = $versionService->getChangesSince($clientVersion, $lineUserId);
-                    
-                    if ($changes->isNotEmpty()) {
-                        return response()->json([
-                            'success' => true,
-                            'version' => $versionService->getCurrentVersion(),
-                            'data' => $this->formatChanges($changes),
-                            'timestamp' => now()->toISOString(),
-                            'response_time' => round((microtime(true) - $startTime) * 1000, 2)
-                        ]);
+                try {
+                    // 檢查是否有新版本
+                    if ($versionService->needsUpdate($clientVersion)) {
+                        // 獲取變化的數據
+                        $changes = $versionService->getChangesSince($clientVersion, $lineUserId);
+                        
+                        if ($changes->isNotEmpty()) {
+                            return response()->json([
+                                'success' => true,
+                                'version' => $versionService->getCurrentVersion(),
+                                'data' => $this->formatChanges($changes),
+                                'timestamp' => now()->toISOString(),
+                                'response_time' => round((microtime(true) - $startTime) * 1000, 2),
+                                'system_health' => $systemHealth
+                            ]);
+                        }
                     }
+                } catch (\Exception $checkError) {
+                    Log::warning('Error during polling check iteration', [
+                        'iteration' => $i,
+                        'error' => $checkError->getMessage()
+                    ]);
+                    // 繼續下一次檢查而不是完全失敗
                 }
                 
                 // 如果沒有更新，等待後繼續檢查
@@ -1596,7 +1631,8 @@ class ChatController extends Controller
                 'version' => $versionService->getCurrentVersion(),
                 'data' => [],
                 'timestamp' => now()->toISOString(),
-                'timeout' => true
+                'timeout' => true,
+                'system_health' => $systemHealth
             ]);
             
         } catch (\Exception $e) {
@@ -1608,7 +1644,11 @@ class ChatController extends Controller
             return response()->json([
                 'success' => false,
                 'error' => 'Polling failed',
-                'message' => config('app.debug') ? $e->getMessage() : 'Internal error'
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal error',
+                'debug_info' => config('app.debug') ? [
+                    'client_version' => $request->get('version', 0),
+                    'line_user_id' => $request->get('line_user_id')
+                ] : null
             ], 500);
         }
     }

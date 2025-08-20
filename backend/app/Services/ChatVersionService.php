@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
 
 class ChatVersionService
 {
@@ -128,8 +129,17 @@ class ChatVersionService
      */
     public function needsUpdate(int $clientVersion): bool
     {
-        $currentVersion = $this->getCurrentVersion();
-        return $clientVersion < $currentVersion;
+        try {
+            $currentVersion = $this->getCurrentVersion();
+            return $clientVersion < $currentVersion;
+        } catch (\Exception $e) {
+            Log::warning('Failed to check version update need', [
+                'client_version' => $clientVersion,
+                'error' => $e->getMessage()
+            ]);
+            // 如果無法檢查版本，假設需要更新以確保數據同步
+            return true;
+        }
     }
     
     /**
@@ -224,19 +234,122 @@ class ChatVersionService
      */
     public function getVersionStats(): array
     {
-        $currentVersion = $this->getCurrentVersion();
-        $totalConversations = DB::table('chat_conversations')->count();
-        $versionedConversations = DB::table('chat_conversations')
-            ->where('version', '>', 0)
-            ->count();
-        
-        return [
-            'current_version' => $currentVersion,
-            'total_conversations' => $totalConversations,
-            'versioned_conversations' => $versionedConversations,
-            'versioning_coverage' => $totalConversations > 0 
-                ? round(($versionedConversations / $totalConversations) * 100, 2) 
-                : 0
-        ];
+        try {
+            $currentVersion = $this->getCurrentVersion();
+            
+            $totalConversations = 0;
+            $versionedConversations = 0;
+            
+            if (Schema::hasTable('chat_conversations')) {
+                $totalConversations = DB::table('chat_conversations')->count();
+                
+                if (Schema::hasColumn('chat_conversations', 'version')) {
+                    $versionedConversations = DB::table('chat_conversations')
+                        ->where('version', '>', 0)
+                        ->count();
+                }
+            }
+            
+            return [
+                'current_version' => $currentVersion,
+                'total_conversations' => $totalConversations,
+                'versioned_conversations' => $versionedConversations,
+                'versioning_coverage' => $totalConversations > 0 
+                    ? round(($versionedConversations / $totalConversations) * 100, 2) 
+                    : 0,
+                'system_health' => $this->checkSystemHealth()
+            ];
+        } catch (\Exception $e) {
+            Log::error('Failed to get version stats', [
+                'error' => $e->getMessage()
+            ]);
+            
+            return [
+                'current_version' => 0,
+                'total_conversations' => 0,
+                'versioned_conversations' => 0,
+                'versioning_coverage' => 0,
+                'system_health' => 'error',
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+    
+    /**
+     * 檢查系統健康狀態
+     */
+    public function checkSystemHealth(): string
+    {
+        try {
+            // 檢查必要的資料表是否存在
+            $requiredTables = ['chat_conversations'];
+            $optionalTables = ['chat_versions', 'global_version_sequence'];
+            
+            foreach ($requiredTables as $table) {
+                if (!Schema::hasTable($table)) {
+                    return 'critical_error';
+                }
+            }
+            
+            // 檢查是否有版本追蹤能力
+            $hasVersionTracking = false;
+            foreach ($optionalTables as $table) {
+                if (Schema::hasTable($table)) {
+                    $hasVersionTracking = true;
+                    break;
+                }
+            }
+            
+            if (!$hasVersionTracking) {
+                return 'degraded';
+            }
+            
+            // 檢查版本欄位
+            if (!Schema::hasColumn('chat_conversations', 'version')) {
+                return 'partial';
+            }
+            
+            return 'healthy';
+            
+        } catch (\Exception $e) {
+            Log::error('System health check failed', [
+                'error' => $e->getMessage()
+            ]);
+            return 'error';
+        }
+    }
+    
+    /**
+     * 初始化版本系統（安全模式）
+     */
+    public function initializeVersionSystem(): bool
+    {
+        try {
+            // 如果 chat_versions 表不存在，嘗試創建
+            if (!Schema::hasTable('chat_versions')) {
+                Log::info('Creating chat_versions table');
+                Schema::create('chat_versions', function (Blueprint $table) {
+                    $table->id();
+                    $table->string('key')->unique()->index();
+                    $table->unsignedBigInteger('version')->default(0)->index();
+                    $table->timestamps();
+                });
+                
+                // 插入初始記錄
+                DB::table('chat_versions')->insert([
+                    'key' => 'global',
+                    'version' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+            }
+            
+            return true;
+        } catch (\Exception $e) {
+            Log::error('Failed to initialize version system', [
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
     }
 }

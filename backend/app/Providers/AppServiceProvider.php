@@ -30,6 +30,12 @@ class AppServiceProvider extends ServiceProvider
         
         // 註冊聊天版本服務
         $this->app->singleton(ChatVersionService::class);
+        
+        // 註冊聊天查詢緩存服務
+        $this->app->singleton(ChatQueryCacheService::class);
+        
+        // 註冊查詢性能監控服務
+        $this->app->singleton(QueryPerformanceMonitor::class);
     }
 
     /**
@@ -37,28 +43,57 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        CustomerCase::observe(CustomerCaseObserver::class);
-        
-        // 註冊版本追踪觀察者
-        ChatConversation::observe(VersionedModelObserver::class);
-        Customer::observe(VersionedModelObserver::class);
-        
-        // 只在開發環境啟用查詢監控
-        if (config('app.debug')) {
-            app(QueryPerformanceMonitor::class)->monitor();
+        try {
+            CustomerCase::observe(CustomerCaseObserver::class);
+            
+            // 註冊版本追踪觀察者（僅當模型存在時）
+            if (class_exists(ChatConversation::class)) {
+                ChatConversation::observe(VersionedModelObserver::class);
+            }
+            
+            if (class_exists(Customer::class)) {
+                Customer::observe(VersionedModelObserver::class);
+            }
+            
+            // 只在開發環境啟用查詢監控
+            if (config('app.debug')) {
+                try {
+                    app(QueryPerformanceMonitor::class)->monitor();
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to initialize query performance monitor: ' . $e->getMessage());
+                }
+            }
+            
+            // 註冊緩存清除事件（安全模式）
+            if (class_exists(ChatConversation::class)) {
+                ChatConversation::created(function ($conversation) {
+                    try {
+                        app(ChatQueryCacheService::class)->clearConversationCache($conversation->line_user_id);
+                    } catch (\Exception $e) {
+                        \Log::warning('Failed to clear conversation cache on create: ' . $e->getMessage());
+                    }
+                });
+                
+                ChatConversation::updated(function ($conversation) {
+                    try {
+                        app(ChatQueryCacheService::class)->clearConversationCache($conversation->line_user_id);
+                    } catch (\Exception $e) {
+                        \Log::warning('Failed to clear conversation cache on update: ' . $e->getMessage());
+                    }
+                });
+                
+                ChatConversation::deleted(function ($conversation) {
+                    try {
+                        app(ChatQueryCacheService::class)->clearConversationCache($conversation->line_user_id);
+                    } catch (\Exception $e) {
+                        \Log::warning('Failed to clear conversation cache on delete: ' . $e->getMessage());
+                    }
+                });
+            }
+            
+        } catch (\Exception $e) {
+            \Log::error('AppServiceProvider boot error: ' . $e->getMessage());
+            // 不要讓 provider 啟動錯誤導致整個應用程式崩潰
         }
-        
-        // 註冊緩存清除事件
-        ChatConversation::created(function ($conversation) {
-            app(ChatQueryCacheService::class)->clearConversationCache($conversation->line_user_id);
-        });
-        
-        ChatConversation::updated(function ($conversation) {
-            app(ChatQueryCacheService::class)->clearConversationCache($conversation->line_user_id);
-        });
-        
-        ChatConversation::deleted(function ($conversation) {
-            app(ChatQueryCacheService::class)->clearConversationCache($conversation->line_user_id);
-        });
     }
 }
