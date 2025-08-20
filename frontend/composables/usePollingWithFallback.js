@@ -1,6 +1,6 @@
 import { ref, onUnmounted, watch } from 'vue'
 import { useFallbackStrategy } from './useFallbackStrategy'
-import { ElNotification } from 'element-plus'
+import Swal from 'sweetalert2'
 
 export const usePollingWithFallback = () => {
   const fallbackStrategy = useFallbackStrategy()
@@ -158,11 +158,15 @@ export const usePollingWithFallback = () => {
     }
     
     // 顯示通知
-    ElNotification({
+    Swal.fire({
       title: '系統提示',
-      message: '由於網絡問題，已切換到備用連接模式',
-      type: 'warning',
-      duration: 5000
+      text: '由於網絡問題，已切換到備用連接模式',
+      icon: 'warning',
+      timer: 5000,
+      timerProgressBar: true,
+      showConfirmButton: false,
+      toast: true,
+      position: 'top-end'
     })
     
     // 啟動傳統輪詢
@@ -226,11 +230,15 @@ export const usePollingWithFallback = () => {
         fallbackStrategy.recoverToLongPolling()
         stopFallbackPolling()
         
-        ElNotification({
+        Swal.fire({
           title: '系統提示',
-          message: '已恢復到最佳連接模式',
-          type: 'success',
-          duration: 3000
+          text: '已恢復到最佳連接模式',
+          icon: 'success',
+          timer: 3000,
+          timerProgressBar: true,
+          showConfirmButton: false,
+          toast: true,
+          position: 'top-end'
         })
         
         // 重啟 Long Polling
@@ -248,17 +256,15 @@ export const usePollingWithFallback = () => {
    * 顯示認證錯誤
    */
   const showAuthError = () => {
-    ElNotification({
+    Swal.fire({
       title: '系統提示',
-      message: '請重新登錄',
-      type: 'error',
-      duration: 0
-    })
-    
-    // 跳轉到登錄頁
-    setTimeout(() => {
+      text: '請重新登錄',
+      icon: 'error',
+      confirmButtonText: '確定',
+      allowOutsideClick: false
+    }).then(() => {
       window.location.href = '/auth/login'
-    }, 2000)
+    })
   }
   
   /**
