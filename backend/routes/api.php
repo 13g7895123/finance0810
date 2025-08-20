@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\LineIntegrationController;
 use App\Http\Controllers\Api\CaseController;
 use App\Http\Controllers\Api\BankRecordController;
 use App\Http\Controllers\Api\VersionController;
+use App\Http\Controllers\Api\SyncController;
 
 /*
 |--------------------------------------------------------------------------
@@ -110,6 +111,13 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('history', [VersionController::class, 'getVersionHistory']);
         Route::post('check-conflict', [VersionController::class, 'checkVersionConflict']);
         Route::get('stats', [VersionController::class, 'getVersionStats']);
+    });
+    
+    // Incremental Sync - Available to all authenticated users
+    Route::prefix('sync')->group(function () {
+        Route::get('{entityType}', [SyncController::class, 'getUpdates']);
+        Route::post('{entityType}/validate', [SyncController::class, 'validateIntegrity']);
+        Route::get('{entityType}/stats', [SyncController::class, 'getStats']);
     });
     
     // Query Performance and Cache Management (Admin/Manager only)
