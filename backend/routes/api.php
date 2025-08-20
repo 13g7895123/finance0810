@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\LineIntegrationController;
 use App\Http\Controllers\Api\CaseController;
 use App\Http\Controllers\Api\BankRecordController;
+use App\Http\Controllers\Api\VersionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -101,6 +102,15 @@ Route::middleware(['auth:api'])->group(function () {
     Route::post('/chats/{userId}/read', [ChatController::class, 'markAsRead']);
     Route::delete('/chats/{userId}', [ChatController::class, 'deleteConversation']);
     Route::post('/chats/test-websocket', [ChatController::class, 'testWebSocketBroadcast']);
+    
+    // Version Management - Available to all authenticated users
+    Route::prefix('version')->group(function () {
+        Route::get('current', [VersionController::class, 'getCurrentVersion']);
+        Route::get('changes', [VersionController::class, 'getIncrementalChanges']);
+        Route::get('history', [VersionController::class, 'getVersionHistory']);
+        Route::post('check-conflict', [VersionController::class, 'checkVersionConflict']);
+        Route::get('stats', [VersionController::class, 'getVersionStats']);
+    });
     
     // Query Performance and Cache Management (Admin/Manager only)
     Route::middleware(['role:admin|executive|manager'])->group(function () {

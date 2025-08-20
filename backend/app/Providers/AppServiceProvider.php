@@ -7,8 +7,11 @@ use Illuminate\Support\ServiceProvider;
 use App\Models\CustomerCase;
 use App\Observers\CustomerCaseObserver;
 use App\Models\ChatConversation;
+use App\Models\Customer;
+use App\Observers\VersionedModelObserver;
 use App\Services\QueryPerformanceMonitor;
 use App\Services\ChatQueryCacheService;
+use App\Services\VersionTrackingService;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -17,7 +20,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // 註冊版本追踪服務
+        $this->app->singleton(VersionTrackingService::class);
     }
 
     /**
@@ -26,6 +30,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         CustomerCase::observe(CustomerCaseObserver::class);
+        
+        // 註冊版本追踪觀察者
+        ChatConversation::observe(VersionedModelObserver::class);
+        Customer::observe(VersionedModelObserver::class);
         
         // 只在開發環境啟用查詢監控
         if (config('app.debug')) {
