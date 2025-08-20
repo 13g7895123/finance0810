@@ -393,22 +393,64 @@ const handlePollingUpdate = async (data) => {
   
   try {
     if (data && Array.isArray(data)) {
-      // 更新對話列表
-      conversations.value = data.map(conv => ({
-        ...conv,
-        displayName: conv.customer?.name || conv.line_user_id || '未知用戶',
-        lastMessage: conv.last_message || '',
-        unreadCount: conv.unread_count || 0,
-        lastMessageTime: new Date(conv.last_message_time)
-      }))
-      
-      // 觸發數據驗證
-      conversations.value.forEach(conv => {
-        const validation = DataValidator.validateConversation(conv)
-        if (!validation.valid) {
-          console.warn('對話數據驗證失敗:', validation.errors)
+      // 轉換 API 數據格式到前端格式，與 loadConversations 保持一致
+      const apiUsers = data.map(conv => {
+        // 校驗對話數據
+        const validationResult = DataValidator.validateConversation({
+          line_user_id: conv.line_user_id,
+          unread_count: conv.unread_count || 0
+        })
+        
+        if (!validationResult.valid) {
+          console.warn('對話數據校驗失敗:', validationResult.errors, conv)
+        }
+        
+        return {
+          id: parseInt(conv.line_user_id),
+          name: conv.customer?.name || '客戶',
+          role: 'line_customer',
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.customer?.name || '客戶')}&background=00C300&color=fff`,
+          lastMessage: conv.last_message || '',
+          timestamp: new Date(conv.last_message_time),
+          unreadCount: conv.unread_count || 0,
+          online: false,
+          isBot: true,
+          lineUserId: conv.line_user_id,
+          customerInfo: {
+            phone: conv.customer?.phone || '',
+            region: conv.customer?.region || '',
+            source: conv.customer?.source || '',
+            status: conv.customer?.status || ''
+          }
         }
       })
+      
+      // 強化去重處理：確保每個 line_user_id 只有一筆記錄
+      const userMap = new Map()
+      apiUsers.forEach(user => {
+        if (!user.lineUserId) return
+        
+        const existing = userMap.get(user.lineUserId)
+        if (!existing || user.timestamp > existing.timestamp) {
+          userMap.set(user.lineUserId, user)
+        }
+      })
+      
+      // 轉回陣列並排序
+      const uniqueUsers = Array.from(userMap.values())
+      const sortedUsers = sortByTime(uniqueUsers)
+      
+      // 數據比較：只有在數據實際改變時才更新
+      const currentDataHash = apiConversations.value.map(u => `${u.lineUserId}:${u.timestamp?.getTime()}:${u.unreadCount}`).sort().join('|')
+      const newDataHash = sortedUsers.map(u => `${u.lineUserId}:${u.timestamp?.getTime()}:${u.unreadCount}`).sort().join('|')
+      
+      // 只有在數據真正改變時才更新，避免不必要的重新渲染
+      if (currentDataHash !== newDataHash) {
+        apiConversations.value = sortedUsers
+        console.log(`輪詢更新對話列表: ${uniqueUsers.length} 筆唯一記錄 (已更新)`)
+      } else {
+        console.log(`輪詢更新對話列表: ${uniqueUsers.length} 筆記錄 (無變化)`)
+      }
       
       // 性能監控
       performanceMonitor.recordApiCall('/api/chats', 200, true)

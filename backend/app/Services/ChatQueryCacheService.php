@@ -65,36 +65,55 @@ class ChatQueryCacheService
      */
     private function queryConversationList($userId)
     {
-        // 使用覆蓋索引，只選擇需要的欄位
-        $query = DB::table('chat_conversations')
+        // 構建基礎查詢，包含客戶資訊
+        $query = DB::table('chat_conversations as cc')
+            ->leftJoin('customers as c', 'cc.line_user_id', '=', 'c.line_user_id')
             ->select([
-                'line_user_id',
-                'customer_id',
-                DB::raw('MAX(message_timestamp) as last_message_time'),
-                DB::raw('MAX(version) as max_version'),
-                DB::raw('COUNT(CASE WHEN status = "unread" AND is_from_customer = 1 THEN 1 END) as unread_count'),
-                DB::raw('MAX(CASE WHEN is_from_customer = 1 THEN message_content END) as last_customer_message'),
-                DB::raw('MAX(CASE WHEN is_from_customer = 0 THEN message_content END) as last_system_message')
+                'cc.line_user_id',
+                'cc.customer_id',
+                DB::raw('MAX(cc.message_timestamp) as last_message_time'),
+                DB::raw('MAX(cc.version) as max_version'),
+                DB::raw('COUNT(CASE WHEN cc.status = "unread" AND cc.is_from_customer = 1 THEN 1 END) as unread_count'),
+                DB::raw('MAX(CASE WHEN cc.is_from_customer = 1 THEN cc.message_content END) as last_customer_message'),
+                DB::raw('MAX(CASE WHEN cc.is_from_customer = 0 THEN cc.message_content END) as last_system_message'),
+                // 客戶資訊
+                DB::raw('MAX(c.name) as customer_name'),
+                DB::raw('MAX(c.phone) as customer_phone'),
+                DB::raw('MAX(c.region) as customer_region'),
+                DB::raw('MAX(c.source) as customer_source'),
+                DB::raw('MAX(c.status) as customer_status')
             ])
-            ->whereNotNull('line_user_id')
-            ->whereNotNull('customer_id')
-            ->groupBy('line_user_id', 'customer_id');
+            ->whereNotNull('cc.line_user_id')
+            ->whereNotNull('cc.customer_id')
+            ->groupBy('cc.line_user_id', 'cc.customer_id');
         
-        // 優化權限過濾：使用 EXISTS 子查詢而不是 JOIN
+        // 優化權限過濾
         if ($userId) {
-            $query->whereExists(function ($q) use ($userId) {
-                $q->select(DB::raw(1))
-                    ->from('customers')
-                    ->whereColumn('customers.line_user_id', 'chat_conversations.line_user_id')
-                    ->where('customers.assigned_to', $userId);
-            });
+            $query->where('c.assigned_to', $userId);
         }
         
         // 使用索引排序
         $query->orderBy('last_message_time', 'desc')
             ->limit(100); // 限制結果數量
         
-        return $query->get();
+        // 執行查詢並格式化結果
+        $results = $query->get();
+        
+        // 將客戶資訊包裝成 customer 對象
+        return $results->map(function ($row) {
+            $row->customer = (object) [
+                'name' => $row->customer_name,
+                'phone' => $row->customer_phone,
+                'region' => $row->customer_region,
+                'source' => $row->customer_source,
+                'status' => $row->customer_status
+            ];
+            
+            // 移除重複的欄位
+            unset($row->customer_name, $row->customer_phone, $row->customer_region, $row->customer_source, $row->customer_status);
+            
+            return $row;
+        });
     }
     
     /**
