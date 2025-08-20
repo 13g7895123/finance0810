@@ -151,6 +151,9 @@ import {
   ChatBubbleLeftRightIcon 
 } from '@heroicons/vue/24/outline'
 
+import { DataValidator } from '~/utils/dataValidator'
+import { PerformanceMonitorService } from '~/services/PerformanceMonitorService'
+
 definePageMeta({
   middleware: 'auth'
 })
@@ -159,6 +162,21 @@ const { error: showError } = useNotification()
 
 const authStore = useAuthStore()
 const { getConversations, getConversation, replyMessage, getChatStats, searchConversations } = useChat()
+
+// 性能監控服務
+const performanceMonitor = new PerformanceMonitorService()
+
+// 性能監控數據查看方法（用於調試）
+const getPerformanceMetrics = () => {
+  const metrics = performanceMonitor.getMetrics()
+  console.log('性能監控數據:', metrics)
+  return metrics
+}
+
+// 在開發環境下暴露給 window 對象，便於調試
+if (process.dev) {
+  window.getPerformanceMetrics = getPerformanceMetrics
+}
 
 // 使用具備降級機制的 Long Polling
 const {
@@ -287,6 +305,8 @@ const manualRefresh = async () => {
   } catch (error) {
     console.error('刷新聊天室數據失敗:', error)
     pollingConfig.value.retryCount++
+    // 性能監控 - 記錄錯誤
+    performanceMonitor.recordError('refresh_error', error)
   } finally {
     isRefreshing.value = false
     loadingLocks.value.apiCallInProgress = false
@@ -491,28 +511,49 @@ const loadConversations = async () => {
     loadingLocks.value.conversations = true
     conversationsLoading.value = true
     console.log('開始載入對話列表...')
+    
+    // 性能監控 - 開始計時
+    const startTime = performance.now()
+    
     const response = await getConversations()
     
+    // 性能監控 - 記錄API調用
+    const endTime = performance.now()
+    const duration = endTime - startTime
+    performanceMonitor.recordApiCall('/api/chats', duration, !!response?.data)
+    
     if (response?.data) {
-      // 轉換 API 數據格式到前端格式
-      const apiUsers = response.data.map(conv => ({
-        id: parseInt(conv.line_user_id),
-        name: conv.customer?.name || '客戶',
-        role: 'line_customer',
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.customer?.name || '客戶')}&background=00C300&color=fff`,
-        lastMessage: conv.last_message || '',
-        timestamp: new Date(conv.last_message_time),
-        unreadCount: conv.unread_count || 0,
-        online: false,
-        isBot: true,
-        lineUserId: conv.line_user_id,
-        customerInfo: {
-          phone: conv.customer?.phone || '',
-          region: conv.customer?.region || '',
-          source: conv.customer?.source || '',
-          status: conv.customer?.status || ''
+      // 轉換 API 數據格式到前端格式，並添加數據校驗
+      const apiUsers = response.data.map(conv => {
+        // 校驗對話數據
+        const validationResult = DataValidator.validateConversation({
+          line_user_id: conv.line_user_id,
+          unread_count: conv.unread_count || 0
+        })
+        
+        if (!validationResult.valid) {
+          console.warn('對話數據校驗失敗:', validationResult.errors, conv)
         }
-      }))
+        
+        return {
+          id: parseInt(conv.line_user_id),
+          name: conv.customer?.name || '客戶',
+          role: 'line_customer',
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.customer?.name || '客戶')}&background=00C300&color=fff`,
+          lastMessage: conv.last_message || '',
+          timestamp: new Date(conv.last_message_time),
+          unreadCount: conv.unread_count || 0,
+          online: false,
+          isBot: true,
+          lineUserId: conv.line_user_id,
+          customerInfo: {
+            phone: conv.customer?.phone || '',
+            region: conv.customer?.region || '',
+            source: conv.customer?.source || '',
+            status: conv.customer?.status || ''
+          }
+        }
+      })
       
       // 強化去重處理：確保每個 line_user_id 只有一筆記錄
       const userMap = new Map()
@@ -568,22 +609,45 @@ const loadConversationMessages = async (userId) => {
     loading.value = true
     console.log('開始載入用戶訊息:', userId)
     
+    // 性能監控 - 開始計時
+    const startTime = performance.now()
+    
     const response = await getConversation(userId)
+    
+    // 性能監控 - 記錄API調用
+    const endTime = performance.now()
+    const duration = endTime - startTime
+    performanceMonitor.recordApiCall(`/api/chats/${userId}`, duration, !!response?.data)
     console.log('API response for conversation:', response)
     
     if (response?.data && Array.isArray(response.data)) {
-      // 轉換 API 數據格式到前端格式
-      const transformedMessages = response.data.map(msg => ({
-        id: msg.id,
-        senderId: msg.is_from_customer ? parseInt(msg.line_user_id) : 'bot',
-        content: msg.message_content,
-        timestamp: new Date(msg.message_timestamp),
-        type: msg.message_type || 'text',
-        isBot: true,
-        isCustomer: msg.is_from_customer,
-        isAutoReply: !msg.is_from_customer,
-        metadata: msg.metadata || {}
-      }))
+      // 轉換 API 數據格式到前端格式，並添加數據校驗
+      const transformedMessages = response.data.map(msg => {
+        // 校驗消息數據
+        const validationResult = DataValidator.validateMessage({
+          id: msg.id,
+          line_user_id: msg.line_user_id,
+          message_content: msg.message_content,
+          version: msg.version || 1 // 默認版本號
+        })
+        
+        if (!validationResult.valid) {
+          console.warn('消息數據校驗失敗:', validationResult.errors, msg)
+        }
+        
+        return {
+          id: msg.id,
+          senderId: msg.is_from_customer ? parseInt(msg.line_user_id) : 'bot',
+          content: msg.message_content,
+          timestamp: new Date(msg.message_timestamp),
+          type: msg.message_type || 'text',
+          isBot: true,
+          isCustomer: msg.is_from_customer,
+          isAutoReply: !msg.is_from_customer,
+          metadata: msg.metadata || {},
+          version: msg.version || 1
+        }
+      })
       
       // 按時間排序（舊的在前面，新的在後面）
       transformedMessages.sort((a, b) => {
@@ -1109,6 +1173,11 @@ onMounted(async () => {
   
   // 啟動 Long Polling（自動開始）
   await startLongPollingWithHandlers()
+  
+  // 性能監控 - 定期記錄內存使用情況
+  setInterval(() => {
+    performanceMonitor.recordMemoryUsage()
+  }, 10000) // 每10秒記錄一次
   
   console.log('聊天室初始化完成 - Long Polling 已啟動')
 })
