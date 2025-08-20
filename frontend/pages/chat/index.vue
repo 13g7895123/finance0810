@@ -22,6 +22,10 @@
                 <span class="text-xs text-gray-500">
                   {{ getConnectionStatusText() }}
                 </span>
+                <!-- 顯示當前模式 -->
+                <span v-if="currentStrategy === 'fallback'" class="text-xs text-orange-500">
+                  (備用模式)
+                </span>
               </div>
             </ClientOnly>
             
@@ -156,23 +160,37 @@ const { error: showError } = useNotification()
 const authStore = useAuthStore()
 const { getConversations, getConversation, replyMessage, getChatStats, searchConversations } = useChat()
 
-// 使用新的 Long Polling 替換舊的 setInterval 方式
+// 使用具備降級機制的 Long Polling
 const {
   isPolling,
-  connectionStatus,
-  lastError,
-  retryCount,
+  currentStrategy,
+  fallbackReason,
+  errorCount,
   startPolling,
   stopPolling,
-  restartPolling,
-  onUpdate,
-  cleanup
-} = useLongPolling()
+  getStrategyStatus
+} = usePollingWithFallback()
+
+// 連接狀態映射
+const connectionStatus = computed(() => {
+  switch (currentStrategy.value) {
+    case 'longPolling':
+      return isPolling.value ? 'connected' : 'disconnected'
+    case 'fallback':
+      return 'connecting'
+    case 'disabled':
+      return 'error'
+    default:
+      return 'disconnected'
+  }
+})
 
 // 向下兼容的狀態
 const isRefreshing = ref(false)
 const lastRefreshTime = ref(new Date())
 const autoRefreshEnabled = ref(true)
+const lastError = ref(null)
+const retryCount = computed(() => errorCount.value)
 
 // 定時輪詢配置
 const pollingConfig = ref({
@@ -355,9 +373,9 @@ const stopLegacyPolling = () => {
 const getConnectionStatusText = () => {
   switch (connectionStatus.value) {
     case 'connected':
-      return '已連接'
+      return currentStrategy.value === 'longPolling' ? '已連接' : '備用連接'
     case 'connecting':
-      return '連接中...'
+      return currentStrategy.value === 'fallback' ? '備用模式' : '連接中...'
     case 'error':
       return '連接錯誤'
     default:
@@ -424,10 +442,16 @@ const handleLongPollingUpdate = async (updates) => {
 // 處理 Long Polling 錯誤
 const handleLongPollingError = (error) => {
   console.error('Long Polling 錯誤:', error)
+  lastError.value = error
   
   // 顯示錯誤提示（如果重試次數過多）
   if (retryCount.value >= 3) {
     showError('連接失敗，請檢查網絡連接')
+  }
+  
+  // 如果降級到傳統輪詢，顯示提示
+  if (currentStrategy.value === 'fallback' && fallbackReason.value) {
+    console.warn(`已切換到備用模式: ${fallbackReason.value}`)
   }
 }
 
@@ -1192,7 +1216,6 @@ onUnmounted(() => {
   
   // 停止 Long Polling 並清理資源
   stopPolling()
-  cleanup()
   
   // 原有的清理邏輯
   cleanupAllResources()
@@ -1204,7 +1227,6 @@ onBeforeUnmount(() => {
   
   // 停止 Long Polling
   stopPolling()
-  cleanup()
   
   // 原有的清理邏輯
   cleanupAllResources()

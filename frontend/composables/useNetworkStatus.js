@@ -1,71 +1,57 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
 export const useNetworkStatus = () => {
-  const isOnline = ref(navigator.onLine)
-  const connectionType = ref('')
-  const connectionSpeed = ref('')
+  const isOnline = ref(true)
+  const connectionType = ref('unknown')
+  const connectionSpeed = ref(null)
+  const lastOnlineTime = ref(null)
+  const lastOfflineTime = ref(null)
   
-  /**
-   * 更新連接信息
-   */
-  const updateConnectionInfo = () => {
+  const updateOnlineStatus = () => {
+    const wasOnline = isOnline.value
+    isOnline.value = navigator.onLine
+    
+    if (wasOnline && !isOnline.value) {
+      lastOfflineTime.value = Date.now()
+      console.warn('Network connection lost')
+    } else if (!wasOnline && isOnline.value) {
+      lastOnlineTime.value = Date.now()
+      console.log('Network connection restored')
+    }
+    
+    // 更新連接類型
     if ('connection' in navigator) {
       const connection = navigator.connection
       connectionType.value = connection.effectiveType || 'unknown'
-      connectionSpeed.value = connection.downlink ? `${connection.downlink}Mbps` : 'unknown'
+      connectionSpeed.value = connection.downlink || null
     }
   }
   
-  /**
-   * 處理在線狀態
-   */
-  const handleOnline = () => {
-    console.log('Network: Online')
-    isOnline.value = true
-    updateConnectionInfo()
-  }
-  
-  /**
-   * 處理離線狀態
-   */
-  const handleOffline = () => {
-    console.log('Network: Offline')
-    isOnline.value = false
-  }
-  
-  /**
-   * 處理連接變化
-   */
-  const handleConnectionChange = () => {
-    console.log('Network: Connection changed')
-    updateConnectionInfo()
-  }
-  
   onMounted(() => {
-    // 初始化連接信息
-    updateConnectionInfo()
+    updateOnlineStatus()
+    window.addEventListener('online', updateOnlineStatus)
+    window.addEventListener('offline', updateOnlineStatus)
     
-    // 監聽網絡事件
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-    
-    if ('connection' in navigator) {
-      navigator.connection.addEventListener('change', handleConnectionChange)
+    // 監聽連接變化
+    if ('connection' in navigator && navigator.connection) {
+      navigator.connection.addEventListener('change', updateOnlineStatus)
     }
   })
   
   onUnmounted(() => {
-    window.removeEventListener('online', handleOnline)
-    window.removeEventListener('offline', handleOffline)
+    window.removeEventListener('online', updateOnlineStatus)
+    window.removeEventListener('offline', updateOnlineStatus)
     
-    if ('connection' in navigator) {
-      navigator.connection.removeEventListener('change', handleConnectionChange)
+    if ('connection' in navigator && navigator.connection) {
+      navigator.connection.removeEventListener('change', updateOnlineStatus)
     }
   })
   
   return {
     isOnline,
     connectionType,
-    connectionSpeed
+    connectionSpeed,
+    lastOnlineTime,
+    lastOfflineTime
   }
 }
