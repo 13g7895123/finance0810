@@ -12,8 +12,11 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "test": "vitest",
-    "test:run": "vitest run",
-    "test:coverage": "vitest --coverage"
+    "test:unit": "vitest run --reporter=verbose",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "test:all": "npm run test:unit"
   },
   "dependencies": {
     "@heroicons/vue": "^2.1.5",
