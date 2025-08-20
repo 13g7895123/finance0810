@@ -112,11 +112,14 @@ export const useApi = () => {
         error: {
           status: error.status,
           message: error.data?.message || error.message || '請求失敗',
+          error: error.data?.error || error.message || '請求失敗',
           errors: error.data?.errors || null,
+          debug_info: error.data?.debug_info || null,
           debug: process.dev ? {
             baseURL,
             fullURL: `${baseURL}${endpoint}`,
-            method: requestOptions.method
+            method: requestOptions.method,
+            error_response: error.data
           } : null
         }
       }

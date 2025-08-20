@@ -506,15 +506,35 @@ const handlePollingUpdate = async (data) => {
 const handlePollingError = (error) => {
   console.error('輪詢錯誤:', error)
   
+  // 顯示詳細錯誤資訊
+  let errorMessage = '連接失敗'
+  if (error?.error) {
+    errorMessage = error.error
+  } else if (error?.message) {
+    errorMessage = error.message
+  }
+  
+  // 在開發模式下顯示更多詳細資訊
+  if (process.dev && error?.debug_info) {
+    console.error('詳細錯誤資訊:', error.debug_info)
+    errorMessage += `\n[開發模式] ${error.debug_info.file}:${error.debug_info.line}`
+  }
+  
   if (retryCount.value >= 3) {
-    showError('連接失敗，請檢查網絡連接')
+    showError(errorMessage)
   }
 }
 
 // 處理認證錯誤
 const handleAuthError = (error) => {
   console.error('認證錯誤:', error)
-  showError('認證失敗，請重新登入')
+  
+  let errorMessage = '認證失敗，請重新登入'
+  if (error?.error && error.error !== 'Authentication required') {
+    errorMessage = error.error
+  }
+  
+  showError(errorMessage)
 }
 
 // API 數據狀態
@@ -629,6 +649,21 @@ const loadConversations = async () => {
     }
   } catch (error) {
     console.error('Failed to load conversations:', error)
+    
+    // 顯示詳細錯誤資訊給用戶
+    let errorMessage = '載入對話列表失敗'
+    if (error?.error) {
+      errorMessage = error.error
+    } else if (error?.message) {
+      errorMessage = error.message
+    }
+    
+    // 在開發模式下記錄詳細資訊
+    if (process.dev && error?.debug_info) {
+      console.error('詳細錯誤資訊:', error.debug_info)
+    }
+    
+    showError(errorMessage)
   } finally {
     conversationsLoading.value = false
     loadingLocks.value.conversations = false
@@ -1070,7 +1105,21 @@ const sendMessage = async (content) => {
     
   } catch (error) {
     console.error('Failed to send message:', error)
-    await showError('發送訊息失敗，請重試')
+    
+    // 顯示詳細錯誤資訊
+    let errorMessage = '發送訊息失敗，請重試'
+    if (error?.error) {
+      errorMessage = error.error
+    } else if (error?.message) {
+      errorMessage = error.message
+    }
+    
+    // 在開發模式下顯示更多詳細資訊
+    if (process.dev && error?.debug_info) {
+      console.error('詳細錯誤資訊:', error.debug_info)
+    }
+    
+    await showError(errorMessage)
   }
 }
 

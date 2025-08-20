@@ -19,7 +19,7 @@ use App\Services\ChatIncrementalService;
 use App\Http\Resources\ChatIncrementalResource;
 use App\Services\ChatQueryCacheService;
 
-class ChatController extends Controller
+class ChatController extends BaseApiController
 {
     private $cacheService;
     
@@ -91,14 +91,12 @@ class ChatController extends Controller
             Log::error('ChatController@index error:', [
                 'user_id' => $user->id ?? null,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ]);
             
-            return response()->json([
-                'success' => false,
-                'error' => '載入對話列表失敗',
-                'message' => config('app.debug') ? $e->getMessage() : null
-            ], 500);
+            return $this->errorResponse('載入對話列表失敗', $e);
         }
     }
 
@@ -143,14 +141,13 @@ class ChatController extends Controller
             Log::error('Chat conversation error:', [
                 'line_user_id' => $userId,
                 'user_id' => $user->id ?? null,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
             ]);
             
-            return response()->json([
-                'success' => false,
-                'error' => '載入對話失敗',
-                'message' => config('app.debug') ? $e->getMessage() : null
-            ], 500);
+            return $this->errorResponse('載入對話失敗', $e);
         }
     }
 
@@ -226,6 +223,8 @@ class ChatController extends Controller
                 ]);
                 
                 return response()->json([
+                    'success' => false,
+                    'message' => '送出LINE訊息失敗',
                     'error' => '送出LINE訊息失敗，請檢查LINE整合設定',
                     'conversation' => $conversation->load(['customer', 'user', 'replier'])
                 ], 500);
@@ -240,26 +239,23 @@ class ChatController extends Controller
             Log::info('Chat reply successful', ['conversation_id' => $conversation->id]);
 
             return response()->json([
+                'success' => true,
                 'message' => '訊息已送出',
                 'conversation' => $conversation->load(['customer', 'user', 'replier'])
             ]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('Chat reply validation error', ['errors' => $e->errors()]);
-            return response()->json([
-                'error' => '輸入資料驗證失敗',
-                'details' => $e->errors()
-            ], 422);
+            return $this->validationErrorResponse($e);
         } catch (\Exception $e) {
             Log::error('Chat reply unexpected error', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ]);
             
-            return response()->json([
-                'error' => '系統錯誤，請稍後再試',
-                'message' => $e->getMessage()
-            ], 500);
+            return $this->errorResponse('系統錯誤，請稍後再試', $e);
         }
     }
 
