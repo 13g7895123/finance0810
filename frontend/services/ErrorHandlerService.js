@@ -189,7 +189,8 @@ export class ErrorHandlerService {
     const handlers = this.errorHandlers.get(errorRecord.type) || []
     const globalHandlers = this.errorHandlers.get('*') || []
     
-    [...handlers, ...globalHandlers].forEach(handler => {
+    const allHandlers = handlers.concat(globalHandlers)
+    allHandlers.forEach(handler => {
       try {
         handler(errorRecord)
       } catch (e) {
