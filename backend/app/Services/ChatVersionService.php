@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class ChatVersionService
 {
@@ -17,11 +18,42 @@ class ChatVersionService
     public function getCurrentVersion(): int
     {
         return Cache::remember(self::CACHE_KEY, self::CACHE_TTL, function () {
-            $version = DB::table('chat_versions')
-                ->where('key', 'global')
-                ->value('version');
-            return $version ?? 0;
+            try {
+                $version = DB::table('chat_versions')
+                    ->where('key', 'global')
+                    ->value('version');
+                return $version ?? 0;
+            } catch (\Exception $e) {
+                Log::warning('Failed to get current version from chat_versions table, using fallback', [
+                    'error' => $e->getMessage()
+                ]);
+                // 回退到檢查是否有其他版本追蹤機制
+                return $this->getFallbackVersion();
+            }
         });
+    }
+    
+    /**
+     * 回退版本獲取方法
+     */
+    private function getFallbackVersion(): int
+    {
+        try {
+            // 嘗試從 global_version_sequence 表獲取
+            if (Schema::hasTable('global_version_sequence')) {
+                $version = DB::table('global_version_sequence')
+                    ->value('current_version');
+                return $version ?? 0;
+            }
+            
+            // 如果都沒有，返回 0
+            return 0;
+        } catch (\Exception $e) {
+            Log::error('All version tracking fallbacks failed', [
+                'error' => $e->getMessage()
+            ]);
+            return 0;
+        }
     }
     
     /**
@@ -31,6 +63,12 @@ class ChatVersionService
     {
         try {
             Cache::forget(self::CACHE_KEY);
+            
+            // 檢查 chat_versions 表是否存在
+            if (!Schema::hasTable('chat_versions')) {
+                Log::warning('chat_versions table does not exist, using fallback increment method');
+                return $this->incrementVersionFallback();
+            }
             
             // 使用原子操作確保版本號正確遞增
             DB::transaction(function () {
@@ -57,6 +95,35 @@ class ChatVersionService
     }
     
     /**
+     * 回退版本遞增方法
+     */
+    private function incrementVersionFallback(): int
+    {
+        try {
+            // 嘗試使用 global_version_sequence 表
+            if (Schema::hasTable('global_version_sequence')) {
+                DB::transaction(function () {
+                    DB::table('global_version_sequence')
+                        ->increment('current_version', 1, ['updated_at' => now()]);
+                });
+                
+                return $this->getFallbackVersion();
+            }
+            
+            // 如果都沒有，返回時間戳作為版本號
+            $version = time();
+            Log::info('Using timestamp as version fallback', ['version' => $version]);
+            return $version;
+            
+        } catch (\Exception $e) {
+            Log::error('Fallback version increment failed', [
+                'error' => $e->getMessage()
+            ]);
+            return time();
+        }
+    }
+    
+    /**
      * 檢查客戶端版本是否需要更新
      */
     public function needsUpdate(int $clientVersion): bool
@@ -71,6 +138,12 @@ class ChatVersionService
     public function getChangesSince(int $sinceVersion, $lineUserId = null, int $limit = 100)
     {
         try {
+            // 檢查 chat_conversations 表是否有 version 欄位
+            if (!Schema::hasColumn('chat_conversations', 'version')) {
+                Log::warning('chat_conversations table does not have version column, returning empty changes');
+                return collect();
+            }
+            
             $query = DB::table('chat_conversations')
                 ->where('version', '>', $sinceVersion)
                 ->orderBy('version', 'asc')
