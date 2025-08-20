@@ -23,6 +23,12 @@ return new class extends Migration
             if (!Schema::hasColumn('chat_conversations', 'version')) {
                 Schema::table('chat_conversations', function (Blueprint $table) {
                     $table->unsignedBigInteger('version')->after('updated_at')->default(0)->index();
+                });
+            }
+            
+            // 確保有 version_updated_at 欄位
+            if (!Schema::hasColumn('chat_conversations', 'version_updated_at')) {
+                Schema::table('chat_conversations', function (Blueprint $table) {
                     $table->timestamp('version_updated_at')->after('version')->nullable()->index();
                 });
             }
@@ -104,13 +110,17 @@ return new class extends Migration
     private function setInitialVersions()
     {
         if (Schema::hasTable('chat_conversations') && Schema::hasColumn('chat_conversations', 'version')) {
+            $updateData = ['version' => 1];
+            
+            // 只有當 version_updated_at 欄位存在時才更新它
+            if (Schema::hasColumn('chat_conversations', 'version_updated_at')) {
+                $updateData['version_updated_at'] = now();
+            }
+            
             $count = DB::table('chat_conversations')
                 ->whereNull('version')
                 ->orWhere('version', 0)
-                ->update([
-                    'version' => 1,
-                    'version_updated_at' => now()
-                ]);
+                ->update($updateData);
                 
             if ($count > 0) {
                 \Log::info("Updated {$count} chat conversations with initial version");
