@@ -46,6 +46,8 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">可聯繫時間</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">IP 位址</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">備註</th>
+             <!-- 自定義欄位（可見）動態欄位 -->
+             <th v-for="cf in visibleCaseFields" :key="cf.id" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ cf.label }}</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">狀態</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">操作</th>
             </tr>
@@ -74,6 +76,10 @@
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['方便聯絡時間'] || '-' }}</td>
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.ip_address || '-' }}</td>
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.notes || lead.payload?.['備註'] || '-' }}</td>
+             <!-- 動態自定義欄位顯示（is_visible=true） -->
+             <td v-for="cf in visibleCaseFields" :key="cf.id" class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
+               {{ formatCustomFieldValue(lead.payload?.[cf.key], cf) }}
+             </td>
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
                 <span :class="['px-2 py-1 rounded text-xs', getStatusClass(lead.status)]">{{ LEAD_STATUS_LABELS[lead.status] || lead.status }}</span>
               </td>
@@ -105,6 +111,7 @@ const { list, updateOne: updateLead } = useLeads()
 const { pagination, totalPages, startIndex, endIndex, nextPage, prevPage, updatePagination } = usePagination(10)
 const { success, error: showError } = useNotification()
 const { PAGINATION_OPTIONS, SEARCH_CONFIG, LEAD_STATUS_LABELS } = useConstants()
+const { list: listCustomFields } = useCustomFields()
 const auth = useAuthStore()
 
 const loading = ref(false)
@@ -135,7 +142,7 @@ const load = async () => {
   loading.value = false
 }
 
-onMounted(load)
+onMounted(async () => { await Promise.all([load(), loadCaseFields()]) })
 
 let timer
 const debounced = () => { clearTimeout(timer); timer = setTimeout(load, SEARCH_CONFIG.DEBOUNCE_DELAY) }
@@ -159,6 +166,16 @@ const extractDomain = (url) => {
 }
 const formatDate = (d) => new Date(d).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
 const formatTime = (d) => new Date(d).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
+
+// 自定義欄位
+const caseFields = ref([])
+const visibleCaseFields = computed(() => caseFields.value.filter(f => f.is_visible))
+const loadCaseFields = async () => { const { success, items } = await listCustomFields('case'); if (success) caseFields.value = items }
+const formatCustomFieldValue = (val, cf) => {
+  if (cf.type === 'multiselect') return Array.isArray(val) ? val.join(', ') : (val || '-')
+  if (cf.type === 'boolean') return val ? '是' : '否'
+  return val ?? '-'
+}
 
 const getStatusClass = (status) => {
   const base = 'px-2 py-1 rounded text-xs '

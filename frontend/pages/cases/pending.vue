@@ -57,6 +57,8 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">可聯繫時間</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">IP 位址</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">備註</th>
+              <!-- 自定義欄位（可見）動態欄位 -->
+              <th v-for="cf in visibleCaseFields" :key="cf.id" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ cf.label }}</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">操作</th>
             </tr>
           </thead>
@@ -99,6 +101,10 @@
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.ip_address || '-' }}</td>
               <!-- 備註 -->
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.notes || lead.payload?.['備註'] || lead.payload?.notes || '-' }}</td>
+              <!-- 動態自定義欄位顯示（is_visible=true） -->
+              <td v-for="cf in visibleCaseFields" :key="cf.id" class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
+                {{ formatCustomFieldValue(lead.payload?.[cf.key], cf) }}
+              </td>
               <!-- 操作 -->
               <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">
                 <button @click="onEdit(lead)" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">編輯</button>
@@ -125,7 +131,7 @@
 
     <!-- Edit Modal -->
     <div v-if="editOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeEdit">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-xl">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-xl max-h-[80vh] overflow-y-auto">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">編輯進件</h3>
         <form @submit.prevent="saveEdit" class="space-y-3">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -192,6 +198,65 @@
               <label class="block text-sm mb-1">備註</label>
               <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"></textarea>
             </div>
+
+            <!-- 自定義欄位（案件）顯示於表格/彈窗 -->
+            <template v-if="caseFields.length">
+              <div class="md:col-span-2 pt-2">
+                <div class="text-sm font-semibold mb-2">自定義欄位（案件）</div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div v-for="cf in caseFields" :key="cf.id">
+                    <label class="block text-sm mb-1">{{ cf.label }} <span v-if="cf.is_required" class="text-red-500">*</span></label>
+                    <!-- 文字/數字/小數/日期 -->
+                    <input
+                      v-if="['text','number','decimal','date'].includes(cf.type)"
+                      :type="cf.type === 'decimal' ? 'number' : (cf.type === 'number' ? 'number' : (cf.type === 'date' ? 'date' : 'text'))"
+                      :step="cf.type === 'decimal' ? 'any' : undefined"
+                      class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"
+                      :required="cf.is_required"
+                      v-model="customFieldValues[cf.key]"
+                    />
+                    <!-- 文字區塊 -->
+                    <textarea
+                      v-else-if="cf.type === 'textarea'"
+                      class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"
+                      :required="cf.is_required"
+                      v-model="customFieldValues[cf.key]"
+                    ></textarea>
+                    <!-- 單選 -->
+                    <select
+                      v-else-if="cf.type === 'select'"
+                      class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"
+                      :required="cf.is_required"
+                      v-model="customFieldValues[cf.key]"
+                    >
+                      <option value="">請選擇</option>
+                      <option v-for="opt in (cf.options||[])" :key="opt" :value="opt">{{ opt }}</option>
+                    </select>
+                    <!-- 多選（強化 UI：checkbox 群組 + 全選/清空 + 已選標籤） -->
+                    <div v-else-if="cf.type === 'multiselect'">
+                      <div class="flex flex-wrap gap-3">
+                        <label v-for="opt in (cf.options||[])" :key="opt" class="inline-flex items-center">
+                          <input type="checkbox" :value="opt" v-model="customFieldValues[cf.key]" class="mr-2" />
+                          <span>{{ opt }}</span>
+                        </label>
+                      </div>
+                      <div class="mt-2 text-xs text-gray-500 space-x-3">
+                        <button type="button" class="underline" @click="selectAllOptions(cf)">全選</button>
+                        <button type="button" class="underline" @click="clearOptions(cf)">清空</button>
+                      </div>
+                      <div class="mt-2 flex flex-wrap gap-2" v-if="(customFieldValues[cf.key]||[]).length">
+                        <span v-for="v in customFieldValues[cf.key]" :key="v" class="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded">{{ v }}</span>
+                      </div>
+                    </div>
+                    <!-- 是/否 -->
+                    <label v-else-if="cf.type === 'boolean'" class="inline-flex items-center space-x-2">
+                      <input type="checkbox" v-model="customFieldValues[cf.key]" />
+                      <span>是/否</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </template>
           </div>
           <div class="flex justify-end space-x-3 pt-2">
             <button type="button" class="px-4 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" @click="closeEdit">取消</button>
@@ -247,6 +312,7 @@ const { validateCaseForm } = useFormValidation()
 const { success, error: showError, confirm } = useNotification()
 const { PAGINATION_OPTIONS, SEARCH_CONFIG } = useConstants()
 const { getUsers } = useUsers()
+const { list: listCustomFields } = useCustomFields()
 
 const users = ref([])
 const CHANNEL_OPTIONS = [
@@ -334,7 +400,7 @@ const loadUsers = async () => {
 }
 
 onMounted(async () => {
-  await Promise.all([loadUsers(), loadLeads()])
+  await Promise.all([loadUsers(), loadLeads(), loadCaseFields()])
 })
 
 // 搜尋防抖
@@ -352,6 +418,81 @@ onUnmounted(() => {
   clearTimeout(searchTimer)
 })
 
+// 自定義欄位（案件）
+const caseFields = ref([])
+const customFieldValues = reactive({})
+const FIELD_COMPONENTS = {
+  text: {
+    render() {},
+  },
+}
+
+const visibleCaseFields = computed(() => caseFields.value.filter(f => f.is_visible))
+
+const loadCaseFields = async () => {
+  const { success, items } = await listCustomFields('case')
+  if (success) caseFields.value = items
+}
+
+// 根據欄位型別返回對應的輸入元件
+const getInputComponent = (cf) => ({
+  props: ['modelValue','cf'],
+  emits: ['update:modelValue'],
+  template: `
+    <div>
+      <input v-if="['text','number','decimal','date'].includes(cf.type)"
+             :type="cf.type === 'decimal' ? 'number' : (cf.type === 'text' ? 'text' : (cf.type === 'date' ? 'date' : 'number'))"
+             step="any"
+             class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"
+             :required="cf.is_required"
+             :value="modelValue"
+             @input="$emit('update:modelValue', $event.target.value)"
+      />
+      <textarea v-else-if="cf.type==='textarea'"
+                class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"
+                :required="cf.is_required"
+                :value="modelValue"
+                @input="$emit('update:modelValue', $event.target.value)"></textarea>
+      <select v-else-if="cf.type==='select'"
+              class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"
+              :required="cf.is_required"
+              :value="modelValue"
+              @change="$emit('update:modelValue', $event.target.value)">
+        <option value="">請選擇</option>
+        <option v-for="opt in (cf.options||[])" :key="opt" :value="opt">{{ opt }}</option>
+      </select>
+      <select v-else-if="cf.type==='multiselect'" multiple
+              class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"
+              :required="cf.is_required"
+              @change="$emit('update:modelValue', Array.from($event.target.selectedOptions).map(o=>o.value))">
+        <option v-for="opt in (cf.options||[])" :key="opt" :value="opt" :selected="(modelValue||[]).includes(opt)">{{ opt }}</option>
+      </select>
+      <label v-else-if="cf.type==='boolean'" class="inline-flex items-center">
+        <input type="checkbox" :checked="!!modelValue" @change="$emit('update:modelValue', $event.target.checked)" class="mr-2" /> 是/否
+      </label>
+    </div>
+  `
+})
+
+const selectAllOptions = (cf) => { customFieldValues[cf.key] = Array.isArray(cf.options) ? [...cf.options] : [] }
+const clearOptions = (cf) => { customFieldValues[cf.key] = [] }
+
+const preloadCustomFieldsFromLead = (lead) => {
+  // 預設取 lead.payload[自定義欄位key] 做為初值
+  const payload = lead?.payload || {}
+  caseFields.value.forEach(cf => {
+    const key = cf.key
+    if (payload && Object.prototype.hasOwnProperty.call(payload, key)) {
+      customFieldValues[key] = payload[key]
+    } else if (cf.default_value) {
+      customFieldValues[key] = cf.default_value
+    } else {
+      customFieldValues[key] = cf.type === 'multiselect' ? [] : (cf.type === 'boolean' ? false : '')
+    }
+  })
+}
+
+
 // helpers
 const extractDomain = (url) => {
   try { return new URL(url).hostname } catch { return url || '' }
@@ -359,10 +500,16 @@ const extractDomain = (url) => {
 const formatDate = (d) => new Date(d).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
 const formatTime = (d) => new Date(d).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
 
+const formatCustomFieldValue = (val, cf) => {
+  if (cf.type === 'multiselect') return Array.isArray(val) ? val.join(', ') : (val || '-')
+  if (cf.type === 'boolean') return val ? '是' : '否'
+  return val ?? '-'
+}
+
 // 移除重複的分頁邏輯（已由 usePagination 提供）
 
 // edit & delete
-const onEdit = (lead) => {
+const onEdit = async (lead) => {
   console.log('Editing lead:', lead);
   editingId.value = lead.id
   Object.assign(form, {
@@ -381,11 +528,30 @@ const onEdit = (lead) => {
     ip_address: lead.ip_address || null,
     notes: lead.notes || lead.payload?.['備註'] || ''
   })
+  // 載入自定義欄位（案件）
+  await loadCaseFields()
+  // 從 lead.payload 帶入自定義欄位預設值
+  preloadCustomFieldsFromLead(lead)
   editOpen.value = true
 }
 const closeEdit = () => { editOpen.value = false; editingId.value = null }
 const saveEdit = async () => {
   if (!editingId.value) return
+  
+  // 自定義欄位必填檢查
+  const missing = []
+  caseFields.value.filter(f => f.is_required).forEach(cf => {
+    const val = customFieldValues[cf.key]
+    const isEmpty = (
+      (cf.type === 'multiselect' && (!Array.isArray(val) || val.length === 0)) ||
+      (cf.type !== 'multiselect' && (val === undefined || val === null || String(val).trim() === ''))
+    )
+    if (isEmpty) missing.push(cf.label)
+  })
+  if (missing.length) {
+    showError(`請填寫必填欄位：\n- ${missing.join('\n- ')}`)
+    return
+  }
   
   saving.value = true
   try {
@@ -406,7 +572,9 @@ const saveEdit = async () => {
         '房屋地址': form.address,
         '資金需求': form.required_amount,
         '貸款需求': form.loan_purpose,
-        '方便聯絡時間': form.contact_time
+        '方便聯絡時間': form.contact_time,
+        // 併入自定義欄位值
+        ...customFieldValues
       }
     }
 

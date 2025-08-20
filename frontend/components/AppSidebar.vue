@@ -3,7 +3,7 @@
     <!-- Desktop Sidebar -->
     <aside
       ref="sidebar"
-      class="fixed top-0 left-0 h-full bg-[#2c2c2c] shadow-lg transition-all duration-300 z-40 hidden lg:block flex flex-col"
+      class="fixed top-0 left-0 h-full bg-[#2c2c2c] shadow-lg transition-all duration-300 z-40 hidden lg:flex lg:flex-col"
       :class="[
         sidebarCollapsed ? 'w-20' : ''
       ]"

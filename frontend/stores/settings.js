@@ -46,7 +46,8 @@ export const useSettingsStore = defineStore('settings', () => {
         { name: '系統設定', href: '/settings/system', permissions: ['settings', 'all_access'] },
         { name: '用戶管理', href: '/settings/users', permissions: ['user_management', 'all_access'] },
         { name: '權限管理', href: '/settings/permissions', permissions: ['all_access'] },
-        { name: 'LINE 整合', href: '/settings/line', permissions: ['settings', 'all_access'] }
+        { name: 'LINE 整合', href: '/settings/line', permissions: ['settings', 'all_access'] },
+        { name: '自定義欄位', href: '/settings/custom-fields', permissions: ['settings', 'all_access'] }
       ],
       permissions: ['settings', 'user_management', 'all_access']
     },

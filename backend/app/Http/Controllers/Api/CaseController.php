@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Validator;
 use App\Models\CustomerCase;
 use App\Models\Customer;
 use App\Models\CustomerActivity;
+use App\Models\CustomField;
+use App\Models\CustomFieldValue;
 
 class CaseController extends Controller
 {
