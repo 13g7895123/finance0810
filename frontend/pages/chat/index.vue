@@ -426,7 +426,7 @@ const startSimplePolling = async () => {
   })
 }
 
-// 處理輪詢更新
+// 處理輪詢更新（保持排序穩定）
 const handlePollingUpdate = async (data) => {
   console.log('收到輪詢更新:', data)
   
@@ -434,16 +434,6 @@ const handlePollingUpdate = async (data) => {
     if (data && Array.isArray(data)) {
       // 轉換 API 數據格式到前端格式，與 loadConversations 保持一致
       const apiUsers = data.map(conv => {
-        // 校驗對話數據
-        const validationResult = DataValidator.validateConversation({
-          line_user_id: conv.line_user_id,
-          unread_count: conv.unread_count || 0
-        })
-        
-        if (!validationResult.valid) {
-          console.warn('對話數據校驗失敗:', validationResult.errors, conv)
-        }
-        
         // 確保客戶名稱正確顯示
         const customerName = conv.customer?.name || conv.customer_name || conv.last_customer_name || '客戶'
         
@@ -467,35 +457,42 @@ const handlePollingUpdate = async (data) => {
         }
       })
       
-      // 強化去重處理：確保每個 line_user_id 只有一筆記錄
+      // 去重並保持穩定的排序
       const userMap = new Map()
       apiUsers.forEach(user => {
         if (!user.lineUserId) return
-        
-        const existing = userMap.get(user.lineUserId)
-        if (!existing || user.timestamp > existing.timestamp) {
-          userMap.set(user.lineUserId, user)
-        }
+        userMap.set(user.lineUserId, user)
       })
       
-      // 轉回陣列並排序
+      // 轉回陣列並按時間排序（最新的在前面）
       const uniqueUsers = Array.from(userMap.values())
-      const sortedUsers = sortByTime(uniqueUsers)
+      const sortedUsers = uniqueUsers.sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime()
+        const timeB = new Date(b.timestamp).getTime()
+        return timeB - timeA // 最新的在前面
+      })
       
-      // 數據比較：只有在數據實際改變時才更新
-      const currentDataHash = apiConversations.value.map(u => `${u.lineUserId}:${u.timestamp?.getTime()}:${u.unreadCount}`).sort().join('|')
-      const newDataHash = sortedUsers.map(u => `${u.lineUserId}:${u.timestamp?.getTime()}:${u.unreadCount}`).sort().join('|')
+      // 檢查是否有實際變化（只比較關鍵資訊）
+      const currentKeys = apiConversations.value.map(u => u.lineUserId).join(',')
+      const newKeys = sortedUsers.map(u => u.lineUserId).join(',')
       
-      // 只有在數據真正改變時才更新，避免不必要的重新渲染
-      if (currentDataHash !== newDataHash) {
+      // 只有在用戶列表實際改變時才更新，避免破壞排序
+      if (currentKeys !== newKeys) {
         apiConversations.value = sortedUsers
-        console.log(`輪詢更新對話列表: ${uniqueUsers.length} 筆唯一記錄 (已更新)`)
+        console.log(`輪詢更新對話列表: ${uniqueUsers.length} 筆記錄 (列表已更新)`)
       } else {
-        console.log(`輪詢更新對話列表: ${uniqueUsers.length} 筆記錄 (無變化)`)
+        // 更新現有用戶的詳細資訊，但保持順序不變
+        apiConversations.value.forEach((currentUser, index) => {
+          const updatedUser = sortedUsers.find(u => u.lineUserId === currentUser.lineUserId)
+          if (updatedUser) {
+            // 只更新可能變化的資訊，保持引用穩定
+            currentUser.unreadCount = updatedUser.unreadCount
+            currentUser.lastMessage = updatedUser.lastMessage
+            // 不更新 timestamp 以保持排序穩定
+          }
+        })
+        console.log(`輪詢更新對話列表: ${uniqueUsers.length} 筆記錄 (詳細資訊已更新，排序保持)`)
       }
-      
-      // 性能監控
-      performanceMonitor.recordApiCall('/api/chats', 200, true)
     }
   } catch (error) {
     console.error('處理輪詢更新時發生錯誤:', error)
@@ -631,21 +628,17 @@ const loadConversations = async () => {
         }
       })
       
-      // 轉回陣列並排序
+      // 轉回陣列並按時間排序（最新的在前面）
       const uniqueUsers = Array.from(userMap.values())
-      const sortedUsers = sortByTime(uniqueUsers)
+      const sortedUsers = uniqueUsers.sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime()
+        const timeB = new Date(b.timestamp).getTime()
+        return timeB - timeA // 最新的在前面
+      })
       
-      // 數據比較：只有在數據實際改變時才更新
-      const currentDataHash = apiConversations.value.map(u => `${u.lineUserId}:${u.timestamp?.getTime()}:${u.unreadCount}`).sort().join('|')
-      const newDataHash = sortedUsers.map(u => `${u.lineUserId}:${u.timestamp?.getTime()}:${u.unreadCount}`).sort().join('|')
-      
-      // 只有在數據真正改變時才更新，避免不必要的重新渲染
-      if (currentDataHash !== newDataHash) {
-        apiConversations.value = sortedUsers
-        console.log(`載入對話列表: ${uniqueUsers.length} 筆唯一記錄 (已更新)`)
-      } else {
-        console.log(`載入對話列表: ${uniqueUsers.length} 筆記錄 (無變化)`)
-      }
+      // 直接設定對話列表，確保排序一致
+      apiConversations.value = sortedUsers
+      console.log(`載入對話列表: ${uniqueUsers.length} 筆唯一記錄`)
     }
   } catch (error) {
     console.error('Failed to load conversations:', error)
@@ -672,56 +665,24 @@ const loadConversations = async () => {
   }
 }
 
-// 載入特定對話的訊息
+// 載入特定對話的訊息（簡化版）
 const loadConversationMessages = async (userId) => {
-  // 防止重複載入和API競爭
-  if (loadingLocks.value.messages || loadingLocks.value.conversations || loadingLocks.value.apiCallInProgress) {
-    console.log('訊息正在載入中或有其他API操作進行中，跳過重複請求')
-    return
-  }
-  
-  const callId = `messages_${userId}_${++apiCallTracker.value.callCounter}`
-  apiCallTracker.value.activeApiCalls.add(callId)
-  apiCallTracker.value.lastApiCall = callId
-
   try {
-    loadingLocks.value.messages = true
-    loading.value = true
     console.log('開始載入用戶訊息:', userId)
     
-    // 性能監控 - 開始計時
-    const startTime = performance.now()
-    
     const response = await getConversation(userId)
-    
-    // 性能監控 - 記錄API調用
-    const endTime = performance.now()
-    const duration = endTime - startTime
-    performanceMonitor.recordApiCall(`/api/chats/${userId}`, duration, !!response?.data)
     console.log('API response for conversation:', response)
     
     if (response?.data && Array.isArray(response.data)) {
-      // 轉換 API 數據格式到前端格式，並添加數據校驗
+      // 轉換 API 數據格式到前端格式
       const transformedMessages = response.data.map(msg => {
-        // 校驗消息數據
-        const validationResult = DataValidator.validateMessage({
-          id: msg.id,
-          line_user_id: msg.line_user_id,
-          message_content: msg.message_content,
-          version: msg.version || 1 // 默認版本號
-        })
-        
-        if (!validationResult.valid) {
-          console.warn('消息數據校驗失敗:', validationResult.errors, msg)
-        }
-        
         return {
           id: msg.id,
-          senderId: msg.is_from_customer ? parseInt(msg.line_user_id) : 'bot',
+          senderId: msg.is_from_customer ? parseInt(msg.line_user_id) : 'system',
           content: msg.message_content,
           timestamp: new Date(msg.message_timestamp),
           type: msg.message_type || 'text',
-          isBot: true,
+          isBot: !msg.is_from_customer,
           isCustomer: msg.is_from_customer,
           isAutoReply: !msg.is_from_customer,
           metadata: msg.metadata || {},
@@ -736,8 +697,11 @@ const loadConversationMessages = async (userId) => {
         return timeA - timeB
       })
       
-      console.log('Transformed messages:', transformedMessages)
+      console.log('Transformed messages:', transformedMessages.length, '筆訊息')
+      
+      // 直接設定到對應的用戶訊息中
       apiMessages.value[userId] = transformedMessages
+      
       return transformedMessages
     } else {
       console.log('No messages found or invalid response format')
@@ -748,11 +712,6 @@ const loadConversationMessages = async (userId) => {
     console.error('Failed to load conversation messages:', error)
     apiMessages.value[userId] = []
     return []
-  } finally {
-    loading.value = false
-    loadingLocks.value.messages = false
-    apiCallTracker.value.activeApiCalls.delete(callId)
-    console.log('用戶訊息載入完成:', userId, '清理API追蹤')
   }
 }
 
@@ -854,9 +813,13 @@ const performSearch = async (query) => {
         }
       })
       
-      // 轉回陣列並使用統一排序
+      // 轉回陣列並按時間排序（最新的在前面）
       const uniqueSearchUsers = Array.from(userMap.values())
-      const sortedSearchUsers = sortByTime(uniqueSearchUsers)
+      const sortedSearchUsers = uniqueSearchUsers.sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime()
+        const timeB = new Date(b.timestamp).getTime()
+        return timeB - timeA // 最新的在前面
+      })
       
       // 數據比較：使用更簡單的雜湊比較
       const currentSearchHash = searchResults.value.map(u => `${u.lineUserId}:${u.timestamp?.getTime()}`).sort().join('|')
@@ -1123,7 +1086,7 @@ const sendMessage = async (content) => {
   }
 }
 
-// 選擇用戶功能（增強版防競態）
+// 選擇用戶功能（簡化版）
 const selectUserWithRealtime = async (user) => {
   try {
     if (!user || typeof user !== 'object') {
@@ -1131,111 +1094,45 @@ const selectUserWithRealtime = async (user) => {
       return
     }
     
-    // 檢查是否有其他操作正在進行
-    if (loadingLocks.value.userSelection || globalLock.value) {
-      console.log('用戶選擇操作正在進行中，忽略重複請求')
+    // 簡單的重複選擇檢查
+    if (selectedUser.value?.lineUserId === user.lineUserId) {
+      console.log('用戶已選中，跳過重複選擇')
       return
     }
     
-    console.log('=== 選擇用戶開始 ===')
-    console.log('Selecting user:', user.name, 'ID:', user.id, 'LineUserID:', user.lineUserId)
+    console.log('選擇用戶:', user.name, 'LineUserID:', user.lineUserId)
     
-    // 設定全域鎖和用戶選擇鎖
-    loadingLocks.value.userSelection = true
-    loadingLocks.value.apiCallInProgress = true
-    globalLock.value = true
-    
-    // 暫停輪詢以避免競態條件
-    const wasPollingEnabled = pollingConfig.value.enabled
-    if (wasPollingEnabled) {
-      console.log('暫停輪詢以避免競態條件')
-      stopLegacyPolling()
-    }
-    
-    // 等待所有正在進行的API調用完成
-    let waitCount = 0
-    while (apiCallTracker.value.activeApiCalls.size > 0 && waitCount < 50) {
-      console.log(`等待API調用完成... (${apiCallTracker.value.activeApiCalls.size}個調用待完成)`)
-      await new Promise(resolve => setTimeout(resolve, 100))
-      waitCount++
-    }
-    
-    if (apiCallTracker.value.activeApiCalls.size > 0) {
-      console.warn('強制清理未完成的API調用')
-      apiCallTracker.value.activeApiCalls.clear()
-    }
-    
-    // 執行原有的用戶選擇邏輯
+    // 設定選中的用戶
     selectedUser.value = user
     activeUserId.value = user.id
     
-    console.log('User selected, activeUserId set to:', user.id)
-    console.log('Is bot user?', user.isBot, 'Line User ID:', user.lineUserId)
-    
-    // 載入對話訊息 (如果是 LINE BOT 用戶) - 增強版防競爭
+    // 清空當前顯示的訊息，避免混淆
     if (user.isBot && user.lineUserId) {
-      console.log('Loading conversation messages for LINE bot user:', user.lineUserId)
-      console.log('停止主列表更新以避免與訊息載入競爭')
-      
-      // 確保在載入訊息時不會同時調用主列表API
-      loadingLocks.value.apiCallInProgress = true
-      
-      try {
-        const messages = await loadConversationMessages(user.lineUserId)
-        console.log('✓ 對話訊息載入完成:', messages?.length || 0, '筆訊息')
+      // 如果已有緩存的訊息，直接使用
+      if (apiMessages.value[user.lineUserId]?.length > 0) {
+        console.log('使用緩存的訊息:', apiMessages.value[user.lineUserId].length, '筆')
+      } else {
+        // 載入訊息
+        console.log('載入用戶訊息:', user.lineUserId)
+        await loadConversationMessages(user.lineUserId)
         
-        // 立即檢查訊息是否正確載入
+        // 檢查訊息是否載入成功
         nextTick(() => {
-          const currentMsgs = apiMessages.value[user.lineUserId]
-          console.log('載入後的訊息檔案:', currentMsgs?.length || 0)
-          console.log('當前渲染的訊息:', currentMessages.value?.length || 0)
+          const loadedMessages = apiMessages.value[user.lineUserId]
+          console.log('訊息載入完成:', loadedMessages?.length || 0, '筆')
+          
+          if (!loadedMessages || loadedMessages.length === 0) {
+            console.warn('未載入到任何訊息，可能是權限問題或該用戶沒有對話記錄')
+          }
         })
-        
-      } catch (error) {
-        console.error('✗ 載入對話訊息失敗:', error)
-      } finally {
-        // 延遲釋放API鎖定，確保操作完成
-        safeSetTimeout(() => {
-          loadingLocks.value.apiCallInProgress = false
-          console.log('訊息載入API鎖定已釋放')
-        }, 500)
       }
-    } else {
-      console.log('User is not a LINE bot user')
     }
     
-    // 標記為已讀（僅記錄，不修改響應式數據）
-    if (user.unreadCount > 0) {
-      console.log('用戶有未讀訊息，將標記為已讀')
-      // 可以選擇性調用 markAsRead API 但不立即更新界面
-      // await markAsRead(user.lineUserId)
-    }
+    console.log('用戶選擇完成')
     
-    // 恢復輪詢（如果之前啟用）
-    if (wasPollingEnabled) {
-      console.log('恢復輪詢')
-      safeSetTimeout(() => {
-        safeStartLegacyPolling(pollingConfig.value.interval)
-      }, 1500) // 延遲1.5秒恢復，確保操作完成
-    }
-    
-    console.log('=== 選擇用戶完成 ===')
-    
-    // 調試：檢查當前訊息
-    nextTick(() => {
-      console.log('Current messages after user selection:', currentMessages.value?.length || 0, 'messages')
-      console.log('Selected user info:', selectedUser.value?.lineUserId, selectedUser.value?.name)
-    })
   } catch (error) {
-    console.error('selectUserWithRealtime 發生錯誤:', error)
-  } finally {
-    // 確保鎖定狀態被清理
-    safeSetTimeout(() => {
-      loadingLocks.value.userSelection = false
-      loadingLocks.value.apiCallInProgress = false
-      globalLock.value = false
-      console.log('用戶選擇鎖定已清理')
-    }, 1000)
+    console.error('選擇用戶時發生錯誤:', error)
+    // 發生錯誤時不要影響其他功能
   }
 }
 
