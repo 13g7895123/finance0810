@@ -397,7 +397,11 @@ const loadUsers = async () => {
 }
 
 onMounted(async () => {
-  await Promise.all([loadLeads(), loadCaseFields()])
+  const promises = [loadLeads(), loadCaseFields()];
+  if (authStore?.hasPermission && authStore.hasPermission('customer_management')) {
+    promises.push(loadUsers());
+  }
+  await Promise.all(promises);
 })
 
 // 搜尋防抖
