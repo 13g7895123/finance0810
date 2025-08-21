@@ -157,10 +157,13 @@ const filteredMenuItems = computed(() => {
     return []
   }
   
+  const can = (permission) => {
+    try { return !!authStore?.hasPermission?.(permission) } catch { return false }
+  }
   return sidebarMenuItems.value.filter(item => {
     // 檢查項目是否有權限要求
     if (item.permissions && item.permissions.length > 0) {
-      return item.permissions.some(permission => authStore.hasPermission(permission))
+      return item.permissions.some(permission => can(permission))
     }
     return true
   }).map(item => {

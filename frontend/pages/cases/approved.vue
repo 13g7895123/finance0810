@@ -3,7 +3,7 @@
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">待處理案件</h1>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">已核准案件</h1>
         <p class="text-gray-600 dark:text-gray-400 mt-2">顯示來自 WP 表單的進件（可搜尋、編輯、刪除）</p>
       </div>
       <div class="flex items-center space-x-3">
@@ -13,12 +13,13 @@
           placeholder="搜尋姓名/手機/Email/LINE/網站... (至少2個字符)"
           class="px-3 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
         />
-        <!-- 承辦業務篩選 -->
-        <select v-model="selectedAssignee" class="px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700">
-          <option value="all">全部承辦</option>
-          <option value="null">未指派</option>
-          <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
-        </select>
+        <template v-if="authStore?.hasPermission && authStore.hasPermission('customer_management')">
+          <select v-model="selectedAssignee" class="px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700">
+            <option value="all">全部承辦</option>
+            <option value="null">未指派</option>
+            <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
+          </select>
+        </template>
         <select v-model="pagination.perPage" class="px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700">
           <option v-for="option in PAGINATION_OPTIONS" :key="option.value" :value="option.value">
             {{ option.label }}
@@ -154,13 +155,6 @@
             <div>
               <label class="block text-sm mb-1">時間</label>
               <input v-model="form.created_at" type="datetime-local" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
-            </div>
-            <div>
-              <label class="block text-sm mb-1">承辦業務</label>
-              <select v-model="form.assigned_to" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700">
-                <option :value="null">未指派</option>
-                <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
-              </select>
             </div>
             <div>
               <label class="block text-sm mb-1">Email</label>
@@ -306,6 +300,8 @@
 <script setup>
 definePageMeta({ middleware: 'auth' })
 
+const authStore = useAuthStore()
+
 const { list: listLeads, updateOne: updateLead, removeOne: removeLead, convertToCase } = useLeads()
 const { pagination, totalPages, startIndex, endIndex, nextPage, prevPage, updatePagination } = usePagination(10)
 const { validateCaseForm } = useFormValidation()
@@ -344,7 +340,7 @@ const editingId = ref(null)
 const form = reactive({
   page_url: '',
   channel: 'wp',
-  status: 'pending',
+  status: 'approved',
   created_at: '',
   assigned_to: null,
   email: null,
@@ -382,7 +378,7 @@ const loadLeads = async () => {
     search: searchValue,
     // channel: 'wp_form',
     assigned_to: selectedAssignee.value,
-    status: 'pending'
+    status: 'approved'
   })
   if (ok) {
     leads.value = items
@@ -401,7 +397,7 @@ const loadUsers = async () => {
 }
 
 onMounted(async () => {
-  await Promise.all([loadUsers(), loadLeads(), loadCaseFields()])
+  await Promise.all([loadLeads(), loadCaseFields()])
 })
 
 // 搜尋防抖
@@ -435,7 +431,7 @@ const loadCaseFields = async () => {
   if (success) caseFields.value = items
 }
 
-// （已轉為可重用元件 CaseCustomFieldsEditor，以下舊的動態 component 宣告可移除）
+// 根據欄位型別返回對應的輸入元件
 const getInputComponent = (cf) => ({
   props: ['modelValue','cf'],
   emits: ['update:modelValue'],
@@ -516,7 +512,7 @@ const onEdit = async (lead) => {
   Object.assign(form, {
     page_url: lead.payload?.['頁面_URL'] || lead.source || '',
     channel: lead.channel || 'wp',
-    status: lead.status || 'pending',
+    status: lead.status || 'approved',
     created_at: lead.created_at ? new Date(lead.created_at).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
     assigned_to: lead.assigned_to || null,
     email: lead.email || null,

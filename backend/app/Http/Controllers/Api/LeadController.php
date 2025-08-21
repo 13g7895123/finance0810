@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Models\CustomerLead;
+use Illuminate\Validation\Rule;
 
 class LeadController extends Controller
 {
@@ -123,7 +124,7 @@ class LeadController extends Controller
             'assigned_to' => 'sometimes|nullable|exists:users,id',
             'notes' => 'sometimes|nullable|string|max:1000',
             'payload' => 'sometimes|array',
-            'status' => 'sometimes|in:pending,intake,approved,submitted,disbursed,blacklist', // see App\\Enums\\LeadStatus
+            'status' => ['sometimes', Rule::in(LeadStatus::values())],
         ]);
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);

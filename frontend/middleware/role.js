@@ -63,7 +63,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (requiredPermissions) {
     // 檢查用戶是否有所需權限
     const hasPermission = requiredPermissions.some(permission => 
-      authStore.hasPermission(permission)
+      (authStore?.hasPermission ? authStore.hasPermission(permission) : false)
     )
 
     if (!hasPermission) {

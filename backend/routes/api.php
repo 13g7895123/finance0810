@@ -174,7 +174,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/reports/approval-rates', [ReportController::class, 'approvalRate']);
 
         // Custom fields management
-        Route::get('/custom-fields', [\App\Http\Controllers\Api\CustomFieldController::class, 'index']);
+        Route::get('/custom-fields', [\App\Http\Controllers\Api\CustomFieldController::class, 'index'])->withoutMiddleware(['role:admin|executive|manager']);
         Route::post('/custom-fields', [\App\Http\Controllers\Api\CustomFieldController::class, 'store']);
         Route::put('/custom-fields/{field}', [\App\Http\Controllers\Api\CustomFieldController::class, 'update']);
         Route::delete('/custom-fields/{field}', [\App\Http\Controllers\Api\CustomFieldController::class, 'destroy']);
