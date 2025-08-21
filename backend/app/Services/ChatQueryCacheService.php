@@ -80,7 +80,7 @@ class ChatQueryCacheService
                 DB::raw('MAX(c.name) as customer_name'),
                 DB::raw('MAX(c.phone) as customer_phone'),
                 DB::raw('MAX(c.region) as customer_region'),
-                DB::raw('MAX(c.source) as customer_source'),
+                DB::raw('MAX(c.website_source) as customer_source'),
                 DB::raw('MAX(c.status) as customer_status')
             ])
             ->whereNotNull('cc.line_user_id')
