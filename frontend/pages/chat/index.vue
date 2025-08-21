@@ -416,15 +416,8 @@ const toggleLongPolling = async () => {
   }
 }
 
-// 啟動簡化的輪詢
-const startSimplePolling = async () => {
-  startPolling({
-    interval: 2000, // 2秒輪詢間隔
-    onUpdate: handlePollingUpdate,
-    onError: handlePollingError,
-    onAuthError: handleAuthError
-  })
-}
+// 啟動簡化的輪詢 (先聲明，在所有回調函數定義後再實作)
+let startSimplePolling = null
 
 // 處理輪詢更新（保持排序穩定）
 const handlePollingUpdate = async (data) => {
@@ -532,6 +525,55 @@ const handleAuthError = (error) => {
   }
   
   showError(errorMessage)
+}
+
+// 現在定義 startSimplePolling 函數（在所有回調函數定義之後）
+startSimplePolling = async () => {
+  console.log('=== startSimplePolling 呼叫開始 ===')
+  console.log('回調函數檢查:', {
+    handlePollingUpdate: {
+      exists: !!handlePollingUpdate,
+      type: typeof handlePollingUpdate,
+      isFunction: typeof handlePollingUpdate === 'function'
+    },
+    handlePollingError: {
+      exists: !!handlePollingError,
+      type: typeof handlePollingError,
+      isFunction: typeof handlePollingError === 'function'
+    },
+    handleAuthError: {
+      exists: !!handleAuthError,
+      type: typeof handleAuthError,
+      isFunction: typeof handleAuthError === 'function'
+    }
+  })
+  
+  // 驗證所有回調函數都已定義
+  if (typeof handlePollingUpdate !== 'function') {
+    console.error('handlePollingUpdate 未定義或不是函數!', typeof handlePollingUpdate)
+    throw new Error('handlePollingUpdate is not a function')
+  }
+  
+  if (typeof handlePollingError !== 'function') {
+    console.error('handlePollingError 未定義或不是函數!', typeof handlePollingError)
+    throw new Error('handlePollingError is not a function')
+  }
+  
+  if (typeof handleAuthError !== 'function') {
+    console.error('handleAuthError 未定義或不是函數!', typeof handleAuthError)
+    throw new Error('handleAuthError is not a function')
+  }
+  
+  console.log('所有回調函數驗證通過，開始啟動輪詢')
+  
+  startPolling({
+    interval: 2000, // 2秒輪詢間隔
+    onUpdate: handlePollingUpdate,
+    onError: handlePollingError,
+    onAuthError: handleAuthError
+  })
+  
+  console.log('=== startSimplePolling 呼叫完成 ===')
 }
 
 // API 數據狀態
