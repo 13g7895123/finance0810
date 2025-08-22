@@ -15,7 +15,7 @@ class WebhookController extends Controller
     public function wp(Request $request)
     {
         /**
-         * mock curl -X POST "http://localhost:9221/api/webhook/wp" \
+         * mock curl -X POST "http://localhost:8000/api/webhook/wp" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "姓名=我你媽" \
   --data-urlencode "手機號碼=0908121645" \
@@ -198,6 +198,7 @@ class WebhookController extends Controller
 
             $lead = CustomerLead::create([
                 'customer_id' => $existingCustomer->id,
+                'assigned_to' => $existingCustomer->assigned_to, // 若客戶已有承辦則沿用，否則為 null
                 'channel' => 'wp_form',
                 'source' => $pageUrl,
                 'name' => $name,

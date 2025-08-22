@@ -156,13 +156,6 @@
               <input v-model="form.created_at" type="datetime-local" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
             </div>
             <div>
-              <label class="block text-sm mb-1">承辦業務</label>
-              <select v-model="form.assigned_to" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700">
-                <option :value="null">未指派</option>
-                <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
-              </select>
-            </div>
-            <div>
               <label class="block text-sm mb-1">Email</label>
               <input v-model="form.email" type="email" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
             </div>

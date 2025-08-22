@@ -9,6 +9,7 @@ use App\Observers\CustomerCaseObserver;
 use App\Models\ChatConversation;
 use App\Models\Customer;
 use App\Observers\VersionedModelObserver;
+use App\Observers\CustomerObserver;
 use App\Services\QueryPerformanceMonitor;
 use App\Services\ChatQueryCacheService;
 use App\Services\VersionTrackingService;
@@ -53,6 +54,7 @@ class AppServiceProvider extends ServiceProvider
             
             if (class_exists(Customer::class)) {
                 Customer::observe(VersionedModelObserver::class);
+                Customer::observe(CustomerObserver::class);
             }
             
             // 只在開發環境啟用查詢監控

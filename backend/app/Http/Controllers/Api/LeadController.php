@@ -115,6 +115,12 @@ class LeadController extends Controller
     // PUT /api/leads/{lead}
     public function update(Request $request, CustomerLead $lead)
     {
+        $user = Auth::user();
+        $isPrivileged = $user && $user->hasAnyRole(['admin', 'executive', 'manager']);
+        if (!$isPrivileged && $lead->assigned_to !== $user->id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'customer_id' => 'sometimes|exists:customers,id',
             'channel' => 'sometimes|in:wp,lineoa,email,phone,wp_form',
@@ -153,6 +159,11 @@ class LeadController extends Controller
     // DELETE /api/leads/{lead}
     public function destroy(CustomerLead $lead)
     {
+        $user = Auth::user();
+        $isPrivileged = $user && $user->hasAnyRole(['admin', 'executive', 'manager']);
+        if (!$isPrivileged && $lead->assigned_to !== $user->id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
         // 簡單刪除 lead，不刪除 customer
         $lead->delete();
         return response()->json(['message' => 'deleted']);
