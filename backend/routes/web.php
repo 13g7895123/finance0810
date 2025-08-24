@@ -133,3 +133,90 @@ Route::get('/firebase-test', function () {
     // 返回文本響應
     return response(implode("\n", $output), 200, ['Content-Type' => 'text/plain']);
 });
+
+// 環境診斷路由
+Route::get('/env-diagnosis', function () {
+    $output = [];
+    
+    try {
+        $output[] = '=== Environment Variable Diagnosis ===';
+        
+        // 檢查環境變數
+        $output[] = '1. Checking Firebase Environment Variables:';
+        $firebaseEnvVars = [
+            'FIREBASE_PROJECT_ID',
+            'FIREBASE_DATABASE_URL', 
+            'FIREBASE_CREDENTIALS'
+        ];
+        
+        foreach ($firebaseEnvVars as $var) {
+            $value = env($var);
+            $output[] = "   {$var}: " . ($value ? $value : 'NOT SET');
+        }
+        
+        $output[] = '';
+        $output[] = '2. Checking Laravel Configuration:';
+        
+        $configs = [
+            'services.firebase.project_id' => config('services.firebase.project_id'),
+            'services.firebase.database_url' => config('services.firebase.database_url'),
+            'services.firebase.credentials' => config('services.firebase.credentials'),
+        ];
+        
+        foreach ($configs as $key => $value) {
+            $output[] = "   {$key}: " . ($value ?: 'NOT SET');
+        }
+        
+        $output[] = '';
+        $output[] = '3. Checking App Environment:';
+        $output[] = '   APP_ENV: ' . app()->environment();
+        $output[] = '   Config Cached: ' . (app()->configurationIsCached() ? 'YES' : 'NO');
+        
+        $output[] = '';
+        $output[] = '4. Checking Firebase Credentials File:';
+        $credentialsPath = config('services.firebase.credentials');
+        if ($credentialsPath && file_exists($credentialsPath)) {
+            $output[] = "   ✓ File exists: {$credentialsPath}";
+            $content = file_get_contents($credentialsPath);
+            $json = json_decode($content, true);
+            if ($json && isset($json['project_id'])) {
+                $output[] = "   Project ID in file: {$json['project_id']}";
+            } else {
+                $output[] = "   ✗ Invalid JSON or missing project_id";
+            }
+        } else {
+            $output[] = "   ✗ File not found: {$credentialsPath}";
+        }
+        
+        $output[] = '';
+        $output[] = '5. System Information:';
+        $output[] = '   PHP Version: ' . PHP_VERSION;
+        $output[] = '   Laravel Version: ' . app()->version();
+        $output[] = '   Current Directory: ' . getcwd();
+        
+        // 測試直接讀取 .env 檔案
+        $output[] = '';
+        $output[] = '6. Direct .env file check:';
+        $envPath = base_path('.env');
+        if (file_exists($envPath)) {
+            $envContent = file_get_contents($envPath);
+            $lines = explode("\n", $envContent);
+            foreach ($lines as $line) {
+                if (strpos($line, 'FIREBASE_') === 0) {
+                    $output[] = "   .env: {$line}";
+                }
+            }
+        } else {
+            $output[] = "   .env file not found at: {$envPath}";
+        }
+        
+        $output[] = '';
+        $output[] = '=== Diagnosis completed ===';
+        
+    } catch (\Exception $e) {
+        $output[] = 'FATAL ERROR: ' . $e->getMessage();
+        $output[] = 'Stack trace: ' . $e->getTraceAsString();
+    }
+    
+    return response(implode("\n", $output), 200, ['Content-Type' => 'text/plain']);
+});
