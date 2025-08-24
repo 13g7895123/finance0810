@@ -234,7 +234,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 // Composables
-const { $api } = useNuxtApp()
+const { get, post } = useApi()
 const { user } = useAuth()
 
 // Reactive data
@@ -309,12 +309,11 @@ const showNotification = (type, message, duration = 3000) => {
 const refreshHealthCheck = async () => {
   loading.value.healthCheck = true
   try {
-    const response = await $api('/debug/system/health', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
+    const { data: response, error } = await get('/debug/system/health')
+    
+    if (error) {
+      throw new Error(error.message || 'Health check failed')
+    }
     
     if (response.success) {
       systemHealth.value = response.health
@@ -333,16 +332,14 @@ const refreshHealthCheck = async () => {
 const syncToFirebase = async () => {
   loading.value.sync = true
   try {
-    const response = await $api('/debug/chat/batch-sync', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        limit: 50,
-        force: false
-      })
+    const { data: response, error } = await post('/chat/batch-sync', {
+      limit: 50,
+      force: false
     })
+    
+    if (error) {
+      throw new Error(error.message || '同步失敗')
+    }
     
     if (response.success) {
       lastSyncResult.value = response.data
@@ -361,15 +358,13 @@ const syncToFirebase = async () => {
 const validateData = async () => {
   loading.value.validation = true
   try {
-    const response = await $api('/debug/chat/validate-integrity', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        check_all: true
-      })
+    const { data: response, error } = await post('/chat/validate-integrity', {
+      check_all: true
     })
+    
+    if (error) {
+      throw new Error(error.message || '驗證失敗')
+    }
     
     if (response.success) {
       lastValidationResult.value = response.data

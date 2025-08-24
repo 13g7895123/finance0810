@@ -463,7 +463,7 @@ definePageMeta({
 })
 
 // Composables
-const { $api } = useNuxtApp()
+const { get, post } = useApi()
 const { user, isAdmin, isManager, hasRole } = useAuth()
 
 // Reactive data
@@ -542,9 +542,11 @@ const getSyncSuccessRate = () => {
 const refreshHealthCheck = async () => {
   loading.value.healthCheck = true
   try {
-    const response = await $api('/debug/system/health', {
-      method: 'GET'
-    })
+    const { data: response, error } = await get('/debug/system/health')
+    
+    if (error) {
+      throw new Error(error.message || '健康檢查失敗')
+    }
     
     if (response.success) {
       systemHealth.value = response.health
@@ -569,13 +571,14 @@ const refreshHealthCheck = async () => {
 const syncToFirebase = async () => {
   loading.value.sync = true
   try {
-    const response = await $api('/chat/batch-sync', {
-      method: 'POST',
-      body: JSON.stringify({
-        limit: 100,
-        force: false
-      })
+    const { data: response, error } = await post('/chat/batch-sync', {
+      limit: 100,
+      force: false
     })
+    
+    if (error) {
+      throw new Error(error.message || '同步失敗')
+    }
     
     if (response.success) {
       lastSyncResult.value = response.data
@@ -605,12 +608,13 @@ const syncToFirebase = async () => {
 const validateData = async () => {
   loading.value.validation = true
   try {
-    const response = await $api('/chat/validate-integrity', {
-      method: 'POST',
-      body: JSON.stringify({
-        check_all: true
-      })
+    const { data: response, error } = await post('/chat/validate-integrity', {
+      check_all: true
     })
+    
+    if (error) {
+      throw new Error(error.message || '驗證失敗')
+    }
     
     if (response.success) {
       lastValidationResult.value = response.data
