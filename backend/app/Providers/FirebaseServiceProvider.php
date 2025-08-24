@@ -55,11 +55,32 @@ class FirebaseServiceProvider extends ServiceProvider
 
         $this->app->singleton(Database::class, function ($app) {
             try {
-                return $app['firebase.factory']->createDatabase();
+                $database = $app['firebase.factory']->createDatabase();
+                if ($database === null) {
+                    throw new \RuntimeException('Firebase Database instance is null');
+                }
+                return $database;
             } catch (\Exception $e) {
-                // 在開發環境或缺少依賴時，記錄錯誤但不中斷應用啟動
-                \Log::warning('Failed to create Firebase Database client: ' . $e->getMessage());
-                return null;
+                // 記錄詳細錯誤信息
+                \Log::error('Failed to create Firebase Database client', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                    'config' => [
+                        'project_id' => config('services.firebase.project_id'),
+                        'database_url' => config('services.firebase.database_url'),
+                        'credentials_exist' => file_exists(config('services.firebase.credentials') ?: '')
+                    ]
+                ]);
+                
+                // 返回一個 Mock 實例而不是 null，避免綁定錯誤
+                return new class implements \Kreait\Firebase\Contract\Database {
+                    public function getReference(string $path = null): \Kreait\Firebase\Database\Reference {
+                        throw new \RuntimeException('Firebase Database not available: ' . $path);
+                    }
+                    public function getReferenceFromUrl(string $url): \Kreait\Firebase\Database\Reference {
+                        throw new \RuntimeException('Firebase Database not available');
+                    }
+                };
             }
         });
 
@@ -73,10 +94,22 @@ class FirebaseServiceProvider extends ServiceProvider
             }
         });
         
-        // 別名綁定
-        $this->app->alias(Firestore::class, 'firebase.firestore');
-        $this->app->alias(Database::class, 'firebase.database');
-        $this->app->alias(FirebaseAuth::class, 'firebase.auth');
+        // 條件性別名綁定 - 只有在服務成功綁定時才建立別名
+        try {
+            if ($this->app->bound(Firestore::class)) {
+                $this->app->alias(Firestore::class, 'firebase.firestore');
+            }
+            if ($this->app->bound(Database::class)) {
+                $this->app->alias(Database::class, 'firebase.database');
+            }
+            if ($this->app->bound(FirebaseAuth::class)) {
+                $this->app->alias(FirebaseAuth::class, 'firebase.auth');
+            }
+        } catch (\Exception $e) {
+            \Log::error('Failed to create Firebase service aliases', [
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 
     /**
@@ -84,17 +117,87 @@ class FirebaseServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // 檢查 Firebase 配置
+        // 詳細的 Firebase 配置檢查
+        $this->validateFirebaseConfiguration();
+        
+        // 測試 Firebase 服務可用性
+        $this->testFirebaseServices();
+    }
+    
+    /**
+     * 驗證 Firebase 配置
+     */
+    protected function validateFirebaseConfiguration(): void
+    {
+        $issues = [];
+        
         if (!config('services.firebase.project_id')) {
-            \Log::warning('Firebase Project ID not configured. Firebase services may not work properly.');
+            $issues[] = 'Firebase Project ID not configured';
         }
-
-        if (!config('services.firebase.credentials') || !file_exists(config('services.firebase.credentials'))) {
-            \Log::warning('Firebase credentials file not found. Firebase services may not work properly.');
+        
+        $credentialsPath = config('services.firebase.credentials');
+        if (!$credentialsPath) {
+            $issues[] = 'Firebase credentials path not configured';
+        } elseif (!file_exists($credentialsPath)) {
+            $issues[] = "Firebase credentials file not found at: {$credentialsPath}";
         }
-
+        
         if (!config('services.firebase.database_url')) {
-            \Log::warning('Firebase Database URL not configured. Realtime Database services may not work properly.');
+            $issues[] = 'Firebase Database URL not configured';
+        }
+        
+        if (!empty($issues)) {
+            \Log::warning('Firebase configuration issues detected', [
+                'issues' => $issues,
+                'config' => [
+                    'project_id' => config('services.firebase.project_id'),
+                    'database_url' => config('services.firebase.database_url'),
+                    'credentials_path' => $credentialsPath
+                ]
+            ]);
+        }
+    }
+    
+    /**
+     * 測試 Firebase 服務可用性
+     */
+    protected function testFirebaseServices(): void
+    {
+        try {
+            // 測試 Database 服務
+            if ($this->app->bound('firebase.database')) {
+                \Log::info('Firebase Database service is bound and available');
+            } else {
+                \Log::warning('Firebase Database service is not bound');
+            }
+            
+            // 測試實際連接（僅在非生產環境）
+            if (!app()->isProduction()) {
+                $this->testDatabaseConnection();
+            }
+            
+        } catch (\Exception $e) {
+            \Log::error('Firebase service test failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+    
+    /**
+     * 測試資料庫連接
+     */
+    protected function testDatabaseConnection(): void
+    {
+        try {
+            $database = $this->app->make('firebase.database');
+            // 嘗試獲取根引用來測試連接
+            $database->getReference('.info/connected');
+            \Log::info('Firebase Database connection test passed');
+        } catch (\Exception $e) {
+            \Log::warning('Firebase Database connection test failed', [
+                'error' => $e->getMessage()
+            ]);
         }
     }
 }
