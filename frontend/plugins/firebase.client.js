@@ -5,13 +5,13 @@ export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig()
   
   const firebaseConfig = {
-    apiKey: config.public.firebaseApiKey || "AIzaSyCONFIG_NEEDED_FROM_FIREBASE_CONSOLE",
+    apiKey: config.public.firebaseApiKey || "AIzaSyAdMi6mBkOW8apD7kyaAObkuZNHBwNkwK8",
     authDomain: "finance0810new.firebaseapp.com",
     databaseURL: config.public.firebaseDatabaseUrl || "https://finance0810new-default-rtdb.asia-southeast1.firebasedatabase.app/",
     projectId: config.public.firebaseProjectId || "finance0810new", 
-    storageBucket: "finance0810new.appspot.com",
-    messagingSenderId: config.public.firebaseMessagingSenderId || "SENDER_ID_NEEDED",
-    appId: config.public.firebaseAppId || "APP_ID_NEEDED"
+    storageBucket: "finance0810new.firebasestorage.app",
+    messagingSenderId: config.public.firebaseMessagingSenderId || "1037882716873",
+    appId: config.public.firebaseAppId || "1:1037882716873:web:d572d3adcc0b4e7c479318"
   }
 
   try {
