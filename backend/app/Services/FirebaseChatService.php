@@ -12,9 +12,17 @@ class FirebaseChatService
 {
     protected $firestore;
 
-    public function __construct(Firestore $firestore)
+    public function __construct(?Firestore $firestore = null)
     {
         $this->firestore = $firestore;
+    }
+
+    /**
+     * 檢查 Firestore 是否可用
+     */
+    protected function isFirestoreAvailable(): bool
+    {
+        return $this->firestore !== null;
     }
 
     /**
@@ -22,6 +30,14 @@ class FirebaseChatService
      */
     public function syncConversationToFirebase(ChatConversation $conversation)
     {
+        // 檢查 Firestore 是否可用
+        if (!$this->firestore) {
+            Log::channel('firebase')->warning('Firestore not available, skipping sync', [
+                'conversation_id' => $conversation->id
+            ]);
+            return false;
+        }
+
         try {
             $customer = $conversation->customer;
             if (!$customer || !$conversation->line_user_id) {
@@ -77,6 +93,14 @@ class FirebaseChatService
      */
     public function syncMessageToFirebase(ChatConversation $conversation)
     {
+        // 檢查 Firestore 是否可用
+        if (!$this->isFirestoreAvailable()) {
+            Log::channel('firebase')->warning('Firestore not available, skipping message sync', [
+                'conversation_id' => $conversation->id
+            ]);
+            return false;
+        }
+
         try {
             if (!$conversation->line_user_id) {
                 return false;
@@ -113,6 +137,12 @@ class FirebaseChatService
      */
     public function getConversationsFromFirebase($staffId = null)
     {
+        // 檢查 Firestore 是否可用
+        if (!$this->isFirestoreAvailable()) {
+            Log::channel('firebase')->warning('Firestore not available, returning empty conversations list');
+            return [];
+        }
+
         try {
             $query = $this->firestore->collection('conversations');
             
@@ -145,6 +175,12 @@ class FirebaseChatService
      */
     public function getMessagesFromFirebase($lineUserId, $limit = 50)
     {
+        // 檢查 Firestore 是否可用
+        if (!$this->isFirestoreAvailable()) {
+            Log::channel('firebase')->warning('Firestore not available, returning empty messages list');
+            return [];
+        }
+
         try {
             $messages = $this->firestore->collection('conversations')
                 ->document($lineUserId)
@@ -176,6 +212,12 @@ class FirebaseChatService
      */
     public function markAsReadInFirebase($lineUserId, $isCustomer = true)
     {
+        // 檢查 Firestore 是否可用
+        if (!$this->isFirestoreAvailable()) {
+            Log::channel('firebase')->warning('Firestore not available, skipping mark as read');
+            return false;
+        }
+
         try {
             $field = $isCustomer ? 'unreadCount.customer' : 'unreadCount.staff';
             
@@ -260,6 +302,12 @@ class FirebaseChatService
      */
     public function deleteConversationFromFirebase($lineUserId)
     {
+        // 檢查 Firestore 是否可用
+        if (!$this->isFirestoreAvailable()) {
+            Log::channel('firebase')->warning('Firestore not available, skipping deletion');
+            return false;
+        }
+
         try {
             // 刪除訊息子集合
             $messages = $this->firestore->collection('conversations')
@@ -295,6 +343,11 @@ class FirebaseChatService
      */
     public function checkFirebaseConnection()
     {
+        // 檢查 Firestore 是否可用
+        if (!$this->isFirestoreAvailable()) {
+            return false;
+        }
+
         try {
             // 嘗試讀取一個簡單的測試文檔
             $this->firestore->collection('_health_check')->limit(1)->documents();

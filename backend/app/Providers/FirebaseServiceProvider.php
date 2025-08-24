@@ -40,11 +40,26 @@ class FirebaseServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(Firestore::class, function ($app) {
-            return $app['firebase.factory']->createFirestore();
+            try {
+                return $app['firebase.factory']->createFirestore();
+            } catch (\Exception $e) {
+                // 在開發環境或缺少依賴時，記錄錯誤但不中斷應用啟動
+                \Log::warning('Failed to create Firestore client: ' . $e->getMessage());
+                
+                // 返回一個假的 Firestore 實例或 null
+                // 具體的服務類別應該檢查是否為 null 並優雅地處理
+                return null;
+            }
         });
 
         $this->app->singleton(FirebaseAuth::class, function ($app) {
-            return $app['firebase.factory']->createAuth();
+            try {
+                return $app['firebase.factory']->createAuth();
+            } catch (\Exception $e) {
+                // 在開發環境或缺少依賴時，記錄錯誤但不中斷應用啟動
+                \Log::warning('Failed to create Firebase Auth client: ' . $e->getMessage());
+                return null;
+            }
         });
         
         // 別名綁定
