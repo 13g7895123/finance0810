@@ -73,14 +73,7 @@ class FirebaseServiceProvider extends ServiceProvider
                 ]);
                 
                 // 返回一個 Mock 實例而不是 null，避免綁定錯誤
-                return new class implements \Kreait\Firebase\Contract\Database {
-                    public function getReference(string $path = null): \Kreait\Firebase\Database\Reference {
-                        throw new \RuntimeException('Firebase Database not available: ' . $path);
-                    }
-                    public function getReferenceFromUrl(string $url): \Kreait\Firebase\Database\Reference {
-                        throw new \RuntimeException('Firebase Database not available');
-                    }
-                };
+                return $this->createMockDatabase();
             }
         });
 
@@ -94,22 +87,10 @@ class FirebaseServiceProvider extends ServiceProvider
             }
         });
         
-        // 條件性別名綁定 - 只有在服務成功綁定時才建立別名
-        try {
-            if ($this->app->bound(Firestore::class)) {
-                $this->app->alias(Firestore::class, 'firebase.firestore');
-            }
-            if ($this->app->bound(Database::class)) {
-                $this->app->alias(Database::class, 'firebase.database');
-            }
-            if ($this->app->bound(FirebaseAuth::class)) {
-                $this->app->alias(FirebaseAuth::class, 'firebase.auth');
-            }
-        } catch (\Exception $e) {
-            \Log::error('Failed to create Firebase service aliases', [
-                'error' => $e->getMessage()
-            ]);
-        }
+        // 直接建立別名 - 服務已經註冊，無論成功或失敗都建立別名
+        $this->app->alias(Firestore::class, 'firebase.firestore');
+        $this->app->alias(Database::class, 'firebase.database');
+        $this->app->alias(FirebaseAuth::class, 'firebase.auth');
     }
 
     /**
@@ -199,5 +180,24 @@ class FirebaseServiceProvider extends ServiceProvider
                 'error' => $e->getMessage()
             ]);
         }
+    }
+    
+    /**
+     * 創建 Mock Firebase Database 實例
+     */
+    protected function createMockDatabase()
+    {
+        return new class implements \Kreait\Firebase\Contract\Database 
+        {
+            public function getReference(string $path = null): \Kreait\Firebase\Database\Reference 
+            {
+                throw new \RuntimeException('Firebase Database not available. Path: ' . ($path ?? 'root'));
+            }
+            
+            public function getReferenceFromUrl(string $url): \Kreait\Firebase\Database\Reference 
+            {
+                throw new \RuntimeException('Firebase Database not available. URL: ' . $url);
+            }
+        };
     }
 }
