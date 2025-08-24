@@ -33,8 +33,8 @@ return [
 
     'firebase' => [
         'credentials' => storage_path('app/firebase-service-account.json'),
-        'project_id' => env('FIREBASE_PROJECT_ID', 'finance0810-692ec'),
-        'database_url' => env('FIREBASE_DATABASE_URL'),
+        'project_id' => env('FIREBASE_PROJECT_ID', 'finance0810new'),
+        'database_url' => env('FIREBASE_DATABASE_URL', 'https://finance0810new-default-rtdb.asia-southeast1.firebasedatabase.app/'),
     ],
 
 ];
