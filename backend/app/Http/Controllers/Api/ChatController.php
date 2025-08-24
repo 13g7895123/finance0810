@@ -18,14 +18,23 @@ use App\Events\NewChatMessage;
 use App\Services\ChatIncrementalService;
 use App\Http\Resources\ChatIncrementalResource;
 use App\Services\ChatQueryCacheService;
+use App\Services\FirebaseChatService;
+use App\Services\FirebaseSyncService;
 
 class ChatController extends BaseApiController
 {
     private $cacheService;
+    private $firebaseChatService;
+    private $firebaseSyncService;
     
-    public function __construct(ChatQueryCacheService $cacheService)
-    {
+    public function __construct(
+        ChatQueryCacheService $cacheService,
+        FirebaseChatService $firebaseChatService,
+        FirebaseSyncService $firebaseSyncService
+    ) {
         $this->cacheService = $cacheService;
+        $this->firebaseChatService = $firebaseChatService;
+        $this->firebaseSyncService = $firebaseSyncService;
         $this->middleware('auth:api', ['except' => ['webhook']]);
     }
 
@@ -2072,5 +2081,366 @@ class ChatController extends BaseApiController
             ]);
             return 0;
         }
+    }
+
+    // ================================================
+    // Firebase Integration Methods
+    // ================================================
+
+    /**
+     * 獲取 Firebase 對話列表
+     */
+    public function getFirebaseConversations(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $staffId = null;
+
+            // 根據權限決定是否過濾特定業務員
+            if (!$user->hasRole(['admin', 'manager', 'executive'])) {
+                $staffId = $user->id;
+            }
+
+            $conversations = $this->firebaseChatService->getConversationsFromFirebase($staffId);
+
+            Log::channel('firebase')->info('Firebase conversations retrieved', [
+                'user_id' => $user->id,
+                'staff_id' => $staffId,
+                'conversation_count' => count($conversations)
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'conversations' => $conversations,
+                    'count' => count($conversations),
+                    'source' => 'firebase'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Failed to get Firebase conversations', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to retrieve conversations from Firebase',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    /**
+     * 獲取 Firebase 訊息
+     */
+    public function getFirebaseMessages($userId, Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $limit = $request->input('limit', 50);
+
+            // 權限檢查
+            if (!$this->canAccessUserConversation($user, $userId)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Access denied'
+                ], 403);
+            }
+
+            $messages = $this->firebaseChatService->getMessagesFromFirebase($userId, $limit);
+
+            Log::channel('firebase')->info('Firebase messages retrieved', [
+                'user_id' => $user->id,
+                'line_user_id' => $userId,
+                'message_count' => count($messages),
+                'limit' => $limit
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'messages' => $messages,
+                    'count' => count($messages),
+                    'source' => 'firebase'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Failed to get Firebase messages', [
+                'user_id' => Auth::id(),
+                'line_user_id' => $userId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to retrieve messages from Firebase',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    /**
+     * 同步資料到 Firebase
+     */
+    public function syncToFirebase(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $conversationId = $request->input('conversation_id');
+
+            $result = $this->firebaseSyncService->syncMySQLToFirebase($conversationId);
+
+            Log::channel('firebase')->info('Firebase sync initiated', [
+                'user_id' => $user->id,
+                'conversation_id' => $conversationId,
+                'result' => $result
+            ]);
+
+            return response()->json([
+                'success' => $result['success'],
+                'data' => $result,
+                'message' => $result['success'] 
+                    ? 'Sync completed successfully' 
+                    : 'Sync failed'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Firebase sync failed', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Sync operation failed',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    /**
+     * 同步特定客戶到 Firebase
+     */
+    public function syncCustomerToFirebase($customerId, Request $request)
+    {
+        try {
+            $user = Auth::user();
+
+            // 權限檢查
+            $customer = Customer::find($customerId);
+            if (!$customer) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Customer not found'
+                ], 404);
+            }
+
+            if (!$this->canAccessCustomer($user, $customer)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Access denied'
+                ], 403);
+            }
+
+            $result = $this->firebaseSyncService->syncCustomerToFirebase($customerId);
+
+            Log::channel('firebase')->info('Customer Firebase sync initiated', [
+                'user_id' => $user->id,
+                'customer_id' => $customerId,
+                'result' => $result
+            ]);
+
+            return response()->json([
+                'success' => $result['success'],
+                'data' => $result,
+                'message' => $result['success'] 
+                    ? 'Customer sync completed successfully' 
+                    : 'Customer sync failed'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Customer Firebase sync failed', [
+                'user_id' => Auth::id(),
+                'customer_id' => $customerId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Customer sync operation failed',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    /**
+     * 檢查 Firebase 健康狀態
+     */
+    public function checkFirebaseHealth(Request $request)
+    {
+        try {
+            $user = Auth::user();
+
+            $healthResult = $this->firebaseSyncService->checkSyncHealth();
+            $connectionStatus = $this->firebaseChatService->checkFirebaseConnection();
+
+            $health = [
+                'firebase_connection' => $connectionStatus,
+                'sync_health' => $healthResult,
+                'timestamp' => now()->toISOString(),
+                'checked_by' => $user->id
+            ];
+
+            Log::channel('firebase')->info('Firebase health check performed', [
+                'user_id' => $user->id,
+                'connection_status' => $connectionStatus,
+                'sync_health' => $healthResult['success'] ?? false
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $health,
+                'message' => 'Firebase health check completed'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Firebase health check failed', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Health check failed',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    /**
+     * 驗證 Firebase 資料一致性
+     */
+    public function validateFirebaseData(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $lineUserId = $request->input('line_user_id');
+
+            $validationResult = $this->firebaseSyncService->validateDataConsistency($lineUserId);
+
+            Log::channel('firebase')->info('Firebase data validation performed', [
+                'user_id' => $user->id,
+                'line_user_id' => $lineUserId,
+                'validation_result' => $validationResult
+            ]);
+
+            return response()->json([
+                'success' => $validationResult['success'],
+                'data' => $validationResult,
+                'message' => $validationResult['success'] 
+                    ? 'Data validation completed' 
+                    : 'Data validation failed'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Firebase data validation failed', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Data validation failed',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    /**
+     * 清理 Firebase 過期資料
+     */
+    public function cleanupFirebaseData(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $daysOld = $request->input('days_old', 30);
+
+            // 只有管理員才能執行清理操作
+            if (!$user->hasRole(['admin', 'manager'])) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Insufficient permissions'
+                ], 403);
+            }
+
+            $cleanupResult = $this->firebaseSyncService->cleanupExpiredFirebaseData($daysOld);
+
+            Log::channel('firebase')->info('Firebase data cleanup performed', [
+                'user_id' => $user->id,
+                'days_old' => $daysOld,
+                'cleanup_result' => $cleanupResult
+            ]);
+
+            return response()->json([
+                'success' => $cleanupResult['success'],
+                'data' => $cleanupResult,
+                'message' => $cleanupResult['success'] 
+                    ? 'Data cleanup completed' 
+                    : 'Data cleanup failed'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Firebase data cleanup failed', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Data cleanup failed',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    // ================================================
+    // Helper Methods for Firebase Integration
+    // ================================================
+
+    /**
+     * 檢查用戶是否可以存取特定客戶的對話
+     */
+    private function canAccessUserConversation($user, $lineUserId)
+    {
+        // 管理員和主管可以存取所有對話
+        if ($user->hasRole(['admin', 'manager', 'executive'])) {
+            return true;
+        }
+
+        // 業務員只能存取指派給他們的客戶對話
+        $customer = Customer::where('line_user_id', $lineUserId)->first();
+        if (!$customer) {
+            return false;
+        }
+
+        return $customer->assigned_to === $user->id;
+    }
+
+    /**
+     * 檢查用戶是否可以存取特定客戶
+     */
+    private function canAccessCustomer($user, $customer)
+    {
+        // 管理員和主管可以存取所有客戶
+        if ($user->hasRole(['admin', 'manager', 'executive'])) {
+            return true;
+        }
+
+        // 業務員只能存取指派給他們的客戶
+        return $customer->assigned_to === $user->id;
     }
 }

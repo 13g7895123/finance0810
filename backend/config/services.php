@@ -31,4 +31,10 @@ return [
         'bot_basic_id' => env('LINE_BOT_BASIC_ID'),
     ],
 
+    'firebase' => [
+        'credentials' => storage_path('app/firebase-service-account.json'),
+        'project_id' => env('FIREBASE_PROJECT_ID', 'finance0810-692ec'),
+        'database_url' => env('FIREBASE_DATABASE_URL'),
+    ],
+
 ];

@@ -104,6 +104,17 @@ Route::middleware(['auth:api'])->group(function () {
     Route::delete('/chats/{userId}', [ChatController::class, 'deleteConversation']);
     Route::post('/chats/test-websocket', [ChatController::class, 'testWebSocketBroadcast']);
     
+    // Firebase Chat API
+    Route::prefix('firebase/chat')->group(function () {
+        Route::get('/conversations', [ChatController::class, 'getFirebaseConversations']);
+        Route::get('/messages/{userId}', [ChatController::class, 'getFirebaseMessages']);
+        Route::post('/sync', [ChatController::class, 'syncToFirebase']);
+        Route::post('/sync/customer/{customerId}', [ChatController::class, 'syncCustomerToFirebase']);
+        Route::get('/health', [ChatController::class, 'checkFirebaseHealth']);
+        Route::post('/validate', [ChatController::class, 'validateFirebaseData']);
+        Route::delete('/cleanup', [ChatController::class, 'cleanupFirebaseData'])->middleware('role:admin|manager');
+    });
+    
     // Version Management - Available to all authenticated users
     Route::prefix('version')->group(function () {
         Route::get('current', [VersionController::class, 'getCurrentVersion']);

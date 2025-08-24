@@ -1,0 +1,26 @@
+{
+  "name": "firebase-setup",
+  "version": "1.0.0",
+  "description": "Firebase Firestore 混合架構初始化",
+  "main": "scripts/firestore-init.js",
+  "scripts": {
+    "init": "node scripts/firestore-init.js",
+    "emulator": "firebase emulators:start --only firestore",
+    "deploy:rules": "firebase deploy --only firestore:rules",
+    "deploy:indexes": "firebase deploy --only firestore:indexes"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  },
+  "devDependencies": {
+    "firebase-tools": "^13.0.0"
+  },
+  "keywords": [
+    "firebase",
+    "firestore",
+    "chat",
+    "crm"
+  ],
+  "author": "Finance CRM Team",
+  "license": "MIT"
+}

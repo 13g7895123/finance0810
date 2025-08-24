@@ -111,6 +111,35 @@ return [
             'handler' => NullHandler::class,
         ],
 
+        // Firebase 專用日誌頻道
+        'firebase' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/firebase.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 7,
+        ],
+
+        'firebase-sync' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/firebase-sync.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 14,
+        ],
+
+        'firebase-errors' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/firebase-errors.log'),
+            'level' => 'error',
+            'days' => 30,
+        ],
+
+        // Firebase Stack 頻道 - 將Firebase相關日誌寫到多個地方
+        'firebase-stack' => [
+            'driver' => 'stack',
+            'channels' => ['firebase', 'firebase-sync'],
+            'ignore_exceptions' => false,
+        ],
+
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
         ],
