@@ -220,3 +220,66 @@ Route::get('/env-diagnosis', function () {
     
     return response(implode("\n", $output), 200, ['Content-Type' => 'text/plain']);
 });
+
+// Firebase 配置刷新路由
+Route::get('/refresh-firebase-config', function () {
+    $output = [];
+    
+    try {
+        $output[] = '=== Refreshing Firebase Configuration ===';
+        
+        // Clear all caches
+        $output[] = '1. Clearing configuration cache...';
+        \Artisan::call('config:clear');
+        $output[] = '   ✓ Config cache cleared';
+        
+        $output[] = '2. Clearing route cache...';
+        \Artisan::call('route:clear');
+        $output[] = '   ✓ Route cache cleared';
+        
+        $output[] = '3. Clearing view cache...';
+        \Artisan::call('view:clear');
+        $output[] = '   ✓ View cache cleared';
+        
+        // Re-cache config with updated environment variables
+        $output[] = '4. Re-caching configuration...';
+        \Artisan::call('config:cache');
+        $output[] = '   ✓ Configuration cached';
+        
+        $output[] = '5. Testing Firebase configuration...';
+        
+        // Test the configuration
+        $config = [
+            'project_id' => config('services.firebase.project_id'),
+            'database_url' => config('services.firebase.database_url'),
+            'credentials_exist' => file_exists(config('services.firebase.credentials') ?: ''),
+            'credentials_path' => config('services.firebase.credentials')
+        ];
+        
+        foreach ($config as $key => $value) {
+            if ($key === 'credentials_exist') {
+                $output[] = "   {$key}: " . ($value ? 'Yes' : 'No');
+            } else {
+                $output[] = "   {$key}: " . ($value ?: 'NOT SET');
+            }
+        }
+        
+        // Test Firebase service binding
+        try {
+            $database = app('firebase.database');
+            $output[] = '   ✓ Firebase Database service binding successful';
+            $output[] = '   Database class: ' . get_class($database);
+        } catch (\Exception $e) {
+            $output[] = '   ✗ Firebase Database service binding failed: ' . $e->getMessage();
+        }
+        
+        $output[] = '';
+        $output[] = '=== Firebase configuration refresh completed! ===';
+        
+    } catch (\Exception $e) {
+        $output[] = 'FATAL ERROR: ' . $e->getMessage();
+        $output[] = 'Stack trace: ' . $e->getTraceAsString();
+    }
+    
+    return response(implode("\n", $output), 200, ['Content-Type' => 'text/plain']);
+});

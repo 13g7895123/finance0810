@@ -58,13 +58,24 @@ RUN rm -f composer.lock && \
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Copy Nginx configuration
+# Clear any existing Laravel cache to ensure environment variables are read correctly
+# Note: This runs during build time, so environment variables from docker-compose won't be available
+# We'll need to clear cache at runtime if needed
+RUN php artisan config:clear || true
+RUN php artisan route:clear || true
+RUN php artisan view:clear || true
+
+# Copy Nginx configuration and startup script
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/startup.sh /startup.sh
+
+# Make startup script executable
+RUN chmod +x /startup.sh
 
 # Create Nginx and supervisor directories
 RUN mkdir -p /var/log/supervisor /run/nginx
 
 EXPOSE 8000
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["/startup.sh"]
