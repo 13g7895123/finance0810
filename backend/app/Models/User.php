@@ -113,6 +113,14 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
+     * Check if user can access all chat conversations (admin/executive privilege)
+     */
+    public function canAccessAllChats(): bool
+    {
+        return $this->hasRole(['admin', 'executive']);
+    }
+
+    /**
      * Get customers assigned to this user
      */
     public function customers()

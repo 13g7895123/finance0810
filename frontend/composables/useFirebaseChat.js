@@ -41,7 +41,8 @@ export const useFirebaseChat = () => {
       const conversationsRef = dbRef($firebaseDB, 'conversations')
       let conversationsQuery = conversationsRef
       
-      // 如果是業務員，只監聽分配給他們的對話
+      // 如果指定了 staffId，只監聽分配給該員工的對話
+      // staffId 為 null 表示 admin/executive 用戶，可以看所有對話
       if (staffId) {
         conversationsQuery = query(
           conversationsRef,

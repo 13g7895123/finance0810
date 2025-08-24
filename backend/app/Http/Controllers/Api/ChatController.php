@@ -58,8 +58,9 @@ class ChatController extends BaseApiController
             }
             
             // 使用緩存服務獲取數據
+            // Admin/executive 用戶可以看所有對話，staff 只能看分配給自己的
             $conversations = $this->cacheService->getConversationList(
-                $user->isStaff() ? $user->id : null,
+                $user->canAccessAllChats() ? null : $user->id,
                 $forceRefresh
             );
             
@@ -119,8 +120,8 @@ class ChatController extends BaseApiController
             $limit = min($request->get('limit', 50), 100);
             $offset = max($request->get('offset', 0), 0);
             
-            // 權限檢查：業務人員只能看自己的客戶
-            if ($user->isStaff()) {
+            // 權限檢查：admin/executive 可以看所有對話，其他用戶只能看自己分配的客戶
+            if (!$user->canAccessAllChats()) {
                 $customer = Customer::where('line_user_id', $userId)
                     ->where('assigned_to', $user->id)
                     ->first();
@@ -2442,5 +2443,69 @@ class ChatController extends BaseApiController
 
         // 業務員只能存取指派給他們的客戶
         return $customer->assigned_to === $user->id;
+    }
+
+    /**
+     * 測試 admin/executive 權限功能
+     */
+    public function testPermissions(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            
+            $permissionTests = [
+                'user_id' => $user->id,
+                'user_name' => $user->name,
+                'user_roles' => $user->getRoleNames()->toArray(),
+                'permissions' => [
+                    'can_access_all_chats' => $user->canAccessAllChats(),
+                    'is_admin' => $user->isAdmin(),
+                    'is_manager' => $user->isManager(),
+                    'is_staff' => $user->isStaff(),
+                ],
+                'chat_access' => [
+                    'should_see_all_conversations' => $user->canAccessAllChats(),
+                    'filter_by_staff_id' => $user->canAccessAllChats() ? 'No filtering (sees all)' : 'Filtered by user ID: ' . $user->id
+                ],
+                'firebase_stats_access' => [
+                    'can_view_all_staff_stats' => $user->canAccessAllChats(),
+                    'stats_collection' => $user->canAccessAllChats() ? 'admin_staff_overview' : 'staff_unread_stats/' . $user->id
+                ]
+            ];
+
+            // 測試實際的對話數量
+            $totalConversations = ChatConversation::whereNotNull('line_user_id')
+                ->whereHas('customer', function($query) {
+                    $query->whereNotNull('assigned_to');
+                })
+                ->count();
+
+            $userConversations = ChatConversation::whereNotNull('line_user_id')
+                ->whereHas('customer', function($query) use ($user) {
+                    $query->where('assigned_to', $user->id);
+                })
+                ->count();
+
+            $permissionTests['conversation_counts'] = [
+                'total_in_system' => $totalConversations,
+                'assigned_to_user' => $userConversations,
+                'user_should_see' => $user->canAccessAllChats() ? $totalConversations : $userConversations
+            ];
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Permission test completed',
+                'data' => $permissionTests,
+                'test_timestamp' => now()->toISOString()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Permission test failed:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return $this->errorResponse('權限測試失敗', $e);
+        }
     }
 }

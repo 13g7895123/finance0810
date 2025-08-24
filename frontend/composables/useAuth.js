@@ -191,6 +191,34 @@ export const useAuth = () => {
     return user.roles.includes(role)
   }
 
+  /**
+   * 檢查用戶是否為管理員或公司高層
+   */
+  const isAdmin = () => {
+    return hasRole('admin') || hasRole('executive')
+  }
+
+  /**
+   * 檢查用戶是否為主管級別
+   */
+  const isManager = () => {
+    return hasRole('admin') || hasRole('executive') || hasRole('manager')
+  }
+
+  /**
+   * 檢查用戶是否為一般員工
+   */
+  const isStaff = () => {
+    return hasRole('staff')
+  }
+
+  /**
+   * 檢查用戶是否可以存取所有聊天對話（admin/executive 特權）
+   */
+  const canViewAllChats = () => {
+    return hasRole('admin') || hasRole('executive')
+  }
+
   return {
     // 認證操作
     login,
@@ -203,6 +231,12 @@ export const useAuth = () => {
     isAuthenticated,
     getLocalUser,
     hasPermission,
-    hasRole
+    hasRole,
+    
+    // 角色檢查
+    isAdmin,
+    isManager,
+    isStaff,
+    canViewAllChats
   }
 }

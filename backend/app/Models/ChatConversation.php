@@ -67,6 +67,20 @@ class ChatConversation extends Model
             // Firebase 同步 - 背景處理
             static::syncToFirebaseAsync($conversation, 'sync');
         });
+
+        // 當訊息創建完成後，更新員工統計
+        static::created(function ($conversation) {
+            static::updateStaffStatsAsync($conversation);
+        });
+
+        // 當訊息更新完成後，檢查是否需要更新員工統計
+        static::updated(function ($conversation) {
+            // 如果狀態或客戶分配有變化，更新員工統計
+            if ($conversation->wasChanged(['status', 'customer_id']) || 
+                ($conversation->customer && $conversation->customer->wasChanged('assigned_to'))) {
+                static::updateStaffStatsAsync($conversation);
+            }
+        });
         
         // 當刪除訊息時
         static::deleted(function ($conversation) {
@@ -260,5 +274,41 @@ class ChatConversation extends Model
             ->where('updated_at', '>=', now()->subHours(24))
             ->limit($limit)
             ->get();
+    }
+
+    /**
+     * 異步更新員工統計資料
+     */
+    protected static function updateStaffStatsAsync($conversation)
+    {
+        // 檢查是否啟用 Firebase 功能
+        if (!config('services.firebase.project_id') || !env('FIREBASE_ENABLED', true)) {
+            return;
+        }
+
+        try {
+            // 獲取負責該客戶的員工ID
+            $staffId = null;
+            if ($conversation->customer && $conversation->customer->assigned_to) {
+                $staffId = $conversation->customer->assigned_to;
+            }
+
+            if ($staffId) {
+                // 調度更新特定員工的統計資料
+                \App\Jobs\UpdateStaffUnreadStatsJob::dispatch($staffId)
+                    ->delay(now()->addSeconds(10)); // 延遲 10 秒執行，確保資料庫變更完成
+                
+                \Log::channel('firebase')::info('Staff stats update job dispatched', [
+                    'staff_id' => $staffId,
+                    'conversation_id' => $conversation->id,
+                    'trigger' => 'conversation_change'
+                ]);
+            }
+        } catch (\Exception $e) {
+            \Log::channel('firebase')::error('Failed to dispatch staff stats update job', [
+                'conversation_id' => $conversation->id,
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 }

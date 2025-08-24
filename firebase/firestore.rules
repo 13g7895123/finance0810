@@ -2,6 +2,95 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // 輔助函式：檢查用戶是否已認證
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // 輔助函式：檢查用戶角色
+    function hasRole(role) {
+      return isAuthenticated() && role in request.auth.token.roles;
+    }
+    
+    // 輔助函式：檢查用戶是否為 admin 或 executive
+    function isAdminOrExecutive() {
+      return hasRole('admin') || hasRole('executive');
+    }
+    
+    // 輔助函式：檢查用戶是否為該員工或者是管理員
+    function canAccessStaffData(staffId) {
+      return isAdminOrExecutive() || 
+             (isAuthenticated() && request.auth.uid == staffId);
+    }
+    
+    // 輔助函式：檢查用戶是否被分配到該客戶
+    function isAssignedToCustomer(assignedStaffId) {
+      return isAdminOrExecutive() || 
+             (isAuthenticated() && request.auth.uid == assignedStaffId);
+    }
+
+    // 對話集合規則
+    match /conversations/{conversationId} {
+      // 讀取權限：admin/executive 可以讀取所有對話，其他用戶只能讀取分配給自己的客戶對話
+      allow read: if isAuthenticated() && (
+        isAdminOrExecutive() ||
+        isAssignedToCustomer(resource.data.assignedStaffId)
+      );
+      
+      // 寫入權限：只有系統服務帳戶可以寫入（通過 Firebase Admin SDK）
+      allow write: if false;
+      
+      // 對話內的訊息子集合
+      match /messages/{messageId} {
+        // 讀取權限：同對話的權限規則
+        allow read: if isAuthenticated() && (
+          isAdminOrExecutive() ||
+          isAssignedToCustomer(get(/databases/$(database)/documents/conversations/$(conversationId)).data.assignedStaffId)
+        );
+        
+        // 寫入權限：只有系統服務帳戶可以寫入
+        allow write: if false;
+      }
+    }
+
+    // 員工未讀統計規則
+    match /staff_unread_stats/{staffId} {
+      // 讀取權限：admin/executive 可以讀取所有員工統計，員工只能讀取自己的
+      allow read: if canAccessStaffData(staffId);
+      
+      // 寫入權限：只有系統服務帳戶可以寫入
+      allow write: if false;
+    }
+
+    // 管理員員工總覽統計規則
+    match /admin_staff_overview/{document} {
+      // 讀取權限：只有 admin/executive 可以讀取
+      allow read: if isAdminOrExecutive();
+      
+      // 寫入權限：只有系統服務帳戶可以寫入
+      allow write: if false;
+    }
+
+    // 健康檢查集合（用於連線測試）
+    match /_health_check/{document} {
+      // 所有已認證用戶都可以讀取健康檢查文檔
+      allow read: if isAuthenticated();
+      
+      // 禁止寫入
+      allow write: if false;
+    }
+
+    // 系統配置集合
+    match /system_config/{document} {
+      // 只有 admin/executive 可以讀取系統配置
+      allow read: if isAdminOrExecutive();
+      
+      // 禁止通過客戶端寫入
+      allow write: if false;
+    }
+
+    // 預設規則：拒絕所有其他存取
     match /{document=**} {
       allow read, write: if false;
     }

@@ -49,8 +49,11 @@ export const useRealtimeChat = () => {
    */
   const startFirebaseListeners = async () => {
     try {
-      const authStore = useAuthStore()
-      const staffId = authStore.isSales ? authStore.user?.id : null
+      const { canViewAllChats, getLocalUser } = useAuth()
+      const user = getLocalUser()
+      
+      // Admin/executive 用戶可以看所有對話，其他用戶只能看分配給自己的
+      const staffId = canViewAllChats() ? null : user?.id
       
       // 監聽對話列表
       firebaseChat.watchConversations(staffId)

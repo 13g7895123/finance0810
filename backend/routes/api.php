@@ -94,6 +94,7 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('/chats', [ChatController::class, 'index']);
     Route::get('/chats/search', [ChatController::class, 'searchConversations']);
     Route::get('/chats/stats', [ChatController::class, 'getChatStats']);
+    Route::get('/chats/test-permissions', [ChatController::class, 'testPermissions']);
     Route::get('/chats/unread/count', [ChatController::class, 'getUnreadCount']);
     Route::get('/chats/poll-updates', [ChatController::class, 'pollUpdates']);
     Route::get('/chats/incremental', [ChatController::class, 'getIncrementalUpdates']);
