@@ -283,3 +283,114 @@ Route::get('/refresh-firebase-config', function () {
     
     return response(implode("\n", $output), 200, ['Content-Type' => 'text/plain']);
 });
+
+// 登入 API 診斷路由
+Route::post('/debug-login', function (\Illuminate\Http\Request $request) {
+    $output = [];
+    
+    try {
+        $output[] = '=== Login API Debug ===';
+        $output[] = 'Request data: ' . json_encode($request->all());
+        
+        // 檢查資料庫連接
+        $output[] = '1. Testing database connection...';
+        try {
+            \DB::connection()->getPdo();
+            $output[] = '   ✓ Database connection successful';
+            
+            $userCount = \App\Models\User::count();
+            $output[] = "   Users in database: {$userCount}";
+            
+        } catch (\Exception $e) {
+            $output[] = '   ✗ Database connection failed: ' . $e->getMessage();
+        }
+        
+        // 檢查 JWT 配置
+        $output[] = '2. Testing JWT configuration...';
+        try {
+            $jwtSecret = config('jwt.secret');
+            $output[] = '   JWT Secret: ' . ($jwtSecret ? 'SET' : 'NOT SET');
+            
+            $factory = \Tymon\JWTAuth\Facades\JWTAuth::factory();
+            $output[] = '   ✓ JWT factory created successfully';
+            
+        } catch (\Exception $e) {
+            $output[] = '   ✗ JWT configuration failed: ' . $e->getMessage();
+        }
+        
+        // 檢查 Spatie Permissions
+        $output[] = '3. Testing Spatie Permissions...';
+        try {
+            $roles = \Spatie\Permission\Models\Role::count();
+            $permissions = \Spatie\Permission\Models\Permission::count();
+            $output[] = "   Roles in database: {$roles}";
+            $output[] = "   Permissions in database: {$permissions}";
+            $output[] = '   ✓ Spatie Permissions working';
+            
+        } catch (\Exception $e) {
+            $output[] = '   ✗ Spatie Permissions failed: ' . $e->getMessage();
+        }
+        
+        // 測試用戶查詢
+        if ($request->has('username')) {
+            $output[] = '4. Testing user lookup...';
+            try {
+                $user = \App\Models\User::where('username', $request->username)
+                                      ->orWhere('email', $request->username)
+                                      ->first();
+                
+                if ($user) {
+                    $output[] = "   ✓ User found: {$user->name} ({$user->username})";
+                    $output[] = "   User status: {$user->status}";
+                    $output[] = "   User roles: " . $user->getRoleNames()->implode(', ');
+                } else {
+                    $output[] = '   ⚠ User not found';
+                }
+                
+            } catch (\Exception $e) {
+                $output[] = '   ✗ User lookup failed: ' . $e->getMessage();
+            }
+        }
+        
+        // 實際測試登入流程
+        if ($request->has('username') && $request->has('password')) {
+            $output[] = '5. Testing actual login...';
+            try {
+                $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+                    'username' => 'required|string',
+                    'password' => 'required|string|min:6',
+                ]);
+                
+                if ($validator->fails()) {
+                    $output[] = '   ⚠ Validation failed: ' . json_encode($validator->errors());
+                } else {
+                    $user = \App\Models\User::where('username', $request->username)
+                                          ->orWhere('email', $request->username)
+                                          ->first();
+                    
+                    if ($user && \Illuminate\Support\Facades\Hash::check($request->password, $user->password)) {
+                        if ($user->status === 'active') {
+                            $token = \Tymon\JWTAuth\Facades\JWTAuth::fromUser($user);
+                            $user->updateLastLogin($request->ip());
+                            $output[] = '   ✓ Login successful, token generated';
+                        } else {
+                            $output[] = '   ⚠ User account not active';
+                        }
+                    } else {
+                        $output[] = '   ⚠ Invalid credentials';
+                    }
+                }
+                
+            } catch (\Exception $e) {
+                $output[] = '   ✗ Login process failed: ' . $e->getMessage();
+                $output[] = '   Stack trace: ' . $e->getTraceAsString();
+            }
+        }
+        
+    } catch (\Exception $e) {
+        $output[] = 'FATAL ERROR: ' . $e->getMessage();
+        $output[] = 'Stack trace: ' . $e->getTraceAsString();
+    }
+    
+    return response(implode("\n", $output), 200, ['Content-Type' => 'text/plain']);
+});
