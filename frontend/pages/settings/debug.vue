@@ -318,20 +318,140 @@
     <div
       v-if="notification.show"
       :class="[
-        'fixed top-4 right-4 p-4 rounded-lg shadow-lg transition-all duration-300 z-50',
+        'fixed top-4 right-4 p-4 rounded-lg shadow-lg transition-all duration-300 z-40',
         notification.type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' :
         notification.type === 'error' ? 'bg-red-100 text-red-800 border border-red-200' :
         notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
         'bg-blue-100 text-blue-800 border border-blue-200'
       ]"
     >
-      <div class="flex items-center space-x-2">
-        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path v-if="notification.type === 'success'" fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-          <path v-else-if="notification.type === 'error'" fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-          <path v-else fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-        </svg>
-        <span>{{ notification.message }}</span>
+      <div class="flex items-center justify-between space-x-2">
+        <div class="flex items-center space-x-2">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path v-if="notification.type === 'success'" fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+            <path v-else-if="notification.type === 'error'" fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+            <path v-else fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+          </svg>
+          <span>{{ notification.message }}</span>
+        </div>
+        <button 
+          v-if="notification.type === 'error' && errorDetails.error"
+          @click="errorDetails.show = true"
+          class="text-xs underline hover:no-underline ml-2"
+        >
+          查看詳情
+        </button>
+      </div>
+    </div>
+
+    <!-- 錯誤詳情模態框 -->
+    <div 
+      v-if="errorDetails.show" 
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      @click.self="errorDetails.show = false"
+    >
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl max-h-[90vh] overflow-hidden">
+        <!-- 模態框標題 -->
+        <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <div class="flex items-center space-x-2">
+            <svg class="w-6 h-6 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+            </svg>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">錯誤詳細信息</h3>
+          </div>
+          <button 
+            @click="errorDetails.show = false"
+            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        
+        <!-- 模態框內容 -->
+        <div class="p-6 max-h-[70vh] overflow-y-auto">
+          <!-- 基本錯誤信息 -->
+          <div class="mb-6">
+            <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-2">錯誤訊息</h4>
+            <div class="p-3 bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-800 rounded-lg">
+              <p class="text-sm text-red-800 dark:text-red-200">{{ errorDetails.error }}</p>
+            </div>
+          </div>
+          
+          <!-- 詳細錯誤信息 -->
+          <div v-if="errorDetails.details" class="space-y-4">
+            <!-- 異常類型 -->
+            <div v-if="errorDetails.details.exception_type">
+              <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-2">異常類型</h4>
+              <p class="text-sm text-gray-700 dark:text-gray-300 font-mono bg-gray-50 dark:bg-gray-700 p-2 rounded">
+                {{ errorDetails.details.exception_type }}
+              </p>
+            </div>
+            
+            <!-- 發生位置 -->
+            <div v-if="errorDetails.details.file && errorDetails.details.line">
+              <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-2">發生位置</h4>
+              <p class="text-sm text-gray-700 dark:text-gray-300 font-mono bg-gray-50 dark:bg-gray-700 p-2 rounded">
+                {{ errorDetails.details.file }}:{{ errorDetails.details.line }}
+              </p>
+            </div>
+            
+            <!-- 操作上下文 -->
+            <div v-if="errorDetails.details.context">
+              <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-2">操作內容</h4>
+              <p class="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 p-2 rounded">
+                {{ errorDetails.details.context }}
+              </p>
+            </div>
+            
+            <!-- 解決建議 -->
+            <div v-if="errorDetails.details.suggestions && errorDetails.details.suggestions.length">
+              <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-2">解決建議</h4>
+              <div class="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <ul class="space-y-1">
+                  <li 
+                    v-for="(suggestion, index) in errorDetails.details.suggestions" 
+                    :key="index"
+                    class="text-sm text-blue-800 dark:text-blue-200 flex items-start"
+                  >
+                    <span class="w-4 h-4 text-blue-500 mr-2 flex-shrink-0 mt-0.5">•</span>
+                    {{ suggestion }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+            
+            <!-- 錯誤堆疊（開發模式） -->
+            <div v-if="errorDetails.details.trace && process.dev" class="border-t pt-4">
+              <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-2">錯誤堆疊 (開發模式)</h4>
+              <details class="bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <summary class="p-2 cursor-pointer text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                  點擊查看完整堆疊追蹤
+                </summary>
+                <div class="p-3 border-t border-gray-200 dark:border-gray-600">
+                  <pre class="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono overflow-x-auto">{{ errorDetails.details.trace }}</pre>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 模態框底部 -->
+        <div class="flex justify-end p-6 border-t border-gray-200 dark:border-gray-700 space-x-3">
+          <button
+            @click="navigator.clipboard && navigator.clipboard.writeText(JSON.stringify({error: errorDetails.error, details: errorDetails.details}, null, 2))"
+            class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md hover:border-gray-400 dark:hover:border-gray-500"
+          >
+            複製錯誤信息
+          </button>
+          <button
+            @click="errorDetails.show = false"
+            class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+          >
+            關閉
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -368,6 +488,13 @@ const notification = ref({
   message: ''
 })
 
+// Error details state
+const errorDetails = ref({
+  show: false,
+  error: null,
+  details: null
+})
+
 // Computed
 const canAccessDebug = computed(() => {
   // 直接使用useAuth提供的方法，這些方法已經正確處理了角色檢查
@@ -385,6 +512,14 @@ const showNotification = (type, message, duration = 5000) => {
   setTimeout(() => {
     notification.value.show = false
   }, duration)
+}
+
+const showErrorDetails = (error, errorDetailsData = null) => {
+  errorDetails.value = {
+    show: true,
+    error: error,
+    details: errorDetailsData
+  }
 }
 
 const getOverallStatusText = () => {
@@ -419,7 +554,13 @@ const refreshHealthCheck = async () => {
     }
   } catch (error) {
     console.error('健康檢查失敗:', error)
-    showNotification('error', '健康檢查失敗：' + error.message)
+    const errorMessage = error.response?.data?.error || error.message || '未知錯誤'
+    const errorDetailsData = error.response?.data?.error_details || null
+    
+    showNotification('error', '健康檢查失敗：' + errorMessage)
+    if (errorDetailsData) {
+      showErrorDetails(errorMessage, errorDetailsData)
+    }
   } finally {
     loading.value.healthCheck = false
   }
@@ -428,7 +569,7 @@ const refreshHealthCheck = async () => {
 const syncToFirebase = async () => {
   loading.value.sync = true
   try {
-    const response = await $api('/debug/chat/batch-sync', {
+    const response = await $api('/chat/batch-sync', {
       method: 'POST',
       body: JSON.stringify({
         limit: 100,
@@ -449,7 +590,13 @@ const syncToFirebase = async () => {
     }
   } catch (error) {
     console.error('Firebase 同步失敗:', error)
-    showNotification('error', 'Firebase 同步失敗：' + error.message)
+    const errorMessage = error.response?.data?.error || error.message || '未知錯誤'
+    const errorDetailsData = error.response?.data?.error_details || null
+    
+    showNotification('error', 'Firebase 同步失敗：' + errorMessage)
+    if (errorDetailsData) {
+      showErrorDetails(errorMessage, errorDetailsData)
+    }
   } finally {
     loading.value.sync = false
   }
@@ -458,7 +605,7 @@ const syncToFirebase = async () => {
 const validateData = async () => {
   loading.value.validation = true
   try {
-    const response = await $api('/debug/chat/validate-integrity', {
+    const response = await $api('/chat/validate-integrity', {
       method: 'POST',
       body: JSON.stringify({
         check_all: true
@@ -475,7 +622,13 @@ const validateData = async () => {
     }
   } catch (error) {
     console.error('資料驗證失敗:', error)
-    showNotification('error', '資料驗證失敗：' + error.message)
+    const errorMessage = error.response?.data?.error || error.message || '未知錯誤'
+    const errorDetailsData = error.response?.data?.error_details || null
+    
+    showNotification('error', '資料驗證失敗：' + errorMessage)
+    if (errorDetailsData) {
+      showErrorDetails(errorMessage, errorDetailsData)
+    }
   } finally {
     loading.value.validation = false
   }

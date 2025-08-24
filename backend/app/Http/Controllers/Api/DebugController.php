@@ -61,7 +61,20 @@ class DebugController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'error_details' => [
+                    'exception_type' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => config('app.debug') ? $e->getTraceAsString() : null,
+                    'context' => 'System health check operation',
+                    'suggestions' => [
+                        '檢查Firebase配置文件是否存在',
+                        '確認MySQL資料庫連接正常',
+                        '檢查環境變數配置',
+                        '查看Laravel日誌文件獲取更多資訊'
+                    ]
+                ]
             ], 500);
         }
     }
@@ -100,7 +113,21 @@ class DebugController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'error_details' => [
+                    'exception_type' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => config('app.debug') ? $e->getTraceAsString() : null,
+                    'context' => 'Firebase batch synchronization operation',
+                    'suggestions' => [
+                        '檢查Firebase Realtime Database是否已啟用',
+                        '確認Firebase服務帳號權限正確',
+                        '檢查網路連接是否正常',
+                        '確認Firebase Database URL格式正確',
+                        '檢查MySQL中是否有聊天記錄需要同步'
+                    ]
+                ]
             ], 500);
         }
     }
@@ -131,9 +158,27 @@ class DebugController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Debug info retrieval failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'error_details' => [
+                    'exception_type' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => config('app.debug') ? $e->getTraceAsString() : null,
+                    'context' => 'Debug information retrieval operation',
+                    'suggestions' => [
+                        '檢查資料庫連接狀態',
+                        '確認Firebase服務正常運作',
+                        '檢查系統配置文件',
+                        '查看應用程式日誌獲取詳細信息'
+                    ]
+                ]
             ], 500);
         }
     }
@@ -160,9 +205,28 @@ class DebugController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Firebase data reset failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'error_details' => [
+                    'exception_type' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => config('app.debug') ? $e->getTraceAsString() : null,
+                    'context' => 'Firebase data reset operation (dangerous operation)',
+                    'suggestions' => [
+                        '確認您有Firebase專案的完整管理權限',
+                        '檢查Firebase服務帳號配置',
+                        '確認Firebase Realtime Database存在',
+                        '這是危險操作，僅在開發環境使用',
+                        '考慮使用Firebase控制台手動清理資料'
+                    ]
+                ]
             ], 500);
         }
     }
