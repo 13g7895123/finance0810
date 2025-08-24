@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\CaseController;
 use App\Http\Controllers\Api\BankRecordController;
 use App\Http\Controllers\Api\VersionController;
 use App\Http\Controllers\Api\SyncController;
+use App\Http\Controllers\Api\DebugController;
 
 /*
 |--------------------------------------------------------------------------
@@ -114,6 +115,25 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/health', [ChatController::class, 'checkFirebaseHealth']);
         Route::post('/validate', [ChatController::class, 'validateFirebaseData']);
         Route::delete('/cleanup', [ChatController::class, 'cleanupFirebaseData'])->middleware('role:admin|manager');
+    });
+
+    // Debug API Endpoints - Only available in debug mode with admin access
+    Route::prefix('debug')->middleware(['role:admin|executive|manager'])->group(function () {
+        // System Health and Debug Information
+        Route::get('/system/health', [DebugController::class, 'systemHealthCheck']);
+        Route::get('/system/info', [DebugController::class, 'getDebugInfo']);
+        
+        // Firebase Batch Operations
+        Route::post('/firebase/batch-sync', [DebugController::class, 'batchSyncToFirebase']);
+        Route::post('/firebase/reset', [DebugController::class, 'resetFirebaseData'])->middleware('role:admin');
+        
+        // Chat Debug Operations
+        Route::post('/chat/batch-sync', [ChatController::class, 'batchSyncToFirebaseDebug']);
+        Route::post('/chat/validate-integrity', [ChatController::class, 'validateFirebaseDataIntegrity']);
+        Route::post('/chat/cleanup-firebase', [ChatController::class, 'cleanupFirebaseDataDebug'])->middleware('role:admin|manager');
+        
+        // Extended Firebase Health Checks
+        Route::get('/firebase/health-extended', [ChatController::class, 'checkFirebaseHealth']);
     });
     
     // Version Management - Available to all authenticated users

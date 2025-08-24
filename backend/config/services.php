@@ -35,6 +35,17 @@ return [
         'credentials' => storage_path('app/firebase-service-account.json'),
         'project_id' => env('FIREBASE_PROJECT_ID', 'finance0810new'),
         'database_url' => env('FIREBASE_DATABASE_URL', 'https://finance0810new-default-rtdb.asia-southeast1.firebasedatabase.app/'),
+        
+        // Feature toggles
+        'enabled' => env('FIREBASE_ENABLED', true),
+        'sync_enabled' => env('FIREBASE_SYNC_ENABLED', true),
+        'realtime_enabled' => env('FIREBASE_REALTIME_ENABLED', true),
+        
+        // Debug & monitoring
+        'debug_mode' => env('FIREBASE_DEBUG_MODE', false),
+        'log_level' => env('FIREBASE_LOG_LEVEL', 'info'),
+        'batch_sync_limit' => env('FIREBASE_BATCH_SYNC_LIMIT', 100),
+        'health_check_interval' => env('FIREBASE_HEALTH_CHECK_INTERVAL', 300),
     ],
 
 ];

@@ -2306,7 +2306,7 @@ class ChatController extends BaseApiController
     }
 
     /**
-     * 檢查 Firebase 健康狀態
+     * 檢查 Firebase 健康狀態 - 擴展版
      */
     public function checkFirebaseHealth(Request $request)
     {
@@ -2316,29 +2316,41 @@ class ChatController extends BaseApiController
             $healthResult = $this->firebaseSyncService->checkSyncHealth();
             $connectionStatus = $this->firebaseChatService->checkFirebaseConnection();
 
-            $health = [
+            // 擴展健康檢查：獲取更詳細的資訊
+            $extendedHealth = [
                 'firebase_connection' => $connectionStatus,
                 'sync_health' => $healthResult,
+                'configuration' => $this->getFirebaseConfigurationStatus(),
+                'database_connectivity' => $this->testFirebaseDatabaseConnection(),
+                'sync_statistics' => $this->getFirebaseSyncStatistics(),
+                'recent_errors' => $this->getRecentFirebaseErrors(),
                 'timestamp' => now()->toISOString(),
                 'checked_by' => $user->id
             ];
 
-            Log::channel('firebase')->info('Firebase health check performed', [
+            // 判斷整體健康狀態
+            $overallStatus = $this->determineOverallFirebaseHealth($extendedHealth);
+            $extendedHealth['overall_status'] = $overallStatus;
+
+            Log::channel('firebase')->info('Extended Firebase health check performed', [
                 'user_id' => $user->id,
                 'connection_status' => $connectionStatus,
-                'sync_health' => $healthResult['success'] ?? false
+                'sync_health' => $healthResult['success'] ?? false,
+                'overall_status' => $overallStatus
             ]);
 
             return response()->json([
                 'success' => true,
-                'data' => $health,
-                'message' => 'Firebase health check completed'
+                'data' => $extendedHealth,
+                'message' => 'Extended Firebase health check completed',
+                'recommendations' => $this->getFirebaseHealthRecommendations($extendedHealth)
             ]);
 
         } catch (\Exception $e) {
-            Log::channel('firebase')->error('Firebase health check failed', [
+            Log::channel('firebase')->error('Extended Firebase health check failed', [
                 'user_id' => Auth::id(),
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
@@ -2347,6 +2359,188 @@ class ChatController extends BaseApiController
                 'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
+    }
+
+    /**
+     * 獲取 Firebase 配置狀態
+     */
+    private function getFirebaseConfigurationStatus()
+    {
+        try {
+            return [
+                'project_id' => !empty(config('services.firebase.project_id')),
+                'database_url' => !empty(config('services.firebase.database_url')),
+                'credentials_path' => !empty(config('services.firebase.credentials')),
+                'credentials_file_exists' => config('services.firebase.credentials') ? file_exists(config('services.firebase.credentials')) : false,
+                'debug_mode' => config('firebase.debug_mode', false) || env('FIREBASE_DEBUG_MODE', false),
+                'enabled' => env('FIREBASE_ENABLED', true)
+            ];
+        } catch (\Exception $e) {
+            return [
+                'error' => 'Failed to check configuration: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * 測試 Firebase Realtime Database 連接
+     */
+    private function testFirebaseDatabaseConnection()
+    {
+        try {
+            $testResult = $this->firebaseChatService->checkFirebaseConnection();
+            
+            // 嘗試簡單的讀取操作來測試實際連接
+            $conversations = $this->firebaseChatService->getConversationsFromFirebase(null);
+            
+            return [
+                'basic_connection' => $testResult,
+                'can_read_data' => is_array($conversations),
+                'data_count' => is_array($conversations) ? count($conversations) : 0,
+                'last_test_time' => now()->toISOString()
+            ];
+        } catch (\Exception $e) {
+            return [
+                'basic_connection' => false,
+                'can_read_data' => false,
+                'data_count' => 0,
+                'error' => $e->getMessage(),
+                'last_test_time' => now()->toISOString()
+            ];
+        }
+    }
+
+    /**
+     * 獲取 Firebase 同步統計
+     */
+    private function getFirebaseSyncStatistics()
+    {
+        try {
+            // 統計需要同步的對話數量
+            $needsSyncCount = ChatConversation::whereNotNull('line_user_id')
+                ->whereHas('customer', function($query) {
+                    $query->whereNotNull('assigned_to');
+                })
+                ->where('updated_at', '>=', now()->subHours(24))
+                ->count();
+
+            // 統計總對話數量
+            $totalConversations = ChatConversation::whereNotNull('line_user_id')->count();
+
+            // 統計今日新增的對話
+            $todayConversations = ChatConversation::whereNotNull('line_user_id')
+                ->whereDate('created_at', today())
+                ->count();
+
+            return [
+                'total_conversations' => $totalConversations,
+                'needs_sync_count' => $needsSyncCount,
+                'today_conversations' => $todayConversations,
+                'sync_enabled' => env('FIREBASE_ENABLED', true),
+                'last_calculated' => now()->toISOString()
+            ];
+        } catch (\Exception $e) {
+            return [
+                'error' => 'Failed to calculate sync statistics: ' . $e->getMessage(),
+                'last_calculated' => now()->toISOString()
+            ];
+        }
+    }
+
+    /**
+     * 獲取最近的 Firebase 錯誤
+     */
+    private function getRecentFirebaseErrors()
+    {
+        try {
+            // 這裡可以從日誌文件或錯誤追蹤系統獲取錯誤
+            // 暫時返回基本資訊
+            return [
+                'has_recent_errors' => false,
+                'error_count_24h' => 0,
+                'last_error_time' => null,
+                'note' => 'Error tracking not implemented yet'
+            ];
+        } catch (\Exception $e) {
+            return [
+                'error' => 'Failed to get recent errors: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * 判斷整體 Firebase 健康狀態
+     */
+    private function determineOverallFirebaseHealth($healthData)
+    {
+        $issues = [];
+
+        // 檢查基本配置
+        if (!($healthData['configuration']['project_id'] ?? false)) {
+            $issues[] = 'missing_project_id';
+        }
+        if (!($healthData['configuration']['database_url'] ?? false)) {
+            $issues[] = 'missing_database_url';
+        }
+        if (!($healthData['configuration']['credentials_file_exists'] ?? false)) {
+            $issues[] = 'missing_credentials_file';
+        }
+
+        // 檢查連接狀態
+        if (!($healthData['firebase_connection'] ?? false)) {
+            $issues[] = 'connection_failed';
+        }
+        if (!($healthData['database_connectivity']['can_read_data'] ?? false)) {
+            $issues[] = 'database_read_failed';
+        }
+
+        // 檢查同步狀態
+        if (!($healthData['sync_health']['success'] ?? false)) {
+            $issues[] = 'sync_unhealthy';
+        }
+
+        // 根據問題數量判斷狀態
+        if (empty($issues)) {
+            return 'healthy';
+        } elseif (count($issues) <= 2) {
+            return 'warning';
+        } else {
+            return 'critical';
+        }
+    }
+
+    /**
+     * 獲取 Firebase 健康建議
+     */
+    private function getFirebaseHealthRecommendations($healthData)
+    {
+        $recommendations = [];
+
+        // 配置相關建議
+        if (!($healthData['configuration']['project_id'] ?? false)) {
+            $recommendations[] = '請設定 FIREBASE_PROJECT_ID 環境變數';
+        }
+        if (!($healthData['configuration']['database_url'] ?? false)) {
+            $recommendations[] = '請設定 FIREBASE_DATABASE_URL 環境變數';
+        }
+        if (!($healthData['configuration']['credentials_file_exists'] ?? false)) {
+            $recommendations[] = '請確認 Firebase 服務帳號憑證檔案存在';
+        }
+
+        // 連接相關建議
+        if (!($healthData['firebase_connection'] ?? false)) {
+            $recommendations[] = '檢查網路連接和 Firebase 專案設定';
+        }
+        if (!($healthData['database_connectivity']['can_read_data'] ?? false)) {
+            $recommendations[] = '檢查 Firebase Realtime Database 權限設定';
+        }
+
+        // 資料相關建議
+        if (($healthData['database_connectivity']['data_count'] ?? 0) === 0) {
+            $recommendations[] = '執行批次同步將 MySQL 資料同步到 Firebase';
+        }
+
+        return $recommendations;
     }
 
     /**
@@ -2470,6 +2664,371 @@ class ChatController extends BaseApiController
 
         // 業務員只能存取指派給他們的客戶
         return $customer->assigned_to === $user->id;
+    }
+
+    /**
+     * 批次同步 MySQL 資料到 Firebase - Debug 專用
+     */
+    public function batchSyncToFirebaseDebug(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            
+            // 檢查權限：只有管理員和主管可以執行批次同步
+            if (!$user->hasRole(['admin', 'manager', 'executive'])) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '權限不足',
+                    'message' => '只有管理員可以執行批次同步'
+                ], 403);
+            }
+
+            // 檢查除錯模式
+            if (!config('app.debug') || !env('FIREBASE_DEBUG_MODE', false)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '除錯模式未啟用',
+                    'message' => '此功能僅在除錯模式下可用'
+                ], 403);
+            }
+
+            $limit = min($request->input('limit', 50), 200); // 最多一次同步200筆
+            $offset = max($request->input('offset', 0), 0);
+            $forceSync = $request->boolean('force', false);
+
+            // 獲取需要同步的對話
+            $query = ChatConversation::with('customer')
+                ->whereNotNull('line_user_id')
+                ->whereHas('customer', function($q) {
+                    $q->whereNotNull('assigned_to');
+                });
+
+            if (!$forceSync) {
+                // 只同步最近24小時的對話
+                $query->where('updated_at', '>=', now()->subHours(24));
+            }
+
+            $conversations = $query->orderBy('updated_at', 'desc')
+                ->limit($limit)
+                ->offset($offset)
+                ->get();
+
+            $results = [
+                'total_found' => $conversations->count(),
+                'synced' => 0,
+                'failed' => 0,
+                'skipped' => 0,
+                'details' => []
+            ];
+
+            foreach ($conversations as $conversation) {
+                try {
+                    $syncResult = $this->firebaseChatService->syncConversationToFirebase($conversation);
+                    
+                    if ($syncResult) {
+                        $results['synced']++;
+                        $results['details'][] = [
+                            'id' => $conversation->id,
+                            'line_user_id' => $conversation->line_user_id,
+                            'status' => 'synced'
+                        ];
+                    } else {
+                        $results['failed']++;
+                        $results['details'][] = [
+                            'id' => $conversation->id,
+                            'line_user_id' => $conversation->line_user_id,
+                            'status' => 'failed'
+                        ];
+                    }
+                } catch (\Exception $syncError) {
+                    $results['failed']++;
+                    $results['details'][] = [
+                        'id' => $conversation->id,
+                        'line_user_id' => $conversation->line_user_id,
+                        'status' => 'error',
+                        'error' => $syncError->getMessage()
+                    ];
+                }
+            }
+
+            Log::channel('firebase')->info('Debug batch sync completed', [
+                'user_id' => $user->id,
+                'results' => [
+                    'synced' => $results['synced'],
+                    'failed' => $results['failed'],
+                    'total' => $results['total_found']
+                ]
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => '批次同步完成',
+                'data' => $results,
+                'timestamp' => now()->toISOString()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Debug batch sync failed', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => '批次同步失敗',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    /**
+     * 驗證 Firebase 資料完整性 - Debug 專用
+     */
+    public function validateFirebaseDataIntegrity(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            
+            // 檢查權限
+            if (!$user->hasRole(['admin', 'manager', 'executive'])) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '權限不足'
+                ], 403);
+            }
+
+            // 檢查除錯模式
+            if (!config('app.debug') || !env('FIREBASE_DEBUG_MODE', false)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '除錯模式未啟用'
+                ], 403);
+            }
+
+            $lineUserId = $request->input('line_user_id');
+            $checkAll = $request->boolean('check_all', false);
+
+            $validationResults = [
+                'timestamp' => now()->toISOString(),
+                'total_checked' => 0,
+                'mysql_count' => 0,
+                'firebase_count' => 0,
+                'missing_in_firebase' => [],
+                'extra_in_firebase' => [],
+                'inconsistent_data' => []
+            ];
+
+            if ($lineUserId) {
+                // 驗證單一用戶的資料
+                $results = $this->validateSingleUserData($lineUserId);
+                $validationResults = array_merge($validationResults, $results);
+                $validationResults['total_checked'] = 1;
+            } elseif ($checkAll) {
+                // 驗證所有用戶的資料（限制數量）
+                $recentUsers = ChatConversation::select('line_user_id')
+                    ->whereNotNull('line_user_id')
+                    ->where('updated_at', '>=', now()->subHours(24))
+                    ->distinct()
+                    ->limit(20) // 限制檢查數量
+                    ->pluck('line_user_id');
+
+                foreach ($recentUsers as $userId) {
+                    $results = $this->validateSingleUserData($userId);
+                    $validationResults['mysql_count'] += $results['mysql_count'];
+                    $validationResults['firebase_count'] += $results['firebase_count'];
+                    
+                    if (!empty($results['missing_in_firebase'])) {
+                        $validationResults['missing_in_firebase'][] = [
+                            'line_user_id' => $userId,
+                            'missing_messages' => $results['missing_in_firebase']
+                        ];
+                    }
+                    
+                    $validationResults['total_checked']++;
+                }
+            }
+
+            $validationResults['is_consistent'] = 
+                empty($validationResults['missing_in_firebase']) && 
+                empty($validationResults['extra_in_firebase']) &&
+                empty($validationResults['inconsistent_data']);
+
+            return response()->json([
+                'success' => true,
+                'message' => '資料完整性驗證完成',
+                'data' => $validationResults
+            ]);
+
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Data integrity validation failed', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => '資料驗證失敗',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    /**
+     * 清理 Firebase 中的過期或無效資料 - Debug 專用
+     */
+    public function cleanupFirebaseDataDebug(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            
+            // 檢查權限
+            if (!$user->hasRole(['admin', 'manager'])) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '權限不足，只有管理員可以執行清理操作'
+                ], 403);
+            }
+
+            // 檢查除錯模式
+            if (!config('app.debug') || !env('FIREBASE_DEBUG_MODE', false)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '除錯模式未啟用'
+                ], 403);
+            }
+
+            $dryRun = $request->boolean('dry_run', true); // 預設為測試模式
+            $daysOld = max($request->input('days_old', 30), 7); // 最少保留7天
+            
+            $cleanupResults = [
+                'dry_run' => $dryRun,
+                'days_old_threshold' => $daysOld,
+                'timestamp' => now()->toISOString(),
+                'conversations_to_clean' => 0,
+                'messages_to_clean' => 0,
+                'cleaned_conversations' => [],
+                'errors' => []
+            ];
+
+            // 獲取需要清理的 Firebase 對話
+            $firebaseConversations = $this->firebaseChatService->getConversationsFromFirebase();
+            
+            $cutoffDate = now()->subDays($daysOld);
+            
+            foreach ($firebaseConversations as $conversation) {
+                try {
+                    $lastUpdate = isset($conversation['updated']) ? 
+                        \Carbon\Carbon::parse($conversation['updated']) : null;
+                    
+                    if ($lastUpdate && $lastUpdate->lt($cutoffDate)) {
+                        $cleanupResults['conversations_to_clean']++;
+                        
+                        if (!$dryRun) {
+                            // 實際執行清理
+                            $deleteResult = $this->firebaseChatService->deleteConversationFromFirebase(
+                                $conversation['firebaseId']
+                            );
+                            
+                            if ($deleteResult) {
+                                $cleanupResults['cleaned_conversations'][] = [
+                                    'firebase_id' => $conversation['firebaseId'],
+                                    'last_updated' => $lastUpdate->toISOString(),
+                                    'status' => 'cleaned'
+                                ];
+                            } else {
+                                $cleanupResults['errors'][] = [
+                                    'firebase_id' => $conversation['firebaseId'],
+                                    'error' => 'Failed to delete conversation'
+                                ];
+                            }
+                        } else {
+                            $cleanupResults['cleaned_conversations'][] = [
+                                'firebase_id' => $conversation['firebaseId'],
+                                'last_updated' => $lastUpdate->toISOString(),
+                                'status' => 'would_be_cleaned'
+                            ];
+                        }
+                    }
+                } catch (\Exception $cleanupError) {
+                    $cleanupResults['errors'][] = [
+                        'firebase_id' => $conversation['firebaseId'] ?? 'unknown',
+                        'error' => $cleanupError->getMessage()
+                    ];
+                }
+            }
+
+            Log::channel('firebase')->info('Firebase data cleanup performed', [
+                'user_id' => $user->id,
+                'dry_run' => $dryRun,
+                'conversations_processed' => count($firebaseConversations),
+                'conversations_cleaned' => count($cleanupResults['cleaned_conversations']),
+                'errors' => count($cleanupResults['errors'])
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => $dryRun ? 'Firebase 資料清理預覽完成' : 'Firebase 資料清理完成',
+                'data' => $cleanupResults
+            ]);
+
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Firebase data cleanup failed', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Firebase 資料清理失敗',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    /**
+     * 驗證單一用戶的資料完整性
+     */
+    private function validateSingleUserData($lineUserId)
+    {
+        $results = [
+            'mysql_count' => 0,
+            'firebase_count' => 0,
+            'missing_in_firebase' => [],
+            'extra_in_firebase' => []
+        ];
+
+        try {
+            // 獲取 MySQL 中的訊息
+            $mysqlMessages = ChatConversation::where('line_user_id', $lineUserId)
+                ->orderBy('message_timestamp', 'desc')
+                ->limit(50)
+                ->get();
+            
+            $results['mysql_count'] = $mysqlMessages->count();
+
+            // 獲取 Firebase 中的訊息
+            $firebaseMessages = $this->firebaseChatService->getMessagesFromFirebase($lineUserId, 50);
+            $results['firebase_count'] = count($firebaseMessages);
+
+            // 比對資料
+            $mysqlMessageIds = $mysqlMessages->pluck('id')->map(function($id) {
+                return 'msg_' . $id;
+            })->toArray();
+
+            $firebaseMessageIds = array_column($firebaseMessages, 'id');
+
+            // 找出 MySQL 有但 Firebase 沒有的訊息
+            $results['missing_in_firebase'] = array_diff($mysqlMessageIds, $firebaseMessageIds);
+
+            // 找出 Firebase 有但 MySQL 沒有的訊息
+            $results['extra_in_firebase'] = array_diff($firebaseMessageIds, $mysqlMessageIds);
+
+        } catch (\Exception $e) {
+            $results['error'] = $e->getMessage();
+        }
+
+        return $results;
     }
 
     /**
