@@ -51,6 +51,10 @@ class FirebaseChatService
                 'id' => $conversation->line_user_id,
                 'mysqlCustomerId' => $customer->id,
                 'assignedStaffId' => $customer->assigned_to,
+                'customerName' => $customer->name ?: '客戶',
+                'customerPhone' => $customer->phone ?: '',
+                'customerRegion' => $customer->region ?: '',
+                'customerSource' => $customer->website_source ?: '',
                 'lastMessage' => [
                     'content' => $conversation->message_content,
                     'timestamp' => $conversation->message_timestamp->toISOString(),

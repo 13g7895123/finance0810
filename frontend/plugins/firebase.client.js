@@ -2,33 +2,46 @@ import { initializeApp } from 'firebase/app'
 import { getDatabase } from 'firebase/database'
 
 export default defineNuxtPlugin(() => {
+  const config = useRuntimeConfig()
+  
   const firebaseConfig = {
-    // 注意：需要從 Firebase Console 的 Project Settings > General > Your apps 獲取正確的配置
-    // 以下是基於專案 ID 的預設配置，但 apiKey, messagingSenderId, appId 需要從 Firebase Console 獲取
-    apiKey: process.env.NUXT_FIREBASE_API_KEY || "AIzaSyCONFIG_NEEDED_FROM_FIREBASE_CONSOLE",
+    apiKey: config.public.firebaseApiKey || "AIzaSyCONFIG_NEEDED_FROM_FIREBASE_CONSOLE",
     authDomain: "finance0810new.firebaseapp.com",
-    databaseURL: process.env.NUXT_FIREBASE_DATABASE_URL || "https://finance0810new-default-rtdb.asia-southeast1.firebasedatabase.app/",
-    projectId: "finance0810new", 
+    databaseURL: config.public.firebaseDatabaseUrl || "https://finance0810new-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    projectId: config.public.firebaseProjectId || "finance0810new", 
     storageBucket: "finance0810new.appspot.com",
-    messagingSenderId: process.env.NUXT_FIREBASE_MESSAGING_SENDER_ID || "SENDER_ID_NEEDED",
-    appId: process.env.NUXT_FIREBASE_APP_ID || "APP_ID_NEEDED"
+    messagingSenderId: config.public.firebaseMessagingSenderId || "SENDER_ID_NEEDED",
+    appId: config.public.firebaseAppId || "APP_ID_NEEDED"
   }
 
   try {
+    // 檢查必要的配置是否存在
+    if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes('NEEDED') ||
+        !firebaseConfig.messagingSenderId || firebaseConfig.messagingSenderId.includes('NEEDED') ||
+        !firebaseConfig.appId || firebaseConfig.appId.includes('NEEDED')) {
+      console.warn('Firebase configuration incomplete. Please check environment variables:')
+      console.warn('- NUXT_FIREBASE_API_KEY')
+      console.warn('- NUXT_FIREBASE_MESSAGING_SENDER_ID')
+      console.warn('- NUXT_FIREBASE_APP_ID')
+      throw new Error('Firebase configuration incomplete')
+    }
+    
     const app = initializeApp(firebaseConfig)
     const database = getDatabase(app)
 
-    console.log('Firebase initialized successfully with Realtime Database')
+    console.log('Firebase Realtime Database initialized successfully')
+    console.log('Database URL:', firebaseConfig.databaseURL)
     
     return {
       provide: {
         firebase: app,
-        firebaseDB: database  // 現在是 Realtime Database
+        firebaseDB: database
       }
     }
   } catch (error) {
-    console.warn('Firebase initialization failed:', error)
-    // 返回null作為fallback，讓應用繼續運行
+    console.error('Firebase initialization failed:', error)
+    console.warn('Chat system will not work without Firebase. Please configure Firebase properly.')
+    
     return {
       provide: {
         firebase: null,

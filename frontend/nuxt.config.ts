@@ -8,7 +8,13 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
-      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || 'https://dev-finance.mercylife.cc/api'
+      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || 'https://dev-finance.mercylife.cc/api',
+      // Firebase configuration
+      firebaseApiKey: process.env.NUXT_FIREBASE_API_KEY,
+      firebaseDatabaseUrl: process.env.NUXT_FIREBASE_DATABASE_URL || 'https://finance0810new-default-rtdb.asia-southeast1.firebasedatabase.app/',
+      firebaseProjectId: process.env.NUXT_FIREBASE_PROJECT_ID || 'finance0810new',
+      firebaseMessagingSenderId: process.env.NUXT_FIREBASE_MESSAGING_SENDER_ID,
+      firebaseAppId: process.env.NUXT_FIREBASE_APP_ID
     }
   },
   // Development server configuration

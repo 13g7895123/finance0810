@@ -243,6 +243,9 @@ class ChatController extends BaseApiController
             // Update conversation status to sent (with fallback handling)
             $this->safeUpdateStatus($conversation, 'sent');
             
+            // Sync to Firebase Realtime Database
+            $this->firebaseChatService->syncConversationToFirebase($conversation);
+            
             // Broadcast the new message event for real-time updates
             broadcast(new NewChatMessage($conversation, $userId));
             
@@ -647,6 +650,9 @@ class ChatController extends BaseApiController
             ],
         ]);
 
+        // Sync to Firebase Realtime Database
+        $this->firebaseChatService->syncConversationToFirebase($conversation);
+        
         // Broadcast the new message event for real-time updates
         broadcast(new NewChatMessage($conversation, $lineUserId));
 
@@ -693,6 +699,9 @@ class ChatController extends BaseApiController
             ],
         ]);
 
+        // Sync to Firebase Realtime Database
+        $this->firebaseChatService->syncConversationToFirebase($conversation);
+        
         // Broadcast the new message event for real-time updates
         broadcast(new NewChatMessage($conversation, $lineUserId));
     }
@@ -740,6 +749,9 @@ class ChatController extends BaseApiController
             ],
         ]);
 
+        // Sync to Firebase Realtime Database
+        $this->firebaseChatService->syncConversationToFirebase($conversation);
+        
         // Broadcast the new message event for real-time updates
         broadcast(new NewChatMessage($conversation, $lineUserId));
     }
@@ -791,6 +803,9 @@ class ChatController extends BaseApiController
             ],
         ]);
 
+        // Sync to Firebase Realtime Database
+        $this->firebaseChatService->syncConversationToFirebase($conversation);
+        
         // Broadcast the new message event for real-time updates
         broadcast(new NewChatMessage($conversation, $lineUserId));
     }
@@ -838,6 +853,12 @@ class ChatController extends BaseApiController
                     'timestamp' => $timestamp,
                 ],
             ]);
+
+            // Sync to Firebase Realtime Database
+            $this->firebaseChatService->syncConversationToFirebase($conversation);
+            
+            // Broadcast the new message event for real-time updates
+            broadcast(new NewChatMessage($conversation, $lineUserId));
 
             Log::info('LINE follow event processed successfully (no auto-welcome messages)', [
                 'line_user_id' => $lineUserId,
@@ -899,6 +920,12 @@ class ChatController extends BaseApiController
                         'timestamp' => $timestamp,
                     ],
                 ]);
+
+                // Sync to Firebase Realtime Database
+                $this->firebaseChatService->syncConversationToFirebase($conversation);
+                
+                // Broadcast the new message event for real-time updates
+                broadcast(new NewChatMessage($conversation, $lineUserId));
 
                 Log::info('LINE unfollow event processed successfully', [
                     'line_user_id' => $lineUserId,

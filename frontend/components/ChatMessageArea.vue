@@ -195,8 +195,8 @@ const props = defineProps({
 
 const emit = defineEmits(['sendMessage'])
 
-const authStore = useAuthStore()
-const currentUserId = computed(() => authStore.user?.id)
+const { getLocalUser } = useAuth()
+const currentUserId = computed(() => getLocalUser()?.id)
 
 const newMessage = ref('')
 const messageInput = ref(null)

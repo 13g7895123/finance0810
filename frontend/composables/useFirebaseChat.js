@@ -184,8 +184,8 @@ export const useFirebaseChat = () => {
     error.value = firebaseError
     connectionStatus.value = 'error'
     
-    // 如果Firebase出錯，可以fallback到原有的API輪詢
-    console.warn('Firebase error, may need to fallback to API polling')
+    // Firebase錯誤記錄，不使用API輪詢fallback
+    console.error('Firebase Realtime Database error:', firebaseError)
   }
 
   /**

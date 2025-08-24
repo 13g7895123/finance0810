@@ -21,11 +21,8 @@
               <span class="text-xs text-gray-500">
                 {{ getConnectionStatusText() }}
               </span>
-              <span v-if="useFirebase" class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
+              <span class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
                 Firebase
-              </span>
-              <span v-else class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                API
               </span>
             </div>
           </div>
@@ -83,6 +80,10 @@
           <ChatBubbleLeftRightIcon class="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 class="text-xl font-medium text-gray-900 mb-2">選擇聊天對象</h3>
           <p class="text-gray-500">從左側列表選擇要聊天的用戶開始對話</p>
+          <!-- 顯示連接錯誤 -->
+          <div v-if="error" class="mt-4 p-4 bg-red-100 border border-red-300 rounded-lg">
+            <p class="text-red-700 text-sm">{{ error }}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -100,7 +101,7 @@ definePageMeta({
 })
 
 const { error: showError } = useNotification()
-const authStore = useAuthStore()
+const { canViewAllChats, getLocalUser } = useAuth()
 
 // 使用新的即時聊天系統
 const realtimeChat = useRealtimeChat()
@@ -110,7 +111,7 @@ const {
   conversations, 
   messages, 
   connectionStatus, 
-  useFirebase, 
+  error,
   getConnectionStatusText 
 } = realtimeChat
 
@@ -132,12 +133,12 @@ const filters = ref([
 const filteredUsers = computed(() => {
   let users = [...conversations.value]
   
-  // 權限過濾 - 業務人員只能看到自己相關的對話
-  if (authStore?.isSales && !authStore.hasPermission?.('all_access')) {
+  // 權限過濾 - 業務人員只能看到自己相關的對話，admin/executive 可以看全部
+  if (!canViewAllChats()) {
+    const currentUser = getLocalUser()
     users = users.filter(user => {
-      return user.customerInfo?.assignedTo === authStore.user?.id || 
-             user.isBot || 
-             user.role === 'admin'
+      // 只顯示分配給當前用戶的對話
+      return user.customerInfo?.assignedTo === currentUser?.id
     })
   }
 
