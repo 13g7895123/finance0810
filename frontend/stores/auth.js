@@ -89,9 +89,12 @@ export const useAuthStore = defineStore('auth', () => {
         console.log('設定的用戶資料:', userData)
         user.value = userData
         
+        // 強制觸發響應式更新
+        await nextTick()
+        
         // 檢查 user 是否正確設定
         console.log('設定後的 user.value:', user.value)
-        console.log('設定後的 isLoggedIn:', !!user.value)
+        console.log('設定後的 isLoggedIn:', isLoggedIn.value)
         
         // 儲存包含 JWT token 的用戶資料到 sessionStorage
         if (process.client) {
@@ -108,6 +111,9 @@ export const useAuthStore = defineStore('auth', () => {
           }))
         }
         console.log('登入成功，使用 JWT Token + SessionStorage')
+        
+        // 確保所有狀態更新完成
+        await new Promise(resolve => setTimeout(resolve, 50))
         
         return { success: true, user: userData }
       } else {

@@ -24,18 +24,26 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
       console.log('Auth middleware - 等待初始化結果:', authSuccess)
       console.log('Auth middleware - 初始化後登入狀態:', authStore.isLoggedIn)
       
-      // 最終檢查登入狀態
+      // 如果初始化後仍未登入，給一點額外時間等待狀態更新
       if (!authStore.isLoggedIn) {
-        console.log('初始化完成但用戶未登入，重定向到登入頁')
-        // 保存原始目標路徑
-        const redirectPath = to.path !== '/' ? to.path : undefined
-        return navigateTo(redirectPath ? `/auth/login?redirect=${encodeURIComponent(redirectPath)}` : '/auth/login')
+        console.log('等待狀態更新...')
+        await new Promise(resolve => setTimeout(resolve, 50))
+        
+        // 再次檢查登入狀態
+        if (!authStore.isLoggedIn) {
+          console.log('確認用戶未登入，重定向到登入頁')
+          // 保存原始目標路徑，避免循環重定向
+          const redirectPath = to.path !== '/' && to.path !== '/auth/login' ? to.path : undefined
+          return navigateTo(redirectPath ? `/auth/login?redirect=${encodeURIComponent(redirectPath)}` : '/auth/login')
+        } else {
+          console.log('狀態更新後確認用戶已登入，允許通過')
+        }
       }
       
     } catch (error) {
       console.error('Auth middleware - 等待初始化失敗:', error)
       // 保存原始目標路徑
-      const redirectPath = to.path !== '/' ? to.path : undefined
+      const redirectPath = to.path !== '/' && to.path !== '/auth/login' ? to.path : undefined
       return navigateTo(redirectPath ? `/auth/login?redirect=${encodeURIComponent(redirectPath)}` : '/auth/login')
     }
   } else {

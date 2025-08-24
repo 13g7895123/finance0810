@@ -153,9 +153,18 @@ const handleLogin = async () => {
         }
       }
       
+      // 確保狀態完全更新後再重定向
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // 再次確認登入狀態
+      if (!authStore.isLoggedIn) {
+        console.error('登入狀態確認失敗，等待狀態更新')
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+      
       // 檢查是否有指定的重定向路徑
       const route = useRoute()
-      let redirectPath = route.query.redirect || '/dashboard/analytics' // 默認重定向路徑
+      let redirectPath = route.query.redirect || '/dashboard/analytics'
       
       // 如果沒有指定重定向路徑，根據用戶角色決定
       if (!route.query.redirect) {
@@ -165,20 +174,21 @@ const handleLogin = async () => {
       }
       
       console.log('準備重定向到:', redirectPath)
+      console.log('當前登入狀態:', authStore.isLoggedIn)
+      console.log('用戶資料:', authStore.user)
       
-      // 多重重定向策略確保重定向成功
+      // 使用 window.location.href 進行強制重定向，避免中間件競爭
       try {
-        console.log('嘗試使用 navigateTo 重定向')
-        await navigateTo(redirectPath)
-      } catch (navError) {
-        console.warn('navigateTo 失敗，嘗試 router.push:', navError)
-        try {
-          const router = useRouter()
-          await router.push(redirectPath)
-        } catch (routerError) {
-          console.warn('router.push 失敗，使用 window.location:', routerError)
-          window.location.href = redirectPath
+        console.log('使用 window.location.href 進行重定向')
+        // 使用 replace 避免產生歷史記錄
+        if (process.client) {
+          window.location.replace(redirectPath)
+        } else {
+          await navigateTo(redirectPath)
         }
+      } catch (error) {
+        console.warn('重定向失敗，嘗試使用 navigateTo:', error)
+        await navigateTo(redirectPath)
       }
       
     } else {
