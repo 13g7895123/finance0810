@@ -112,8 +112,8 @@ definePageMeta({
   middleware: 'auth'
 })
 
-// Composables
-const { user } = useAuth()
+// Composables  
+const { user, isAdmin, isManager, hasRole } = useAuth()
 
 // State
 const showDebugInfo = ref(process.dev || false)
@@ -122,30 +122,13 @@ const isDebugMode = ref(false)
 // Methods
 const getUserRoleNames = () => {
   if (!user.value || !user.value.roles) return '無角色'
-  return user.value.roles.map(role => role.name || role).join(', ')
+  return Array.isArray(user.value.roles) ? user.value.roles.join(', ') : '角色格式錯誤'
 }
 
 // Computed
 const canAccessDebug = computed(() => {
-  if (!user.value) return false
-  
-  // 更寬鬆的權限檢查，包含多種可能的角色名稱和結構
-  const allowedRoles = ['admin', 'manager', 'executive', 'Admin', 'Manager', 'Executive']
-  const userRoles = user.value.roles || []
-  
-  // 檢查不同的角色結構
-  const hasRole = allowedRoles.some(role => {
-    return userRoles.some(userRole => {
-      // 檢查 role.name 或直接是字串
-      return (userRole.name === role) || (userRole === role) || 
-             (typeof userRole === 'object' && userRole.role === role)
-    })
-  })
-  
-  // 或者檢查用戶是否有管理員權限的方法
-  const hasAdminMethods = user.value.isAdmin || user.value.isManager || user.value.canAccessAllChats
-  
-  return hasRole || hasAdminMethods
+  // 直接使用useAuth提供的方法，這些方法已經正確處理了角色檢查
+  return isAdmin() || isManager() || hasRole('executive')
 })
 
 // 開發模式下顯示更多調試信息

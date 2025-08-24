@@ -24,6 +24,7 @@ export const useAuth = () => {
         token: data.access_token
       }
       sessionStorage.setItem('user-profile', JSON.stringify(userWithToken))
+      user.value = userWithToken // 更新響應式用戶狀態
     }
 
     return { 
@@ -49,6 +50,7 @@ export const useAuth = () => {
       // 清除舊的 localStorage 資料（向後相容）
       localStorage.removeItem('auth-token')
       localStorage.removeItem('admin-template-user')
+      user.value = null // 清除響應式用戶狀態
     }
     
     // 重導向到登入頁
@@ -83,6 +85,7 @@ export const useAuth = () => {
         ...(token ? { token } : {})
       }
       sessionStorage.setItem('user-profile', JSON.stringify(updatedProfile))
+      user.value = updatedProfile // 更新響應式用戶狀態
     }
 
     return { success: true, user: data.user }
@@ -219,6 +222,16 @@ export const useAuth = () => {
     return hasRole('admin') || hasRole('executive')
   }
 
+  /**
+   * 響應式用戶狀態
+   */
+  const user = ref(getLocalUser())
+
+  // 監聽用戶變化
+  const updateUserState = () => {
+    user.value = getLocalUser()
+  }
+
   return {
     // 認證操作
     login,
@@ -237,6 +250,10 @@ export const useAuth = () => {
     isAdmin,
     isManager,
     isStaff,
-    canViewAllChats
+    canViewAllChats,
+    
+    // 響應式狀態
+    user,
+    updateUserState
   }
 }
