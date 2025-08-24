@@ -88,11 +88,6 @@
       </div>
     </div>
 
-    <!-- Debug Panel -->
-    <DebugPanel 
-      v-if="showDebugPanel"
-      ref="debugPanelRef"
-    />
   </div>
 </template>
 
@@ -101,14 +96,13 @@ import {
   MagnifyingGlassIcon,
   ChatBubbleLeftRightIcon 
 } from '@heroicons/vue/24/outline'
-import DebugPanel from '~/components/DebugPanel.vue'
 
 definePageMeta({
   middleware: 'auth'
 })
 
 const { error: showError } = useNotification()
-const { canViewAllChats, getLocalUser, user } = useAuth()
+const { canViewAllChats, getLocalUser } = useAuth()
 
 // 使用新的即時聊天系統
 const realtimeChat = useRealtimeChat()
@@ -121,26 +115,6 @@ const {
   error,
   getConnectionStatusText 
 } = realtimeChat
-
-// Debug Panel 控制
-const debugPanelRef = ref(null)
-const showDebugPanel = computed(() => {
-  // Check if user has admin/manager/executive role and debug is enabled
-  if (!user.value) return false
-  
-  const allowedRoles = ['admin', 'manager', 'executive']
-  const userRoles = user.value.roles || []
-  const hasRole = allowedRoles.some(role => 
-    userRoles.some(userRole => userRole.name === role)
-  )
-  
-  // Check if debug mode is enabled
-  const isDebugEnabled = process.dev || 
-    localStorage.getItem('debug_panel_enabled') === 'true' ||
-    localStorage.getItem('firebase_debug_mode') === 'true'
-    
-  return hasRole && isDebugEnabled
-})
 
 // 頁面狀態
 const searchQuery = ref('')
@@ -237,32 +211,6 @@ const handleSendMessage = async (content) => {
   }
 }
 
-/**
- * Debug Panel 相關方法
- */
-const toggleDebugPanel = () => {
-  const currentState = localStorage.getItem('debug_panel_enabled') === 'true'
-  localStorage.setItem('debug_panel_enabled', (!currentState).toString())
-  
-  // 觸發響應式更新
-  nextTick(() => {
-    if (debugPanelRef.value && !currentState) {
-      debugPanelRef.value.refreshHealthCheck()
-    }
-  })
-}
-
-const enableFirebaseDebugMode = () => {
-  localStorage.setItem('firebase_debug_mode', 'true')
-  localStorage.setItem('debug_panel_enabled', 'true')
-  console.log('Firebase 除錯模式已啟用')
-}
-
-const disableFirebaseDebugMode = () => {
-  localStorage.setItem('firebase_debug_mode', 'false')
-  localStorage.setItem('debug_panel_enabled', 'false')
-  console.log('Firebase 除錯模式已關閉')
-}
 
 // 頁面初始化
 onMounted(async () => {
@@ -274,51 +222,6 @@ onMounted(async () => {
   } catch (error) {
     console.error('即時聊天室初始化失敗:', error)
     await showError('聊天室初始化失敗，請重新整理頁面')
-  }
-  
-  // 添加鍵盤快捷鍵支援 (僅開發模式)
-  if (process.dev) {
-    const handleKeyDown = (event) => {
-      // Ctrl+Shift+D: 切換除錯面板
-      if (event.ctrlKey && event.shiftKey && event.key === 'D') {
-        event.preventDefault()
-        toggleDebugPanel()
-        console.log('除錯面板已切換 (快捷鍵: Ctrl+Shift+D)')
-      }
-      
-      // Ctrl+Shift+F: 啟用 Firebase 除錯模式
-      if (event.ctrlKey && event.shiftKey && event.key === 'F') {
-        event.preventDefault()
-        enableFirebaseDebugMode()
-      }
-    }
-    
-    window.addEventListener('keydown', handleKeyDown)
-    
-    // 頁面卸載時移除事件監聽器
-    onBeforeUnmount(() => {
-      window.removeEventListener('keydown', handleKeyDown)
-    })
-  }
-  
-  // 開發模式下在控制台暴露除錯方法
-  if (process.dev && typeof window !== 'undefined') {
-    window.chatDebug = {
-      toggleDebugPanel,
-      enableFirebaseDebugMode,
-      disableFirebaseDebugMode,
-      realtimeChat,
-      currentMessages: currentMessages.value,
-      conversations: conversations.value,
-      connectionStatus: connectionStatus.value,
-      refreshDebugPanel: () => {
-        if (debugPanelRef.value) {
-          debugPanelRef.value.refreshHealthCheck()
-        }
-      }
-    }
-    console.log('除錯工具已載入至 window.chatDebug')
-    console.log('快捷鍵: Ctrl+Shift+D (切換除錯面板), Ctrl+Shift+F (啟用Firebase除錯)')
   }
 })
 
