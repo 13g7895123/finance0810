@@ -48,9 +48,11 @@ RUN set -eux; \
     chmod -R 775 bootstrap storage
 
 # Install PHP dependencies  
-# Handle potential lock file sync issues by installing packages first, then optimizing
-RUN composer install --no-interaction --optimize-autoloader || \
-    (composer update --no-interaction && composer install --no-dev --optimize-autoloader --no-interaction)
+# Handle potential lock file sync issues and platform requirements
+# Remove outdated lock file and update dependencies with platform requirement ignoring
+RUN rm -f composer.lock && \
+    composer update --no-interaction --ignore-platform-req=ext-grpc && \
+    composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-req=ext-grpc
 
 # Set permissions
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
