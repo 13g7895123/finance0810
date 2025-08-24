@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use Kreait\Firebase\Contract\Firestore;
+use Kreait\Firebase\Contract\Database;
 use App\Models\ChatConversation;
 use App\Models\Customer;
 use Carbon\Carbon;
@@ -10,29 +10,29 @@ use Illuminate\Support\Facades\Log;
 
 class FirebaseChatService
 {
-    protected $firestore;
+    protected $database;
 
-    public function __construct(?Firestore $firestore = null)
+    public function __construct(?Database $database = null)
     {
-        $this->firestore = $firestore;
+        $this->database = $database;
     }
 
     /**
-     * 檢查 Firestore 是否可用
+     * 檢查 Realtime Database 是否可用
      */
-    protected function isFirestoreAvailable(): bool
+    protected function isDatabaseAvailable(): bool
     {
-        return $this->firestore !== null;
+        return $this->database !== null;
     }
 
     /**
-     * 同步對話到 Firebase
+     * 同步對話到 Firebase Realtime Database
      */
     public function syncConversationToFirebase(ChatConversation $conversation)
     {
-        // 檢查 Firestore 是否可用
-        if (!$this->firestore) {
-            Log::channel('firebase')->warning('Firestore not available, skipping sync', [
+        // 檢查 Realtime Database 是否可用
+        if (!$this->database) {
+            Log::channel('firebase')->warning('Realtime Database not available, skipping sync', [
                 'conversation_id' => $conversation->id
             ]);
             return false;
@@ -41,7 +41,7 @@ class FirebaseChatService
         try {
             $customer = $conversation->customer;
             if (!$customer || !$conversation->line_user_id) {
-                Log::channel('firebase')::warning('Cannot sync conversation without customer or LINE user ID', [
+                Log::channel('firebase')->warning('Cannot sync conversation without customer or LINE user ID', [
                     'conversation_id' => $conversation->id
                 ]);
                 return false;
@@ -65,22 +65,21 @@ class FirebaseChatService
                 'updated' => $conversation->updated_at->toISOString()
             ];
 
-            // 更新或建立對話文檔
-            $this->firestore->collection('conversations')
-                ->document($conversation->line_user_id)
-                ->set($conversationData, ['merge' => true]);
+            // 更新或建立對話節點
+            $this->database->getReference('conversations/' . $conversation->line_user_id)
+                ->update($conversationData);
 
-            // 同步訊息到子集合
+            // 同步訊息到子節點
             $this->syncMessageToFirebase($conversation);
 
-            Log::channel('firebase')::info('Synced conversation to Firebase', [
+            Log::channel('firebase')->info('Synced conversation to Firebase', [
                 'conversation_id' => $conversation->id,
                 'line_user_id' => $conversation->line_user_id
             ]);
 
             return true;
         } catch (\Exception $e) {
-            Log::channel('firebase')::error('Failed to sync conversation to Firebase', [
+            Log::channel('firebase')->error('Failed to sync conversation to Firebase', [
                 'conversation_id' => $conversation->id,
                 'error' => $e->getMessage()
             ]);
@@ -89,13 +88,13 @@ class FirebaseChatService
     }
 
     /**
-     * 同步單一訊息到 Firebase
+     * 同步單一訊息到 Firebase Realtime Database
      */
     public function syncMessageToFirebase(ChatConversation $conversation)
     {
-        // 檢查 Firestore 是否可用
-        if (!$this->isFirestoreAvailable()) {
-            Log::channel('firebase')->warning('Firestore not available, skipping message sync', [
+        // 檢查 Realtime Database 是否可用
+        if (!$this->isDatabaseAvailable()) {
+            Log::channel('firebase')->warning('Realtime Database not available, skipping message sync', [
                 'conversation_id' => $conversation->id
             ]);
             return false;
@@ -116,15 +115,12 @@ class FirebaseChatService
                 'lineMessageId' => $conversation->metadata['message_id'] ?? null
             ];
 
-            $this->firestore->collection('conversations')
-                ->document($conversation->line_user_id)
-                ->collection('messages')
-                ->document('msg_' . $conversation->id)
+            $this->database->getReference('conversations/' . $conversation->line_user_id . '/messages/msg_' . $conversation->id)
                 ->set($messageData);
 
             return true;
         } catch (\Exception $e) {
-            Log::channel('firebase')::error('Failed to sync message to Firebase', [
+            Log::channel('firebase')->error('Failed to sync message to Firebase', [
                 'conversation_id' => $conversation->id,
                 'error' => $e->getMessage()
             ]);
@@ -133,36 +129,40 @@ class FirebaseChatService
     }
 
     /**
-     * 從 Firebase 讀取對話列表
+     * 從 Firebase Realtime Database 讀取對話列表
      */
     public function getConversationsFromFirebase($staffId = null)
     {
-        // 檢查 Firestore 是否可用
-        if (!$this->isFirestoreAvailable()) {
-            Log::channel('firebase')->warning('Firestore not available, returning empty conversations list');
+        // 檢查 Realtime Database 是否可用
+        if (!$this->isDatabaseAvailable()) {
+            Log::channel('firebase')->warning('Realtime Database not available, returning empty conversations list');
             return [];
         }
 
         try {
-            $query = $this->firestore->collection('conversations');
-            
-            if ($staffId) {
-                $query = $query->where('assignedStaffId', '=', $staffId);
-            }
-            
-            $documents = $query->orderBy('updated', 'DESC')->documents();
+            $conversationsRef = $this->database->getReference('conversations');
+            $snapshot = $conversationsRef->getSnapshot();
             
             $conversations = [];
-            foreach ($documents as $document) {
-                if ($document->exists()) {
-                    $data = $document->data();
-                    $conversations[] = array_merge(['firebaseId' => $document->id()], $data);
+            if ($snapshot->exists()) {
+                foreach ($snapshot->getValue() as $lineUserId => $conversationData) {
+                    // 如果指定 staffId，則過濾對話
+                    if ($staffId && isset($conversationData['assignedStaffId']) && $conversationData['assignedStaffId'] != $staffId) {
+                        continue;
+                    }
+                    
+                    $conversations[] = array_merge(['firebaseId' => $lineUserId], $conversationData);
                 }
+                
+                // 按更新時間排序
+                usort($conversations, function($a, $b) {
+                    return strtotime($b['updated'] ?? 0) - strtotime($a['updated'] ?? 0);
+                });
             }
             
             return $conversations;
         } catch (\Exception $e) {
-            Log::channel('firebase')::error('Failed to get conversations from Firebase', [
+            Log::channel('firebase')->error('Failed to get conversations from Firebase', [
                 'staff_id' => $staffId,
                 'error' => $e->getMessage()
             ]);
@@ -171,35 +171,35 @@ class FirebaseChatService
     }
 
     /**
-     * 從 Firebase 讀取訊息
+     * 從 Firebase Realtime Database 讀取訊息
      */
     public function getMessagesFromFirebase($lineUserId, $limit = 50)
     {
-        // 檢查 Firestore 是否可用
-        if (!$this->isFirestoreAvailable()) {
-            Log::channel('firebase')->warning('Firestore not available, returning empty messages list');
+        // 檢查 Realtime Database 是否可用
+        if (!$this->isDatabaseAvailable()) {
+            Log::channel('firebase')->warning('Realtime Database not available, returning empty messages list');
             return [];
         }
 
         try {
-            $messages = $this->firestore->collection('conversations')
-                ->document($lineUserId)
-                ->collection('messages')
-                ->orderBy('timestamp', 'ASC')
-                ->limit($limit)
-                ->documents();
-
+            $messagesRef = $this->database->getReference('conversations/' . $lineUserId . '/messages');
+            $snapshot = $messagesRef->orderByChild('timestamp')->limitToLast($limit)->getSnapshot();
+            
             $result = [];
-            foreach ($messages as $message) {
-                if ($message->exists()) {
-                    $data = $message->data();
-                    $result[] = array_merge(['firebaseId' => $message->id()], $data);
+            if ($snapshot->exists()) {
+                foreach ($snapshot->getValue() as $messageId => $messageData) {
+                    $result[] = array_merge(['firebaseId' => $messageId], $messageData);
                 }
+                
+                // 按時間戳記排序（升序）
+                usort($result, function($a, $b) {
+                    return strtotime($a['timestamp'] ?? 0) - strtotime($b['timestamp'] ?? 0);
+                });
             }
 
             return $result;
         } catch (\Exception $e) {
-            Log::channel('firebase')::error('Failed to get messages from Firebase', [
+            Log::channel('firebase')->error('Failed to get messages from Firebase', [
                 'line_user_id' => $lineUserId,
                 'error' => $e->getMessage()
             ]);
@@ -208,29 +208,30 @@ class FirebaseChatService
     }
 
     /**
-     * 更新 Firebase 中的已讀狀態
+     * 更新 Firebase Realtime Database 中的已讀狀態
      */
     public function markAsReadInFirebase($lineUserId, $isCustomer = true)
     {
-        // 檢查 Firestore 是否可用
-        if (!$this->isFirestoreAvailable()) {
-            Log::channel('firebase')->warning('Firestore not available, skipping mark as read');
+        // 檢查 Realtime Database 是否可用
+        if (!$this->isDatabaseAvailable()) {
+            Log::channel('firebase')->warning('Realtime Database not available, skipping mark as read');
             return false;
         }
 
         try {
-            $field = $isCustomer ? 'unreadCount.customer' : 'unreadCount.staff';
+            $field = $isCustomer ? 'unreadCount/customer' : 'unreadCount/staff';
             
-            $this->firestore->collection('conversations')
-                ->document($lineUserId)
-                ->update([
-                    [$field => 0],
-                    ['updated' => new \Google\Cloud\Core\Timestamp(new \DateTime())]
-                ]);
+            $updates = [
+                $field => 0,
+                'updated' => (new \DateTime())->format('c')
+            ];
+            
+            $this->database->getReference('conversations/' . $lineUserId)
+                ->update($updates);
 
             return true;
         } catch (\Exception $e) {
-            Log::channel('firebase')::error('Failed to mark as read in Firebase', [
+            Log::channel('firebase')->error('Failed to mark as read in Firebase', [
                 'line_user_id' => $lineUserId,
                 'is_customer' => $isCustomer,
                 'error' => $e->getMessage()
@@ -298,39 +299,28 @@ class FirebaseChatService
     }
 
     /**
-     * 刪除 Firebase 對話
+     * 刪除 Firebase Realtime Database 對話
      */
     public function deleteConversationFromFirebase($lineUserId)
     {
-        // 檢查 Firestore 是否可用
-        if (!$this->isFirestoreAvailable()) {
-            Log::channel('firebase')->warning('Firestore not available, skipping deletion');
+        // 檢查 Realtime Database 是否可用
+        if (!$this->isDatabaseAvailable()) {
+            Log::channel('firebase')->warning('Realtime Database not available, skipping deletion');
             return false;
         }
 
         try {
-            // 刪除訊息子集合
-            $messages = $this->firestore->collection('conversations')
-                ->document($lineUserId)
-                ->collection('messages')
-                ->documents();
+            // 刪除整個對話節點（包含所有訊息）
+            $this->database->getReference('conversations/' . $lineUserId)
+                ->remove();
 
-            foreach ($messages as $message) {
-                $message->reference()->delete();
-            }
-
-            // 刪除對話文檔
-            $this->firestore->collection('conversations')
-                ->document($lineUserId)
-                ->delete();
-
-            Log::channel('firebase')::info('Deleted conversation from Firebase', [
+            Log::channel('firebase')->info('Deleted conversation from Firebase', [
                 'line_user_id' => $lineUserId
             ]);
 
             return true;
         } catch (\Exception $e) {
-            Log::channel('firebase')::error('Failed to delete conversation from Firebase', [
+            Log::channel('firebase')->error('Failed to delete conversation from Firebase', [
                 'line_user_id' => $lineUserId,
                 'error' => $e->getMessage()
             ]);
@@ -339,21 +329,21 @@ class FirebaseChatService
     }
 
     /**
-     * 檢查 Firebase 連線狀態
+     * 檢查 Firebase Realtime Database 連線狀態
      */
     public function checkFirebaseConnection()
     {
-        // 檢查 Firestore 是否可用
-        if (!$this->isFirestoreAvailable()) {
+        // 檢查 Realtime Database 是否可用
+        if (!$this->isDatabaseAvailable()) {
             return false;
         }
 
         try {
-            // 嘗試讀取一個簡單的測試文檔
-            $this->firestore->collection('_health_check')->limit(1)->documents();
+            // 嘗試讀取根節點來測試連線
+            $this->database->getReference('.info/connected')->getSnapshot();
             return true;
         } catch (\Exception $e) {
-            Log::channel('firebase')::error('Firebase connection check failed', [
+            Log::channel('firebase')->error('Firebase connection check failed', [
                 'error' => $e->getMessage()
             ]);
             return false;

@@ -1,4 +1,7 @@
 {
+  "database": {
+    "rules": "database.rules.json"
+  },
   "firestore": {
     "database": "(default)",
     "location": "asia-east1",
@@ -14,6 +17,9 @@
     ]
   },
   "emulators": {
+    "database": {
+      "port": 9000
+    },
     "firestore": {
       "port": 8080
     },

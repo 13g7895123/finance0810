@@ -6,6 +6,7 @@ use Illuminate\Support\ServiceProvider;
 use Kreait\Firebase\Factory;
 use Kreait\Firebase\ServiceAccount;
 use Kreait\Firebase\Contract\Firestore;
+use Kreait\Firebase\Contract\Database;
 use Kreait\Firebase\Contract\Auth as FirebaseAuth;
 
 class FirebaseServiceProvider extends ServiceProvider
@@ -52,6 +53,16 @@ class FirebaseServiceProvider extends ServiceProvider
             }
         });
 
+        $this->app->singleton(Database::class, function ($app) {
+            try {
+                return $app['firebase.factory']->createDatabase();
+            } catch (\Exception $e) {
+                // 在開發環境或缺少依賴時，記錄錯誤但不中斷應用啟動
+                \Log::warning('Failed to create Firebase Database client: ' . $e->getMessage());
+                return null;
+            }
+        });
+
         $this->app->singleton(FirebaseAuth::class, function ($app) {
             try {
                 return $app['firebase.factory']->createAuth();
@@ -64,6 +75,7 @@ class FirebaseServiceProvider extends ServiceProvider
         
         // 別名綁定
         $this->app->alias(Firestore::class, 'firebase.firestore');
+        $this->app->alias(Database::class, 'firebase.database');
         $this->app->alias(FirebaseAuth::class, 'firebase.auth');
     }
 
@@ -79,6 +91,10 @@ class FirebaseServiceProvider extends ServiceProvider
 
         if (!config('services.firebase.credentials') || !file_exists(config('services.firebase.credentials'))) {
             \Log::warning('Firebase credentials file not found. Firebase services may not work properly.');
+        }
+
+        if (!config('services.firebase.database_url')) {
+            \Log::warning('Firebase Database URL not configured. Realtime Database services may not work properly.');
         }
     }
 }

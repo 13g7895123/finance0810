@@ -1,14 +1,16 @@
 import { ref, reactive, onUnmounted } from 'vue'
 import { 
-  collection, 
-  doc, 
+  ref as dbRef, 
+  child, 
   query, 
-  where, 
-  orderBy, 
-  limit, 
-  onSnapshot,
-  getDocs 
-} from 'firebase/firestore'
+  orderByChild, 
+  limitToLast, 
+  onValue, 
+  get,
+  equalTo,
+  orderByKey,
+  off
+} from 'firebase/database'
 
 export const useFirebaseChat = () => {
   const { $firebaseDB } = useNuxtApp()
@@ -29,7 +31,7 @@ export const useFirebaseChat = () => {
    */
   const initializeFirebase = () => {
     if (!$firebaseDB) {
-      console.warn('Firebase Firestore not available, falling back to API')
+      console.warn('Firebase Realtime Database not available, falling back to API')
       connectionStatus.value = 'error'
       return false
     }
@@ -37,7 +39,7 @@ export const useFirebaseChat = () => {
     connectionStatus.value = 'connecting'
     isFirebaseConnected.value = true
     connectionStatus.value = 'connected'
-    console.log('Firebase Firestore connection initialized')
+    console.log('Firebase Realtime Database connection initialized')
     return true
   }
 
@@ -48,62 +50,60 @@ export const useFirebaseChat = () => {
     if (!isFirebaseConnected.value) return
 
     try {
-      const conversationsRef = collection($firebaseDB, 'conversations')
-      let conversationsQuery = conversationsRef
-      
-      // 如果指定了 staffId，只監聽分配給該員工的對話
-      // staffId 為 null 表示 admin/executive 用戶，可以看所有對話
-      if (staffId) {
-        conversationsQuery = query(
-          conversationsRef,
-          where('assignedStaffId', '==', staffId),
-          orderBy('updated', 'desc')
-        )
-      } else {
-        conversationsQuery = query(
-          conversationsRef,
-          orderBy('updated', 'desc')
-        )
-      }
+      const conversationsRef = dbRef($firebaseDB, 'conversations')
 
-      const unsubscribe = onSnapshot(conversationsQuery, (querySnapshot) => {
+      const listener = onValue(conversationsRef, (snapshot) => {
         const conversationsList = []
         
-        querySnapshot.forEach((doc) => {
-          const data = doc.data()
-          conversationsList.push({
-            id: data.mysqlCustomerId || doc.id,
-            lineUserId: doc.id,
-            name: data.customerName || '客戶',
-            role: 'line_customer',
-            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.customerName || '客戶')}&background=00C300&color=fff`,
-            lastMessage: data.lastMessage?.content || '',
-            timestamp: data.lastMessage?.timestamp ? new Date(data.lastMessage.timestamp) : new Date(),
-            unreadCount: data.unreadCount?.staff || 0,
-            online: false,
-            isBot: true,
-            customerInfo: {
-              phone: data.customerPhone || '',
-              region: data.customerRegion || '',
-              source: data.customerSource || '',
-              status: data.status || ''
+        if (snapshot.exists()) {
+          const data = snapshot.val()
+          
+          Object.keys(data).forEach((lineUserId) => {
+            const conversationData = data[lineUserId]
+            
+            // 如果指定了 staffId，只顯示分配給該員工的對話
+            // staffId 為 null 表示 admin/executive 用戶，可以看所有對話
+            if (staffId && conversationData.assignedStaffId !== staffId) {
+              return
             }
+            
+            conversationsList.push({
+              id: conversationData.mysqlCustomerId || lineUserId,
+              lineUserId: lineUserId,
+              name: conversationData.customerName || '客戶',
+              role: 'line_customer',
+              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(conversationData.customerName || '客戶')}&background=00C300&color=fff`,
+              lastMessage: conversationData.lastMessage?.content || '',
+              timestamp: conversationData.lastMessage?.timestamp ? new Date(conversationData.lastMessage.timestamp) : new Date(),
+              unreadCount: conversationData.unreadCount?.staff || 0,
+              online: false,
+              isBot: true,
+              customerInfo: {
+                phone: conversationData.customerPhone || '',
+                region: conversationData.customerRegion || '',
+                source: conversationData.customerSource || '',
+                status: conversationData.status || ''
+              }
+            })
           })
-        })
+          
+          // 按更新時間排序
+          conversationsList.sort((a, b) => b.timestamp - a.timestamp)
+        }
         
         conversations.value = conversationsList
-        console.log('Firebase Firestore conversations updated:', conversationsList.length)
+        console.log('Firebase Realtime Database conversations updated:', conversationsList.length)
         
       }, (error) => {
-        console.error('Firebase Firestore conversations listener error:', error)
+        console.error('Firebase Realtime Database conversations listener error:', error)
         handleFirebaseError(error)
       })
 
       // 儲存監聽器引用以便清理
-      listeners.value.set('conversations', unsubscribe)
+      listeners.value.set('conversations', { ref: conversationsRef, listener })
       
     } catch (error) {
-      console.error('Failed to setup Firestore conversations listener:', error)
+      console.error('Failed to setup Realtime Database conversations listener:', error)
       handleFirebaseError(error)
     }
   }
@@ -115,44 +115,50 @@ export const useFirebaseChat = () => {
     if (!isFirebaseConnected.value || !lineUserId) return
 
     try {
-      const messagesRef = collection($firebaseDB, 'conversations', lineUserId, 'messages')
+      const messagesRef = dbRef($firebaseDB, `conversations/${lineUserId}/messages`)
       const messagesQuery = query(
         messagesRef, 
-        orderBy('timestamp', 'asc'),
-        limit(100)
+        orderByChild('timestamp')
       )
 
-      const unsubscribe = onSnapshot(messagesQuery, (querySnapshot) => {
+      const listener = onValue(messagesQuery, (snapshot) => {
         const messagesList = []
         
-        querySnapshot.forEach((doc) => {
-          const msg = doc.data()
-          messagesList.push({
-            id: doc.id,
-            senderId: msg.senderId === 'customer' ? parseInt(lineUserId) : 'system',
-            content: msg.content,
-            timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
-            type: msg.type || 'text',
-            isBot: msg.senderId !== 'customer',
-            isCustomer: msg.senderId === 'customer',
-            isAutoReply: msg.senderId !== 'customer',
-            metadata: msg.metadata || {}
+        if (snapshot.exists()) {
+          const data = snapshot.val()
+          
+          Object.keys(data).forEach((messageId) => {
+            const msg = data[messageId]
+            messagesList.push({
+              id: messageId,
+              senderId: msg.senderId === 'customer' ? parseInt(lineUserId) : 'system',
+              content: msg.content,
+              timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+              type: msg.type || 'text',
+              isBot: msg.senderId !== 'customer',
+              isCustomer: msg.senderId === 'customer',
+              isAutoReply: msg.senderId !== 'customer',
+              metadata: msg.metadata || {}
+            })
           })
-        })
+          
+          // 按時間戳記排序
+          messagesList.sort((a, b) => a.timestamp - b.timestamp)
+        }
         
         messages[lineUserId] = messagesList
-        console.log(`Firebase Firestore messages updated for ${lineUserId}:`, messagesList.length)
+        console.log(`Firebase Realtime Database messages updated for ${lineUserId}:`, messagesList.length)
         
       }, (error) => {
-        console.error(`Firebase Firestore messages listener error for ${lineUserId}:`, error)
+        console.error(`Firebase Realtime Database messages listener error for ${lineUserId}:`, error)
         handleFirebaseError(error)
       })
 
       // 儲存監聽器引用以便清理
-      listeners.value.set(`messages_${lineUserId}`, unsubscribe)
+      listeners.value.set(`messages_${lineUserId}`, { ref: messagesRef, listener })
       
     } catch (error) {
-      console.error(`Failed to setup Firestore messages listener for ${lineUserId}:`, error)
+      console.error(`Failed to setup Realtime Database messages listener for ${lineUserId}:`, error)
       handleFirebaseError(error)
     }
   }
@@ -162,10 +168,10 @@ export const useFirebaseChat = () => {
    */
   const unwatchMessages = (lineUserId) => {
     const listenerKey = `messages_${lineUserId}`
-    const unsubscribe = listeners.value.get(listenerKey)
+    const listenerData = listeners.value.get(listenerKey)
     
-    if (unsubscribe) {
-      unsubscribe() // Firebase v9+ 監聽器直接調用即可取消
+    if (listenerData) {
+      off(listenerData.ref, 'value', listenerData.listener)
       listeners.value.delete(listenerKey)
       console.log(`Stopped watching messages for ${lineUserId}`)
     }
@@ -186,9 +192,9 @@ export const useFirebaseChat = () => {
    * 清理所有監聽器
    */
   const cleanup = () => {
-    listeners.value.forEach((unsubscribe, key) => {
+    listeners.value.forEach((listenerData, key) => {
       try {
-        unsubscribe()
+        off(listenerData.ref, 'value', listenerData.listener)
         console.log(`Cleaned up Firebase listener: ${key}`)
       } catch (error) {
         console.error(`Error cleaning up Firebase listener ${key}:`, error)

@@ -1,5 +1,5 @@
 import { ref, reactive } from 'vue'
-import { doc, collection, onSnapshot } from 'firebase/firestore'
+import { ref as dbRef, onValue, off } from 'firebase/database'
 
 export const useFirebaseStaffStats = () => {
   const { $firebaseDB } = useNuxtApp()
@@ -20,7 +20,7 @@ export const useFirebaseStaffStats = () => {
    */
   const initialize = () => {
     if (!$firebaseDB) {
-      console.warn('Firebase Firestore not available for staff stats')
+      console.warn('Firebase Realtime Database not available for staff stats')
       connectionStatus.value = 'error'
       return false
     }
@@ -28,7 +28,7 @@ export const useFirebaseStaffStats = () => {
     connectionStatus.value = 'connecting'
     isConnected.value = true
     connectionStatus.value = 'connected'
-    console.log('Firebase Firestore staff stats connection initialized')
+    console.log('Firebase Realtime Database staff stats connection initialized')
     return true
   }
 
@@ -39,17 +39,17 @@ export const useFirebaseStaffStats = () => {
     if (!isConnected.value || !staffId) return
 
     try {
-      const statsRef = doc($firebaseDB, 'staff_unread_stats', staffId.toString())
+      const statsRef = dbRef($firebaseDB, `staff_unread_stats/${staffId}`)
 
-      const unsubscribe = onSnapshot(statsRef, (doc) => {
-        if (doc.exists()) {
-          const data = doc.data()
+      const listener = onValue(statsRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.val()
           staffStats.value = {
             staffId: data.staffId,
             totalUnread: data.totalUnread || 0,
             activeConversations: data.activeConversations || 0,
             conversationDetails: data.conversationDetails || [],
-            lastUpdated: data.updated ? data.updated.toDate() : new Date(),
+            lastUpdated: data.updated ? new Date(data.updated) : new Date(),
             generatedAt: data.generatedAt || new Date().toISOString()
           }
           console.log(`Staff stats updated for ${staffId}:`, staffStats.value)
@@ -58,15 +58,15 @@ export const useFirebaseStaffStats = () => {
           console.log(`No staff stats found for ${staffId}`)
         }
       }, (error) => {
-        console.error(`Firebase Firestore staff stats listener error for ${staffId}:`, error)
+        console.error(`Firebase Realtime Database staff stats listener error for ${staffId}:`, error)
         handleFirebaseError(error)
       })
 
       // 儲存監聽器引用
-      listeners.set(`staff_stats_${staffId}`, unsubscribe)
+      listeners.set(`staff_stats_${staffId}`, { ref: statsRef, listener })
       
     } catch (error) {
-      console.error(`Failed to setup Firestore staff stats listener for ${staffId}:`, error)
+      console.error(`Failed to setup Realtime Database staff stats listener for ${staffId}:`, error)
       handleFirebaseError(error)
     }
   }
@@ -78,17 +78,17 @@ export const useFirebaseStaffStats = () => {
     if (!isConnected.value || !canViewAllChats()) return
 
     try {
-      const overviewRef = doc($firebaseDB, 'admin_staff_overview', 'all_staff_stats')
+      const overviewRef = dbRef($firebaseDB, 'admin_staff_overview/all_staff_stats')
 
-      const unsubscribe = onSnapshot(overviewRef, (doc) => {
-        if (doc.exists()) {
-          const data = doc.data()
+      const listener = onValue(overviewRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.val()
           allStaffStats.value = {
             totalStaff: data.totalStaff || 0,
             totalUnreadMessages: data.totalUnreadMessages || 0,
             totalActiveConversations: data.totalActiveConversations || 0,
             staffDetails: data.staffDetails || [],
-            lastUpdated: data.lastUpdated ? data.lastUpdated.toDate() : new Date(),
+            lastUpdated: data.lastUpdated ? new Date(data.lastUpdated) : new Date(),
             generatedAt: data.generatedAt || new Date().toISOString()
           }
           console.log('All staff stats updated:', allStaffStats.value)
@@ -97,15 +97,15 @@ export const useFirebaseStaffStats = () => {
           console.log('No admin staff overview found')
         }
       }, (error) => {
-        console.error('Firebase Firestore all staff stats listener error:', error)
+        console.error('Firebase Realtime Database all staff stats listener error:', error)
         handleFirebaseError(error)
       })
 
       // 儲存監聽器引用
-      listeners.set('all_staff_stats', unsubscribe)
+      listeners.set('all_staff_stats', { ref: overviewRef, listener })
       
     } catch (error) {
-      console.error('Failed to setup Firestore all staff stats listener:', error)
+      console.error('Failed to setup Realtime Database all staff stats listener:', error)
       handleFirebaseError(error)
     }
   }
@@ -136,9 +136,9 @@ export const useFirebaseStaffStats = () => {
    * 停止監聽特定統計
    */
   const stopStatsMonitoring = (key) => {
-    const unsubscribe = listeners.get(key)
-    if (unsubscribe) {
-      unsubscribe()
+    const listenerData = listeners.get(key)
+    if (listenerData) {
+      off(listenerData.ref, 'value', listenerData.listener)
       listeners.delete(key)
       console.log(`Stopped monitoring stats: ${key}`)
     }
@@ -190,9 +190,9 @@ export const useFirebaseStaffStats = () => {
    * 清理所有監聽器
    */
   const cleanup = () => {
-    listeners.forEach((unsubscribe, key) => {
+    listeners.forEach((listenerData, key) => {
       try {
-        unsubscribe()
+        off(listenerData.ref, 'value', listenerData.listener)
         console.log(`Cleaned up Firebase stats listener: ${key}`)
       } catch (error) {
         console.error(`Error cleaning up Firebase stats listener ${key}:`, error)
