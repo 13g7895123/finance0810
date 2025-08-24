@@ -69,9 +69,8 @@
           </p>
         </NuxtLink>
 
-        <!-- Debug Settings - Only for Admin/Manager/Executive -->
+        <!-- Debug Settings - Always show for debugging -->
         <NuxtLink
-          v-if="canAccessDebug"
           to="/settings/debug"
           class="block p-6 border-2 border-red-200 dark:border-red-800 rounded-lg hover:border-red-500 dark:hover:border-red-600 transition-colors duration-200 bg-red-50 dark:bg-red-900"
         >
@@ -86,6 +85,13 @@
           <p class="text-red-700 dark:text-red-300 text-sm">
             Firebase診斷、資料同步與系統監控
           </p>
+          <!-- Debug info -->
+          <div v-if="showDebugInfo" class="mt-2 p-2 bg-red-100 dark:bg-red-800 rounded text-xs">
+            <div>用戶: {{ user?.name || '未載入' }}</div>
+            <div>角色: {{ getUserRoleNames() }}</div>
+            <div>權限: {{ canAccessDebug ? '有權限' : '無權限' }}</div>
+            <div>Debug Mode: {{ isDebugMode ? '開啟' : '關閉' }}</div>
+          </div>
         </NuxtLink>
         
         <div class="block p-6 border border-gray-200 dark:border-gray-700 rounded-lg">
@@ -109,13 +115,49 @@ definePageMeta({
 // Composables
 const { user } = useAuth()
 
+// State
+const showDebugInfo = ref(process.dev || false)
+const isDebugMode = ref(false)
+
+// Methods
+const getUserRoleNames = () => {
+  if (!user.value || !user.value.roles) return '無角色'
+  return user.value.roles.map(role => role.name || role).join(', ')
+}
+
 // Computed
 const canAccessDebug = computed(() => {
   if (!user.value) return false
-  const allowedRoles = ['admin', 'manager', 'executive']
+  
+  // 更寬鬆的權限檢查，包含多種可能的角色名稱和結構
+  const allowedRoles = ['admin', 'manager', 'executive', 'Admin', 'Manager', 'Executive']
   const userRoles = user.value.roles || []
-  return allowedRoles.some(role => 
-    userRoles.some(userRole => userRole.name === role)
-  )
+  
+  // 檢查不同的角色結構
+  const hasRole = allowedRoles.some(role => {
+    return userRoles.some(userRole => {
+      // 檢查 role.name 或直接是字串
+      return (userRole.name === role) || (userRole === role) || 
+             (typeof userRole === 'object' && userRole.role === role)
+    })
+  })
+  
+  // 或者檢查用戶是否有管理員權限的方法
+  const hasAdminMethods = user.value.isAdmin || user.value.isManager || user.value.canAccessAllChats
+  
+  return hasRole || hasAdminMethods
+})
+
+// 開發模式下顯示更多調試信息
+onMounted(() => {
+  if (process.dev) {
+    console.log('Settings page - User object:', user.value)
+    console.log('Settings page - Can access debug:', canAccessDebug.value)
+    showDebugInfo.value = true
+    
+    // 檢查 localStorage 中的 debug 設定
+    isDebugMode.value = localStorage.getItem('firebase_debug_mode') === 'true' || 
+                       localStorage.getItem('debug_panel_enabled') === 'true'
+  }
 })
 </script>

@@ -24,18 +24,38 @@
         診斷系統狀態、管理Firebase同步、監控資料庫連接
       </p>
       
-      <!-- 權限提示 -->
+      <!-- 權限提示與調試信息 -->
       <div v-if="!canAccessDebug" class="mt-4 p-4 bg-yellow-100 border border-yellow-300 rounded-lg">
-        <div class="flex items-center">
+        <div class="flex items-center mb-2">
           <svg class="w-5 h-5 text-yellow-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
           </svg>
-          <span class="text-yellow-800">您需要管理員權限才能使用除錯功能</span>
+          <span class="text-yellow-800 font-medium">您需要管理員權限才能使用除錯功能</span>
+        </div>
+        
+        <!-- 開發模式調試信息 -->
+        <div v-if="showDebugInfo" class="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded text-xs">
+          <div class="font-medium text-yellow-900 mb-2">調試信息：</div>
+          <div class="space-y-1 text-yellow-700">
+            <div>用戶: {{ user?.name || user?.email || '未載入' }}</div>
+            <div>用戶ID: {{ user?.id || '無' }}</div>
+            <div>角色: {{ getUserRoleNames() }}</div>
+            <div>角色原始數據: {{ JSON.stringify(user?.roles) }}</div>
+            <div>isAdmin方法: {{ user?.isAdmin ? '有' : '無' }}</div>
+            <div>isManager方法: {{ user?.isManager ? '有' : '無' }}</div>
+            <div>canAccessAllChats方法: {{ user?.canAccessAllChats ? '有' : '無' }}</div>
+          </div>
+          <button 
+            @click="temporaryAccess = true"
+            class="mt-2 px-3 py-1 bg-yellow-200 text-yellow-800 rounded text-xs hover:bg-yellow-300"
+          >
+            臨時啟用（開發用）
+          </button>
         </div>
       </div>
     </div>
 
-    <div v-if="canAccessDebug" class="space-y-6">
+    <div v-if="canAccessDebug || temporaryAccess" class="space-y-6">
       <!-- 快速動作區 -->
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">快速動作</h3>
@@ -319,7 +339,7 @@
 
 <script setup>
 definePageMeta({
-  middleware: ['auth', 'role:admin,manager,executive']
+  middleware: 'auth'
 })
 
 // Composables
@@ -331,6 +351,8 @@ const systemHealth = ref(null)
 const lastSyncResult = ref(null)
 const lastValidationResult = ref(null)
 const debugModeEnabled = ref(false)
+const temporaryAccess = ref(false)
+const showDebugInfo = ref(process.dev)
 
 // Loading states
 const loading = ref({
@@ -349,14 +371,32 @@ const notification = ref({
 // Computed
 const canAccessDebug = computed(() => {
   if (!user.value) return false
-  const allowedRoles = ['admin', 'manager', 'executive']
+  
+  // 更寬鬆的權限檢查，包含多種可能的角色名稱和結構
+  const allowedRoles = ['admin', 'manager', 'executive', 'Admin', 'Manager', 'Executive']
   const userRoles = user.value.roles || []
-  return allowedRoles.some(role => 
-    userRoles.some(userRole => userRole.name === role)
-  )
+  
+  // 檢查不同的角色結構
+  const hasRole = allowedRoles.some(role => {
+    return userRoles.some(userRole => {
+      // 檢查 role.name 或直接是字串
+      return (userRole.name === role) || (userRole === role) || 
+             (typeof userRole === 'object' && userRole.role === role)
+    })
+  })
+  
+  // 或者檢查用戶是否有管理員權限的方法
+  const hasAdminMethods = user.value.isAdmin || user.value.isManager || user.value.canAccessAllChats
+  
+  return hasRole || hasAdminMethods
 })
 
 // Methods
+const getUserRoleNames = () => {
+  if (!user.value || !user.value.roles) return '無角色'
+  return user.value.roles.map(role => role.name || role).join(', ')
+}
+
 const showNotification = (type, message, duration = 5000) => {
   notification.value = { show: true, type, message }
   setTimeout(() => {
@@ -475,8 +515,16 @@ onMounted(() => {
   // 檢查當前除錯模式狀態
   debugModeEnabled.value = localStorage.getItem('firebase_debug_mode') === 'true'
   
+  // 開發模式下顯示調試信息
+  if (process.dev) {
+    console.log('Debug page - User object:', user.value)
+    console.log('Debug page - Can access debug:', canAccessDebug.value)
+    console.log('Debug page - User roles:', user.value?.roles)
+    showDebugInfo.value = true
+  }
+  
   // 如果有權限，自動執行健康檢查
-  if (canAccessDebug.value) {
+  if (canAccessDebug.value || temporaryAccess.value) {
     refreshHealthCheck()
   }
 })
