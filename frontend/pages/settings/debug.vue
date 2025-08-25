@@ -63,7 +63,7 @@
           <button
             @click="refreshHealthCheck"
             :disabled="loading.healthCheck"
-            class="flex flex-col items-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 transition-colors disabled:opacity-50"
+            class="flex flex-col items-center p-4 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 hover:border-blue-500 dark:hover:border-blue-400 transition-colors disabled:opacity-50"
           >
             <svg v-if="loading.healthCheck" class="animate-spin w-8 h-8 text-blue-500 mb-2" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -80,7 +80,7 @@
           <button
             @click="syncToFirebase"
             :disabled="loading.sync"
-            class="flex flex-col items-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-green-500 dark:hover:border-green-400 transition-colors disabled:opacity-50"
+            class="flex flex-col items-center p-4 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 hover:border-green-500 dark:hover:border-green-400 transition-colors disabled:opacity-50"
           >
             <svg v-if="loading.sync" class="animate-spin w-8 h-8 text-green-500 mb-2" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -97,7 +97,7 @@
           <button
             @click="validateData"
             :disabled="loading.validation"
-            class="flex flex-col items-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-yellow-500 dark:hover:border-yellow-400 transition-colors disabled:opacity-50"
+            class="flex flex-col items-center p-4 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 hover:border-yellow-500 dark:hover:border-yellow-400 transition-colors disabled:opacity-50"
           >
             <svg v-if="loading.validation" class="animate-spin w-8 h-8 text-yellow-500 mb-2" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -113,7 +113,7 @@
 
           <button
             @click="enableDebugMode"
-            class="flex flex-col items-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-purple-500 dark:hover:border-purple-400 transition-colors"
+            class="flex flex-col items-center p-4 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 hover:border-purple-500 dark:hover:border-purple-400 transition-colors"
           >
             <svg class="w-8 h-8 text-purple-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
@@ -545,6 +545,7 @@ const refreshHealthCheck = async () => {
     const { data: response, error } = await get('/debug/system/health')
     
     if (error) {
+      console.error('API Error:', error)
       throw new Error(error.message || '健康檢查失敗')
     }
     
@@ -556,8 +557,24 @@ const refreshHealthCheck = async () => {
     }
   } catch (error) {
     console.error('健康檢查失敗:', error)
-    const errorMessage = error.response?.data?.error || error.message || '未知錯誤'
-    const errorDetailsData = error.response?.data?.error_details || null
+    
+    let errorMessage = '未知錯誤'
+    let errorDetailsData = null
+    
+    if (error.response) {
+      // API 回應錯誤
+      errorMessage = error.response.data?.error || error.response.statusText || '服務器錯誤'
+      errorDetailsData = error.response.data?.error_details || null
+      console.error('API Error Response:', error.response.data)
+    } else if (error.request) {
+      // 請求失敗（網路問題等）
+      errorMessage = '無法連接到服務器，請檢查網路連接'
+      console.error('Request Error:', error.request)
+    } else {
+      // 其他錯誤
+      errorMessage = error.message || '請求處理失敗'
+      console.error('General Error:', error.message)
+    }
     
     showNotification('error', '健康檢查失敗：' + errorMessage)
     if (errorDetailsData) {
@@ -571,12 +588,13 @@ const refreshHealthCheck = async () => {
 const syncToFirebase = async () => {
   loading.value.sync = true
   try {
-    const { data: response, error } = await post('/chat/batch-sync', {
+    const { data: response, error } = await post('/debug/chat/batch-sync', {
       limit: 100,
       force: false
     })
     
     if (error) {
+      console.error('Sync API Error:', error)
       throw new Error(error.message || '同步失敗')
     }
     
@@ -593,8 +611,21 @@ const syncToFirebase = async () => {
     }
   } catch (error) {
     console.error('Firebase 同步失敗:', error)
-    const errorMessage = error.response?.data?.error || error.message || '未知錯誤'
-    const errorDetailsData = error.response?.data?.error_details || null
+    
+    let errorMessage = '未知錯誤'
+    let errorDetailsData = null
+    
+    if (error.response) {
+      errorMessage = error.response.data?.error || error.response.statusText || '服務器錯誤'
+      errorDetailsData = error.response.data?.error_details || null
+      console.error('Sync Error Response:', error.response.data)
+    } else if (error.request) {
+      errorMessage = '無法連接到服務器，請檢查網路連接'
+      console.error('Sync Request Error:', error.request)
+    } else {
+      errorMessage = error.message || '請求處理失敗'
+      console.error('Sync General Error:', error.message)
+    }
     
     showNotification('error', 'Firebase 同步失敗：' + errorMessage)
     if (errorDetailsData) {
@@ -608,11 +639,12 @@ const syncToFirebase = async () => {
 const validateData = async () => {
   loading.value.validation = true
   try {
-    const { data: response, error } = await post('/chat/validate-integrity', {
+    const { data: response, error } = await post('/debug/chat/validate-integrity', {
       check_all: true
     })
     
     if (error) {
+      console.error('Validation API Error:', error)
       throw new Error(error.message || '驗證失敗')
     }
     
@@ -626,8 +658,21 @@ const validateData = async () => {
     }
   } catch (error) {
     console.error('資料驗證失敗:', error)
-    const errorMessage = error.response?.data?.error || error.message || '未知錯誤'
-    const errorDetailsData = error.response?.data?.error_details || null
+    
+    let errorMessage = '未知錯誤'
+    let errorDetailsData = null
+    
+    if (error.response) {
+      errorMessage = error.response.data?.error || error.response.statusText || '服務器錯誤'
+      errorDetailsData = error.response.data?.error_details || null
+      console.error('Validation Error Response:', error.response.data)
+    } else if (error.request) {
+      errorMessage = '無法連接到服務器，請檢查網路連接'
+      console.error('Validation Request Error:', error.request)
+    } else {
+      errorMessage = error.message || '請求處理失敗'
+      console.error('Validation General Error:', error.message)
+    }
     
     showNotification('error', '資料驗證失敗：' + errorMessage)
     if (errorDetailsData) {

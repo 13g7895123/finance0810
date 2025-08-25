@@ -55,10 +55,33 @@ class FirebaseServiceProvider extends ServiceProvider
 
         $this->app->singleton(Database::class, function ($app) {
             try {
+                // 檢查配置是否完整
+                $projectId = config('services.firebase.project_id');
+                $databaseUrl = config('services.firebase.database_url');
+                $credentialsPath = config('services.firebase.credentials');
+                
+                if (empty($projectId)) {
+                    throw new \RuntimeException('Firebase Project ID is not configured');
+                }
+                
+                if (empty($databaseUrl)) {
+                    throw new \RuntimeException('Firebase Database URL is not configured');
+                }
+                
+                if (empty($credentialsPath) || !file_exists($credentialsPath)) {
+                    throw new \RuntimeException('Firebase credentials file not found: ' . $credentialsPath);
+                }
+                
                 $database = $app['firebase.factory']->createDatabase();
                 if ($database === null) {
-                    throw new \RuntimeException('Firebase Database instance is null');
+                    throw new \RuntimeException('Firebase Database instance is null - check your configuration');
                 }
+                
+                \Log::info('Firebase Database successfully initialized', [
+                    'project_id' => $projectId,
+                    'database_url' => $databaseUrl,
+                ]);
+                
                 return $database;
             } catch (\Exception $e) {
                 // 記錄詳細錯誤信息
@@ -68,7 +91,8 @@ class FirebaseServiceProvider extends ServiceProvider
                     'config' => [
                         'project_id' => config('services.firebase.project_id'),
                         'database_url' => config('services.firebase.database_url'),
-                        'credentials_exist' => file_exists(config('services.firebase.credentials') ?: '')
+                        'credentials_exist' => file_exists(config('services.firebase.credentials') ?: ''),
+                        'credentials_path' => config('services.firebase.credentials'),
                     ]
                 ]);
                 
@@ -87,10 +111,15 @@ class FirebaseServiceProvider extends ServiceProvider
             }
         });
         
-        // 直接建立別名 - 服務已經註冊，無論成功或失敗都建立別名
+        // 建立服務別名
         $this->app->alias(Firestore::class, 'firebase.firestore');
         $this->app->alias(Database::class, 'firebase.database');
         $this->app->alias(FirebaseAuth::class, 'firebase.auth');
+        
+        // 確保服務能夠正確被解析
+        $this->app->bind('firebase.database', Database::class);
+        $this->app->bind('firebase.firestore', Firestore::class);
+        $this->app->bind('firebase.auth', FirebaseAuth::class);
     }
 
     /**
