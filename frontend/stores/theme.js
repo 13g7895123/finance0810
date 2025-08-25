@@ -1,6 +1,6 @@
 export const useThemeStore = defineStore('theme', () => {
   const primaryColor = ref('#6366f1')
-  const isDark = ref(false)
+  const isDark = ref(false) // 預設為亮色模式
   
   // Generate color variations from primary color
   const generateColorVariations = (baseColor) => {
@@ -65,6 +65,12 @@ export const useThemeStore = defineStore('theme', () => {
   // Initialize theme on client side
   const initializeTheme = () => {
     if (process.client) {
+      // 強制設定為亮色模式
+      isDark.value = false
+      document.documentElement.classList.remove('dark')
+      document.documentElement.classList.add('light')
+      localStorage.setItem('admin-template-theme-mode', 'light')
+      
       const savedColor = localStorage.getItem('admin-template-primary-color')
       if (savedColor) {
         setPrimaryColor(savedColor)

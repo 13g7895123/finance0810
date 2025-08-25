@@ -5,6 +5,12 @@ export default defineNuxtConfig({
     '@nuxt/ui',
     '@pinia/nuxt'
   ],
+  ui: {
+    global: true,
+    colorMode: {
+      preference: 'light'
+    }
+  },
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
