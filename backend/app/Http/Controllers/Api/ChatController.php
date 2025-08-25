@@ -2684,11 +2684,17 @@ class ChatController extends BaseApiController
             }
 
             // 檢查除錯模式
-            if (!config('app.debug') && !env('FIREBASE_DEBUG_MODE', false)) {
+            if (!$this->isDebugEnabled()) {
                 return response()->json([
                     'success' => false,
                     'error' => '除錯模式未啟用',
-                    'message' => '此功能僅在除錯模式下可用'
+                    'message' => '此功能僅在除錯模式下可用',
+                    'debug_info' => [
+                        'app_debug' => config('app.debug'),
+                        'firebase_debug_mode' => config('services.firebase.debug_mode', false),
+                        'env_firebase_debug' => env('FIREBASE_DEBUG_MODE', false),
+                        'combined_debug_mode' => $this->isDebugEnabled()
+                    ]
                 ], 403);
             }
 
@@ -2799,10 +2805,17 @@ class ChatController extends BaseApiController
             }
 
             // 檢查除錯模式
-            if (!config('app.debug') && !env('FIREBASE_DEBUG_MODE', false)) {
+            if (!$this->isDebugEnabled()) {
                 return response()->json([
                     'success' => false,
-                    'error' => '除錯模式未啟用'
+                    'error' => '除錯模式未啟用',
+                    'message' => '此功能僅在除錯模式下可用',
+                    'debug_info' => [
+                        'app_debug' => config('app.debug'),
+                        'firebase_debug_mode' => config('services.firebase.debug_mode', false),
+                        'env_firebase_debug' => env('FIREBASE_DEBUG_MODE', false),
+                        'combined_debug_mode' => $this->isDebugEnabled()
+                    ]
                 ], 403);
             }
 
@@ -2891,10 +2904,17 @@ class ChatController extends BaseApiController
             }
 
             // 檢查除錯模式
-            if (!config('app.debug') && !env('FIREBASE_DEBUG_MODE', false)) {
+            if (!$this->isDebugEnabled()) {
                 return response()->json([
                     'success' => false,
-                    'error' => '除錯模式未啟用'
+                    'error' => '除錯模式未啟用',
+                    'message' => '此功能僅在除錯模式下可用',
+                    'debug_info' => [
+                        'app_debug' => config('app.debug'),
+                        'firebase_debug_mode' => config('services.firebase.debug_mode', false),
+                        'env_firebase_debug' => env('FIREBASE_DEBUG_MODE', false),
+                        'combined_debug_mode' => $this->isDebugEnabled()
+                    ]
                 ], 403);
             }
 
@@ -3093,5 +3113,15 @@ class ChatController extends BaseApiController
 
             return $this->errorResponse('權限測試失敗', $e);
         }
+    }
+
+    /**
+     * 檢查是否啟用除錯模式
+     */
+    protected function isDebugEnabled(): bool
+    {
+        return config('app.debug') || 
+               config('services.firebase.debug_mode', false) || 
+               env('FIREBASE_DEBUG_MODE', false);
     }
 }
