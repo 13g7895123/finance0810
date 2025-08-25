@@ -2684,7 +2684,7 @@ class ChatController extends BaseApiController
             }
 
             // 檢查除錯模式
-            if (!config('app.debug') || !env('FIREBASE_DEBUG_MODE', false)) {
+            if (!config('app.debug') && !env('FIREBASE_DEBUG_MODE', false)) {
                 return response()->json([
                     'success' => false,
                     'error' => '除錯模式未啟用',
@@ -2799,7 +2799,7 @@ class ChatController extends BaseApiController
             }
 
             // 檢查除錯模式
-            if (!config('app.debug') || !env('FIREBASE_DEBUG_MODE', false)) {
+            if (!config('app.debug') && !env('FIREBASE_DEBUG_MODE', false)) {
                 return response()->json([
                     'success' => false,
                     'error' => '除錯模式未啟用'
@@ -2891,7 +2891,7 @@ class ChatController extends BaseApiController
             }
 
             // 檢查除錯模式
-            if (!config('app.debug') || !env('FIREBASE_DEBUG_MODE', false)) {
+            if (!config('app.debug') && !env('FIREBASE_DEBUG_MODE', false)) {
                 return response()->json([
                     'success' => false,
                     'error' => '除錯模式未啟用'

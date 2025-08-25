@@ -30,22 +30,32 @@ class DebugController extends Controller
      */
     public function systemHealthCheck(): JsonResponse
     {
-        // 檢查是否啟用除錯模式
-        if (!$this->isDebugEnabled()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Debug mode disabled'
-            ], 403);
-        }
-
         try {
             $health = [
                 'timestamp' => now()->toISOString(),
+                'overall_status' => 'healthy',
+                'debug_mode_enabled' => $this->isDebugEnabled(),
+                'firebase_connection' => false,
+                'configuration' => [
+                    'project_id' => !empty(config('services.firebase.project_id')),
+                    'database_url' => !empty(config('services.firebase.database_url')),
+                    'credentials_file_exists' => $this->hasFirebaseServiceAccount(),
+                ],
                 'firebase' => $this->checkFirebaseHealth(),
                 'mysql' => $this->checkMySQLHealth(),
+                'database_connectivity' => $this->checkDatabaseConnectivity(),
                 'sync' => $this->checkSyncHealth(),
                 'permissions' => $this->checkPermissions(),
             ];
+
+            // 設定整體健康狀態
+            $health['firebase_connection'] = $health['firebase']['connection'] ?? false;
+            
+            if (!$health['firebase_connection'] || !$health['mysql']['connection']) {
+                $health['overall_status'] = 'critical';
+            } elseif ($health['mysql']['conversations_count'] === 0) {
+                $health['overall_status'] = 'warning';
+            }
 
             return response()->json([
                 'success' => true,
@@ -236,11 +246,45 @@ class DebugController extends Controller
      */
     protected function checkFirebaseHealth(): array
     {
-        return [
-            'connection' => $this->firebaseChatService->checkFirebaseConnection(),
-            'config_valid' => $this->isFirebaseConfigValid(),
-            'service_account_exists' => $this->hasFirebaseServiceAccount(),
-        ];
+        try {
+            $connectionStatus = false;
+            $errorMessage = null;
+
+            try {
+                $connectionStatus = $this->firebaseChatService->checkFirebaseConnection();
+            } catch (\Exception $e) {
+                $errorMessage = $e->getMessage();
+                Log::error('Firebase connection check failed', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+            }
+
+            $serviceAccountExists = $this->hasFirebaseServiceAccount();
+            $configValid = $this->isFirebaseConfigValid();
+
+            return [
+                'connection' => $connectionStatus,
+                'config_valid' => $configValid,
+                'service_account_exists' => $serviceAccountExists,
+                'error_message' => $errorMessage,
+                'project_id_set' => !empty(config('services.firebase.project_id')),
+                'database_url_set' => !empty(config('services.firebase.database_url')),
+                'credentials_path' => config('services.firebase.credentials'),
+                'debug_mode_enabled' => $this->isDebugEnabled(),
+            ];
+        } catch (\Exception $e) {
+            return [
+                'connection' => false,
+                'config_valid' => false,
+                'service_account_exists' => false,
+                'error_message' => 'Health check failed: ' . $e->getMessage(),
+                'project_id_set' => false,
+                'database_url_set' => false,
+                'credentials_path' => null,
+                'debug_mode_enabled' => false,
+            ];
+        }
     }
 
     /**
@@ -332,8 +376,9 @@ class DebugController extends Controller
      */
     protected function isDebugEnabled(): bool
     {
-        return config('app.debug') && 
-               (config('firebase.debug_mode', false) || env('FIREBASE_DEBUG_MODE', false));
+        return config('app.debug') || 
+               config('services.firebase.debug_mode', false) || 
+               env('FIREBASE_DEBUG_MODE', false);
     }
 
     /**
@@ -405,6 +450,37 @@ class DebugController extends Controller
             'connection_status' => $this->firebaseChatService->checkFirebaseConnection(),
             'last_sync_attempt' => 'N/A',
         ];
+    }
+
+    /**
+     * 檢查數據庫連接性
+     */
+    protected function checkDatabaseConnectivity(): array
+    {
+        try {
+            // 檢查 Firebase 中是否有數據
+            $firebaseDataCount = 0;
+            
+            if ($this->firebaseChatService->checkFirebaseConnection()) {
+                try {
+                    // 這裡可以添加實際的 Firebase 數據計數邏輯
+                    $firebaseDataCount = 0; // 暫時設為 0
+                } catch (\Exception $e) {
+                    Log::error('Firebase data count failed', ['error' => $e->getMessage()]);
+                }
+            }
+            
+            return [
+                'firebase_accessible' => $this->firebaseChatService->checkFirebaseConnection(),
+                'data_count' => $firebaseDataCount,
+            ];
+        } catch (\Exception $e) {
+            return [
+                'firebase_accessible' => false,
+                'data_count' => 0,
+                'error' => $e->getMessage()
+            ];
+        }
     }
 
     /**
