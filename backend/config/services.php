@@ -42,7 +42,7 @@ return [
         'realtime_enabled' => env('FIREBASE_REALTIME_ENABLED', true),
         
         // Debug & monitoring
-        'debug_mode' => env('FIREBASE_DEBUG_MODE', false),
+        'debug_mode' => env('FIREBASE_DEBUG_MODE', true),
         'log_level' => env('FIREBASE_LOG_LEVEL', 'info'),
         'batch_sync_limit' => env('FIREBASE_BATCH_SYNC_LIMIT', 100),
         'health_check_interval' => env('FIREBASE_HEALTH_CHECK_INTERVAL', 300),

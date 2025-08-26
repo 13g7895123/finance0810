@@ -33,7 +33,7 @@ return [
     'api' => [
         'enabled' => env('DEBUG_API_ENABLED', false),
         'health_checks' => env('DEBUG_HEALTH_CHECKS', true),
-        'batch_operations' => env('DEBUG_BATCH_OPERATIONS', false),
+        'batch_operations' => env('DEBUG_BATCH_OPERATIONS', true),
         'data_validation' => env('DEBUG_DATA_VALIDATION', true),
         'cleanup_operations' => env('DEBUG_CLEANUP_OPERATIONS', false),
     ],
