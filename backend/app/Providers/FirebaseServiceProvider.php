@@ -201,9 +201,23 @@ class FirebaseServiceProvider extends ServiceProvider
     {
         try {
             $database = $this->app->make('firebase.database');
-            // 嘗試獲取根引用來測試連接
-            $database->getReference('.info/connected');
-            \Log::info('Firebase Database connection test passed');
+            
+            // 使用安全的測試路徑，避免使用特殊字符
+            $testPath = 'system/provider_connection_test';
+            $testData = ['test' => true, 'timestamp' => time()];
+            
+            // 測試寫入和讀取操作
+            $database->getReference($testPath)->set($testData);
+            $snapshot = $database->getReference($testPath)->getSnapshot();
+            
+            // 清理測試數據
+            $database->getReference($testPath)->remove();
+            
+            if ($snapshot->exists() && $snapshot->getValue()['test'] === true) {
+                \Log::info('Firebase Database connection test passed');
+            } else {
+                \Log::warning('Firebase Database connection test failed: Invalid response');
+            }
         } catch (\Exception $e) {
             \Log::warning('Firebase Database connection test failed', [
                 'error' => $e->getMessage()

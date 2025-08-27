@@ -343,9 +343,22 @@ class FirebaseChatService
         }
 
         try {
-            // 嘗試讀取根節點來測試連線
-            $this->database->getReference('.info/connected')->getSnapshot();
-            return true;
+            // 使用簡單的測試路徑來檢查連線，避免使用特殊字符
+            // 嘗試讀取根節點或創建一個測試節點
+            $testPath = 'system/connection_test';
+            $testData = ['test' => true, 'timestamp' => now()->timestamp];
+            
+            // 測試寫入操作
+            $this->database->getReference($testPath)->set($testData);
+            
+            // 測試讀取操作
+            $snapshot = $this->database->getReference($testPath)->getSnapshot();
+            
+            // 清理測試數據
+            $this->database->getReference($testPath)->remove();
+            
+            // 如果能成功讀取到剛才寫入的數據，說明連接正常
+            return $snapshot->exists() && $snapshot->getValue()['test'] === true;
         } catch (\Exception $e) {
             Log::channel('firebase')->error('Firebase connection check failed', [
                 'error' => $e->getMessage()
