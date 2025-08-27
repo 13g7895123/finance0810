@@ -855,6 +855,10 @@ class ChatController extends BaseApiController
             FILE_APPEND | LOCK_EX);
 
         try {
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - About to create conversation with data: customer_id={$customer->id}, user_id={$customer->assigned_to}, line_user_id={$lineUserId}\n", 
+                FILE_APPEND | LOCK_EX);
+                
             $conversation = ChatConversation::create([
                 'customer_id' => $customer->id,
                 'user_id' => $customer->assigned_to,
@@ -874,12 +878,35 @@ class ChatController extends BaseApiController
             ]);
 
             file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - Conversation created with ID: {$conversation->id}\n", 
+                date('Y-m-d H:i:s') . " - Conversation created successfully with ID: {$conversation->id}\n", 
                 FILE_APPEND | LOCK_EX);
+                
+        } catch (\Illuminate\Database\QueryException $e) {
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Database error creating conversation: " . $e->getMessage() . " | SQL: " . $e->getSql() . "\n", 
+                FILE_APPEND | LOCK_EX);
+            
+            Log::error('Database error creating conversation', [
+                'error' => $e->getMessage(),
+                'sql' => $e->getSql(),
+                'bindings' => $e->getBindings(),
+                'customer_id' => $customer->id,
+                'line_user_id' => $lineUserId
+            ]);
+            return;
         } catch (\Exception $e) {
             file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - Conversation creation FAILED: " . $e->getMessage() . "\n", 
+                date('Y-m-d H:i:s') . " - Conversation creation FAILED: " . $e->getMessage() . " | File: " . $e->getFile() . " | Line: " . $e->getLine() . "\n", 
                 FILE_APPEND | LOCK_EX);
+                
+            Log::error('Failed to create conversation', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'customer_id' => $customer->id,
+                'line_user_id' => $lineUserId
+            ]);
             return;
         }
 

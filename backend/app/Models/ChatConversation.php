@@ -47,45 +47,128 @@ class ChatConversation extends Model
     {
         // 當創建新訊息時
         static::creating(function ($conversation) {
-            $versionService = app(\App\Services\ChatVersionService::class);
-            $newVersion = $versionService->incrementVersion();
-            $conversation->version = $newVersion;
+            try {
+                $versionService = app(\App\Services\ChatVersionService::class);
+                $newVersion = $versionService->incrementVersion();
+                $conversation->version = $newVersion;
+                
+                // 記錄版本設定成功
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Version set to {$newVersion} for conversation\n", 
+                    FILE_APPEND | LOCK_EX);
+                    
+            } catch (\Exception $e) {
+                // 版本服務失敗時使用時間戳作為版本
+                $conversation->version = time();
+                
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - ChatVersionService failed, using timestamp: " . $e->getMessage() . "\n", 
+                    FILE_APPEND | LOCK_EX);
+                    
+                \Log::channel('firebase')::warning('ChatVersionService failed during conversation creation', [
+                    'error' => $e->getMessage(),
+                    'conversation_data' => $conversation->toArray()
+                ]);
+            }
             
-            // Firebase 同步 - 背景處理
-            static::syncToFirebaseAsync($conversation, 'sync');
+            // Firebase 同步 - 背景處理（不能阻擋創建過程）
+            try {
+                static::syncToFirebaseAsync($conversation, 'sync');
+                
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Firebase sync job dispatched for conversation\n", 
+                    FILE_APPEND | LOCK_EX);
+                    
+            } catch (\Exception $e) {
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Firebase sync job dispatch failed: " . $e->getMessage() . "\n", 
+                    FILE_APPEND | LOCK_EX);
+                    
+                \Log::channel('firebase')::warning('Firebase sync job dispatch failed during conversation creation', [
+                    'error' => $e->getMessage(),
+                    'conversation_data' => $conversation->toArray()
+                ]);
+            }
         });
         
         // 當更新訊息時
         static::updating(function ($conversation) {
             // 如果 version 字段沒有被明確設置，則自動增加版本號
             if (!$conversation->isDirty('version')) {
-                $versionService = app(\App\Services\ChatVersionService::class);
-                $newVersion = $versionService->incrementVersion();
-                $conversation->version = $newVersion;
+                try {
+                    $versionService = app(\App\Services\ChatVersionService::class);
+                    $newVersion = $versionService->incrementVersion();
+                    $conversation->version = $newVersion;
+                } catch (\Exception $e) {
+                    // 版本服務失敗時使用時間戳作為版本
+                    $conversation->version = time();
+                    
+                    \Log::channel('firebase')::warning('ChatVersionService failed during conversation update', [
+                        'error' => $e->getMessage(),
+                        'conversation_id' => $conversation->id
+                    ]);
+                }
             }
             
             // Firebase 同步 - 背景處理
-            static::syncToFirebaseAsync($conversation, 'sync');
+            try {
+                static::syncToFirebaseAsync($conversation, 'sync');
+            } catch (\Exception $e) {
+                \Log::channel('firebase')::warning('Firebase sync job dispatch failed during conversation update', [
+                    'error' => $e->getMessage(),
+                    'conversation_id' => $conversation->id
+                ]);
+            }
         });
 
         // 當訊息創建完成後，更新員工統計
         static::created(function ($conversation) {
-            static::updateStaffStatsAsync($conversation);
+            try {
+                static::updateStaffStatsAsync($conversation);
+                
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Staff stats update job dispatched for conversation {$conversation->id}\n", 
+                    FILE_APPEND | LOCK_EX);
+                    
+            } catch (\Exception $e) {
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Staff stats update failed for conversation {$conversation->id}: " . $e->getMessage() . "\n", 
+                    FILE_APPEND | LOCK_EX);
+                    
+                \Log::channel('firebase')::warning('Staff stats update failed during conversation created event', [
+                    'error' => $e->getMessage(),
+                    'conversation_id' => $conversation->id
+                ]);
+            }
         });
 
         // 當訊息更新完成後，檢查是否需要更新員工統計
         static::updated(function ($conversation) {
-            // 如果狀態或客戶分配有變化，更新員工統計
-            if ($conversation->wasChanged(['status', 'customer_id']) || 
-                ($conversation->customer && $conversation->customer->wasChanged('assigned_to'))) {
-                static::updateStaffStatsAsync($conversation);
+            try {
+                // 如果狀態或客戶分配有變化，更新員工統計
+                if ($conversation->wasChanged(['status', 'customer_id']) || 
+                    ($conversation->customer && $conversation->customer->wasChanged('assigned_to'))) {
+                    static::updateStaffStatsAsync($conversation);
+                }
+            } catch (\Exception $e) {
+                \Log::channel('firebase')::warning('Staff stats update failed during conversation updated event', [
+                    'error' => $e->getMessage(),
+                    'conversation_id' => $conversation->id
+                ]);
             }
         });
         
         // 當刪除訊息時
         static::deleted(function ($conversation) {
-            if ($conversation->line_user_id) {
-                static::syncToFirebaseAsync($conversation, 'delete');
+            try {
+                if ($conversation->line_user_id) {
+                    static::syncToFirebaseAsync($conversation, 'delete');
+                }
+            } catch (\Exception $e) {
+                \Log::channel('firebase')::warning('Firebase delete sync failed during conversation deleted event', [
+                    'error' => $e->getMessage(),
+                    'conversation_id' => $conversation->id
+                ]);
             }
         });
     }
