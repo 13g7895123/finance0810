@@ -316,30 +316,178 @@ class ChatController extends BaseApiController
      */
     public function webhook(Request $request)
     {
+        // Force write to file for debugging
+        file_put_contents(storage_path('logs/webhook-debug.log'), 
+            date('Y-m-d H:i:s') . " - Webhook called from IP: " . $request->ip() . "\n", 
+            FILE_APPEND | LOCK_EX);
+            
         try {
+            // Log all incoming data for debugging
+            $requestData = [
+                'method' => $request->method(),
+                'url' => $request->fullUrl(),
+                'headers' => $request->headers->all(),
+                'body' => $request->getContent(),
+                'parsed_body' => $request->all(),
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent()
+            ];
+            
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Request data: " . json_encode($requestData) . "\n", 
+                FILE_APPEND | LOCK_EX);
+            
+            Log::info('LINE Webhook received', $requestData);
+            
             // Verify LINE webhook signature
             if (!$this->verifySignature($request)) {
-                return response()->json(['error' => 'Invalid signature'], 400);
+                $error = 'Invalid signature verification failed';
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - ERROR: $error\n", 
+                    FILE_APPEND | LOCK_EX);
+                Log::error($error);
+                return response()->json(['error' => $error], 400);
             }
 
             $events = $request->input('events', []);
-            Log::info('LINE Webhook received events', ['events_count' => count($events)]);
+            $eventCount = count($events);
+            
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Processing $eventCount events\n", 
+                FILE_APPEND | LOCK_EX);
+                
+            Log::info('LINE Webhook received events', ['events_count' => $eventCount, 'events' => $events]);
 
-            foreach ($events as $event) {
+            foreach ($events as $index => $event) {
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Processing event $index: " . json_encode($event) . "\n", 
+                    FILE_APPEND | LOCK_EX);
                 $this->processEvent($event);
             }
 
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Webhook processing completed successfully\n", 
+                FILE_APPEND | LOCK_EX);
+
             return response()->json(['status' => 'ok']);
         } catch (\Exception $e) {
-            Log::error('LINE Webhook error', [
+            $error = [
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString()
-            ]);
+            ];
+            
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - EXCEPTION: " . json_encode($error) . "\n", 
+                FILE_APPEND | LOCK_EX);
+                
+            Log::error('LINE Webhook error', $error);
             
             return response()->json(['error' => 'Internal server error'], 500);
         }
     }
 
+
+    /**
+     * Test webhook and Firebase sync functionality
+     */
+    public function testWebhookFirebase(Request $request)
+    {
+        try {
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - TEST: Manual webhook/Firebase test started\n", 
+                FILE_APPEND | LOCK_EX);
+                
+            // Test 1: Check Firebase service availability
+            $firebaseAvailable = $this->firebaseChatService !== null;
+            
+            // Test 2: Check Database connection
+            $databaseConnected = false;
+            try {
+                $databaseConnected = $this->firebaseChatService->checkFirebaseConnection();
+            } catch (\Exception $e) {
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - TEST: Firebase connection check failed: " . $e->getMessage() . "\n", 
+                    FILE_APPEND | LOCK_EX);
+            }
+            
+            // Test 3: Create a test conversation and sync it
+            $testSyncResult = false;
+            $testConversationId = null;
+            
+            // Find an existing customer or create a test one
+            $testCustomer = \App\Models\Customer::where('line_user_id', '!=', null)->first();
+            
+            if ($testCustomer) {
+                $testConversation = \App\Models\ChatConversation::create([
+                    'customer_id' => $testCustomer->id,
+                    'user_id' => $testCustomer->assigned_to,
+                    'line_user_id' => $testCustomer->line_user_id,
+                    'platform' => 'line',
+                    'message_type' => 'text',
+                    'message_content' => 'TEST MESSAGE - ' . date('Y-m-d H:i:s'),
+                    'message_timestamp' => now(),
+                    'is_from_customer' => true,
+                    'status' => 'unread',
+                    'metadata' => [
+                        'test_message' => true,
+                        'timestamp' => time()
+                    ],
+                ]);
+                
+                $testConversationId = $testConversation->id;
+                
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - TEST: Created test conversation {$testConversationId}\n", 
+                    FILE_APPEND | LOCK_EX);
+                    
+                // Try to sync it
+                try {
+                    $testSyncResult = $this->firebaseChatService->syncConversationToFirebase($testConversation);
+                    file_put_contents(storage_path('logs/webhook-debug.log'), 
+                        date('Y-m-d H:i:s') . " - TEST: Sync result = " . ($testSyncResult ? 'SUCCESS' : 'FAILED') . "\n", 
+                        FILE_APPEND | LOCK_EX);
+                } catch (\Exception $e) {
+                    file_put_contents(storage_path('logs/webhook-debug.log'), 
+                        date('Y-m-d H:i:s') . " - TEST: Sync exception: " . $e->getMessage() . "\n", 
+                        FILE_APPEND | LOCK_EX);
+                }
+            } else {
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - TEST: No test customer found with LINE user ID\n", 
+                    FILE_APPEND | LOCK_EX);
+            }
+            
+            $results = [
+                'firebase_service_available' => $firebaseAvailable,
+                'database_connected' => $databaseConnected,
+                'test_sync_result' => $testSyncResult,
+                'test_conversation_id' => $testConversationId,
+                'test_customer_found' => $testCustomer !== null,
+                'timestamp' => date('Y-m-d H:i:s')
+            ];
+            
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - TEST: Results = " . json_encode($results) . "\n", 
+                FILE_APPEND | LOCK_EX);
+                
+            return response()->json($results);
+            
+        } catch (\Exception $e) {
+            $error = [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ];
+            
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - TEST: Exception = " . json_encode($error) . "\n", 
+                FILE_APPEND | LOCK_EX);
+                
+            return response()->json($error, 500);
+        }
+    }
 
     /**
      * Get unread messages count.
@@ -691,13 +839,27 @@ class ChatController extends BaseApiController
 
         // Sync to Firebase Realtime Database with error handling
         try {
+            // Debug log before sync
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Starting Firebase sync for conversation {$conversation->id}\n", 
+                FILE_APPEND | LOCK_EX);
+                
             $firebaseSync = $this->firebaseChatService->syncConversationToFirebase($conversation);
+            
             if ($firebaseSync) {
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Firebase sync SUCCESS for conversation {$conversation->id}\n", 
+                    FILE_APPEND | LOCK_EX);
+                    
                 Log::info('Webhook Firebase sync successful', [
                     'conversation_id' => $conversation->id,
                     'line_user_id' => $lineUserId
                 ]);
             } else {
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Firebase sync FAILED for conversation {$conversation->id}\n", 
+                    FILE_APPEND | LOCK_EX);
+                    
                 Log::error('Webhook Firebase sync failed', [
                     'conversation_id' => $conversation->id,
                     'line_user_id' => $lineUserId,
@@ -705,6 +867,11 @@ class ChatController extends BaseApiController
                 ]);
             }
         } catch (\Exception $e) {
+            $errorMsg = "Firebase sync EXCEPTION for conversation {$conversation->id}: " . $e->getMessage();
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - $errorMsg\n", 
+                FILE_APPEND | LOCK_EX);
+                
             Log::error('Webhook Firebase sync error', [
                 'conversation_id' => $conversation->id,
                 'line_user_id' => $lineUserId,

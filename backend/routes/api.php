@@ -45,6 +45,7 @@ Route::get('/test/cookies', [TestController::class, 'cookieTest']);
 Route::get('/test/simple-debug', [TestController::class, 'simpleDebug']);
 Route::get('/test/debug-auth', [TestController::class, 'detailedAuthDebug']);
 Route::get('/test/customers-basic', [TestController::class, 'testCustomersBasic']);
+Route::get('/test/webhook-firebase', [ChatController::class, 'testWebhookFirebase']);
 
 // Public routes
 Route::post('/auth/login', [AuthController::class, 'login']);

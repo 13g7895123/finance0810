@@ -30,9 +30,19 @@ class FirebaseChatService
      */
     public function syncConversationToFirebase(ChatConversation $conversation)
     {
+        // Debug logging
+        file_put_contents(storage_path('logs/webhook-debug.log'), 
+            date('Y-m-d H:i:s') . " - FirebaseChatService::syncConversationToFirebase called for {$conversation->id}\n", 
+            FILE_APPEND | LOCK_EX);
+            
         // 檢查 Realtime Database 是否可用
         if (!$this->database) {
-            Log::channel('firebase')->warning('Realtime Database not available, skipping sync', [
+            $errorMsg = 'Realtime Database not available, skipping sync';
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - ERROR: $errorMsg\n", 
+                FILE_APPEND | LOCK_EX);
+                
+            Log::channel('firebase')->warning($errorMsg, [
                 'conversation_id' => $conversation->id
             ]);
             return false;
@@ -69,12 +79,25 @@ class FirebaseChatService
                 'updated' => $conversation->updated_at->toISOString()
             ];
 
+            // Debug log conversation data
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - About to update Firebase with data: " . json_encode($conversationData) . "\n", 
+                FILE_APPEND | LOCK_EX);
+
             // 更新或建立對話節點
             $this->database->getReference('conversations/' . $conversation->line_user_id)
                 ->update($conversationData);
+                
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Firebase conversation node updated successfully\n", 
+                FILE_APPEND | LOCK_EX);
 
             // 同步訊息到子節點
             $this->syncMessageToFirebase($conversation);
+            
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Firebase message sync completed\n", 
+                FILE_APPEND | LOCK_EX);
 
             Log::channel('firebase')->info('Synced conversation to Firebase', [
                 'conversation_id' => $conversation->id,
@@ -83,9 +106,17 @@ class FirebaseChatService
 
             return true;
         } catch (\Exception $e) {
+            $errorMsg = "Failed to sync conversation {$conversation->id} to Firebase: " . $e->getMessage();
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - FIREBASE SYNC ERROR: $errorMsg\n", 
+                FILE_APPEND | LOCK_EX);
+                
             Log::channel('firebase')->error('Failed to sync conversation to Firebase', [
                 'conversation_id' => $conversation->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ]);
             return false;
         }
