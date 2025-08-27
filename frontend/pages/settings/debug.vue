@@ -59,7 +59,7 @@
       <!-- 快速動作區 -->
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">快速動作</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <button
             @click="refreshHealthCheck"
             :disabled="loading.healthCheck"
@@ -138,6 +138,23 @@
             </svg>
             <span class="text-sm font-medium text-gray-900 dark:text-white">
               {{ loading.firebaseTest ? '測試中...' : 'Firebase連接測試' }}
+            </span>
+          </button>
+
+          <button
+            @click="fullSyncToFirebase"
+            :disabled="loading.fullSync"
+            class="flex flex-col items-center p-4 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors disabled:opacity-50"
+          >
+            <svg v-if="loading.fullSync" class="animate-spin w-8 h-8 text-indigo-500 mb-2" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+            <svg v-else class="w-8 h-8 text-indigo-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <span class="text-sm font-medium text-gray-900 dark:text-white">
+              {{ loading.fullSync ? '完整同步中...' : 'Firebase完整同步' }}
             </span>
           </button>
         </div>
@@ -661,7 +678,8 @@ const loading = ref({
   healthCheck: false,
   sync: false,
   validation: false,
-  firebaseTest: false
+  firebaseTest: false,
+  fullSync: false
 })
 
 // Notification state
@@ -967,6 +985,58 @@ const testFirebaseConnection = async () => {
     }
   } finally {
     loading.value.firebaseTest = false
+  }
+}
+
+const fullSyncToFirebase = async () => {
+  loading.value.fullSync = true
+  try {
+    const { data: response, error } = await post('/debug/chat/full-sync', {
+      batch_size: 100,
+      prevent_duplicates: true
+    })
+    
+    if (error) {
+      console.error('Full Sync API Error:', error)
+      throw new Error(error.message || 'Firebase完整同步失敗')
+    }
+    
+    if (response.success) {
+      lastSyncResult.value = response.data
+      const message = `Firebase完整同步完成：處理 ${response.data.total_processed || 0} 筆，成功同步 ${response.data.synced || 0} 筆，跳過 ${response.data.skipped || 0} 筆，失敗 ${response.data.failed || 0} 筆`
+      showNotification('success', message)
+      
+      // 同步完成後自動刷新健康檢查
+      setTimeout(() => {
+        refreshHealthCheck()
+      }, 2000)
+    } else {
+      throw new Error(response.error || 'Firebase完整同步失敗')
+    }
+  } catch (error) {
+    console.error('Firebase完整同步失敗:', error)
+    
+    let errorMessage = '未知錯誤'
+    let errorDetailsData = null
+    
+    if (error.response) {
+      errorMessage = error.response.data?.error || error.response.statusText || '服務器錯誤'
+      errorDetailsData = error.response.data?.error_details || null
+      console.error('Full Sync Error Response:', error.response.data)
+    } else if (error.request) {
+      errorMessage = '無法連接到服務器，請檢查網路連接'
+      console.error('Full Sync Request Error:', error.request)
+    } else {
+      errorMessage = error.message || '請求處理失敗'
+      console.error('Full Sync General Error:', error.message)
+    }
+    
+    showNotification('error', 'Firebase完整同步失敗：' + errorMessage)
+    if (errorDetailsData) {
+      showErrorDetails(errorMessage, errorDetailsData)
+    }
+  } finally {
+    loading.value.fullSync = false
   }
 }
 

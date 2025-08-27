@@ -2698,7 +2698,7 @@ class ChatController extends BaseApiController
                 ], 403);
             }
 
-            $limit = min($request->input('limit', 50), 200); // 最多一次同步200筆
+            $limit = min($request->input('limit', 50), 1000); // 增加批次限制以支援完整同步
             $offset = max($request->input('offset', 0), 0);
             $forceSync = $request->boolean('force', false);
 
@@ -3119,6 +3119,198 @@ class ChatController extends BaseApiController
             ]);
 
             return $this->errorResponse('權限測試失敗', $e);
+        }
+    }
+
+    /**
+     * 執行完整的Firebase資料同步
+     */
+    public function fullSyncToFirebase(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            
+            // 檢查權限
+            if (!$user->hasRole(['admin', 'manager', 'executive'])) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '權限不足',
+                    'message' => '只有管理員可以執行完整同步'
+                ], 403);
+            }
+
+            // 檢查除錯模式
+            if (!$this->isDebugEnabled()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '除錯模式未啟用',
+                    'message' => '此功能僅在除錯模式下可用'
+                ], 403);
+            }
+
+            $batchSize = min($request->input('batch_size', 100), 500);
+            $preventDuplicates = $request->boolean('prevent_duplicates', true);
+            
+            // 獲取所有需要同步的對話
+            $query = ChatConversation::with('customer')
+                ->whereNotNull('line_user_id')
+                ->whereHas('customer', function($q) {
+                    $q->whereNotNull('assigned_to');
+                });
+
+            $totalCount = $query->count();
+            
+            $results = [
+                'sync_description' => '完整同步所有MySQL聊天室對話記錄到Firebase',
+                'data_source' => 'chat_conversations 資料表 (完整同步)',
+                'total_conversations' => $totalCount,
+                'batch_size' => $batchSize,
+                'prevent_duplicates' => $preventDuplicates,
+                'processed' => 0,
+                'synced' => 0,
+                'failed' => 0,
+                'skipped' => 0,
+                'batches_completed' => 0,
+                'details' => []
+            ];
+
+            $offset = 0;
+            $existingLineUserIds = [];
+            
+            // 如果需要防止重複，先獲取Firebase中已存在的conversation
+            if ($preventDuplicates) {
+                try {
+                    $firebaseConversations = $this->firebaseChatService->getAllFirebaseConversations();
+                    if ($firebaseConversations) {
+                        $existingLineUserIds = array_keys($firebaseConversations);
+                        $results['existing_firebase_conversations'] = count($existingLineUserIds);
+                    }
+                } catch (\Exception $e) {
+                    Log::channel('firebase')->warning('Could not fetch existing Firebase conversations for duplicate check', [
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            // 分批處理所有對話
+            do {
+                $conversations = $query->orderBy('id', 'asc')
+                    ->limit($batchSize)
+                    ->offset($offset)
+                    ->get();
+
+                foreach ($conversations as $conversation) {
+                    $results['processed']++;
+                    
+                    try {
+                        // 檢查是否需要跳過重複項目
+                        if ($preventDuplicates && in_array($conversation->line_user_id, $existingLineUserIds)) {
+                            // 檢查是否需要更新（比較時間戳）
+                            $shouldUpdate = $this->shouldUpdateExistingConversation($conversation);
+                            if (!$shouldUpdate) {
+                                $results['skipped']++;
+                                $results['details'][] = [
+                                    'id' => $conversation->id,
+                                    'line_user_id' => $conversation->line_user_id,
+                                    'status' => 'skipped_duplicate'
+                                ];
+                                continue;
+                            }
+                        }
+                        
+                        $syncResult = $this->firebaseChatService->syncConversationToFirebase($conversation);
+                        
+                        if ($syncResult) {
+                            $results['synced']++;
+                            $results['details'][] = [
+                                'id' => $conversation->id,
+                                'line_user_id' => $conversation->line_user_id,
+                                'status' => 'synced'
+                            ];
+                        } else {
+                            $results['failed']++;
+                            $results['details'][] = [
+                                'id' => $conversation->id,
+                                'line_user_id' => $conversation->line_user_id,
+                                'status' => 'failed'
+                            ];
+                        }
+                    } catch (\Exception $syncError) {
+                        $results['failed']++;
+                        $results['details'][] = [
+                            'id' => $conversation->id,
+                            'line_user_id' => $conversation->line_user_id,
+                            'status' => 'error',
+                            'error' => $syncError->getMessage()
+                        ];
+                    }
+                }
+
+                $results['batches_completed']++;
+                $offset += $batchSize;
+                
+                // 記錄批次進度
+                Log::channel('firebase')->info('Full sync batch completed', [
+                    'batch' => $results['batches_completed'],
+                    'processed' => $results['processed'],
+                    'synced' => $results['synced'],
+                    'failed' => $results['failed'],
+                    'skipped' => $results['skipped']
+                ]);
+
+            } while ($conversations->count() === $batchSize);
+
+            Log::channel('firebase')->info('Full Firebase sync completed', [
+                'user_id' => $user->id,
+                'total_processed' => $results['processed'],
+                'synced' => $results['synced'],
+                'failed' => $results['failed'],
+                'skipped' => $results['skipped']
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "完整同步完成：處理 {$results['processed']} 筆，成功 {$results['synced']} 筆，失敗 {$results['failed']} 筆，跳過 {$results['skipped']} 筆",
+                'data' => $results,
+                'timestamp' => now()->toISOString()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Full Firebase sync failed', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => '完整同步失敗',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    /**
+     * 檢查是否應該更新現有的對話記錄
+     */
+    private function shouldUpdateExistingConversation(ChatConversation $conversation): bool
+    {
+        try {
+            $existingData = $this->firebaseChatService->getFirebaseConversation($conversation->line_user_id);
+            if (!$existingData) {
+                return true; // Firebase中不存在，需要同步
+            }
+
+            // 比較更新時間
+            $mysqlUpdated = $conversation->updated_at;
+            $firebaseUpdated = isset($existingData['updated']) ? 
+                \Carbon\Carbon::parse($existingData['updated']) : 
+                null;
+
+            return !$firebaseUpdated || $mysqlUpdated->gt($firebaseUpdated);
+        } catch (\Exception $e) {
+            // 如果無法比較，預設為需要更新
+            return true;
         }
     }
 

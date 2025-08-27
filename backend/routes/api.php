@@ -130,6 +130,7 @@ Route::middleware(['auth:api'])->group(function () {
         
         // Chat Debug Operations
         Route::post('/chat/batch-sync', [ChatController::class, 'batchSyncToFirebaseDebug']);
+        Route::post('/chat/full-sync', [ChatController::class, 'fullSyncToFirebase']);
         Route::post('/chat/validate-integrity', [ChatController::class, 'validateFirebaseDataIntegrity']);
         Route::post('/chat/cleanup-firebase', [ChatController::class, 'cleanupFirebaseDataDebug'])->middleware('role:admin|manager');
         

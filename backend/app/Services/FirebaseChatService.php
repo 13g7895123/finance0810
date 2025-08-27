@@ -366,4 +366,89 @@ class FirebaseChatService
             return false;
         }
     }
+
+    /**
+     * 獲取所有Firebase對話記錄
+     */
+    public function getAllFirebaseConversations()
+    {
+        if (!$this->isDatabaseAvailable()) {
+            return null;
+        }
+
+        try {
+            $snapshot = $this->database->getReference('conversations')->getSnapshot();
+            return $snapshot->exists() ? $snapshot->getValue() : [];
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Failed to fetch all Firebase conversations', [
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * 獲取特定LINE用戶的Firebase對話記錄
+     */
+    public function getFirebaseConversation($lineUserId)
+    {
+        if (!$this->isDatabaseAvailable()) {
+            return null;
+        }
+
+        try {
+            $snapshot = $this->database->getReference('conversations/' . $lineUserId)->getSnapshot();
+            return $snapshot->exists() ? $snapshot->getValue() : null;
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Failed to fetch Firebase conversation', [
+                'line_user_id' => $lineUserId,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * 清理Firebase中的孤立對話記錄
+     */
+    public function cleanupOrphanedConversations()
+    {
+        if (!$this->isDatabaseAvailable()) {
+            return false;
+        }
+
+        try {
+            $firebaseConversations = $this->getAllFirebaseConversations();
+            if (!$firebaseConversations) {
+                return true;
+            }
+
+            $cleanupCount = 0;
+            foreach ($firebaseConversations as $lineUserId => $conversationData) {
+                // 檢查MySQL中是否存在對應的對話記錄
+                $mysqlExists = ChatConversation::where('line_user_id', $lineUserId)->exists();
+                
+                if (!$mysqlExists) {
+                    // MySQL中不存在，刪除Firebase中的記錄
+                    $this->database->getReference('conversations/' . $lineUserId)->remove();
+                    $cleanupCount++;
+                    
+                    Log::channel('firebase')->info('Cleaned up orphaned Firebase conversation', [
+                        'line_user_id' => $lineUserId
+                    ]);
+                }
+            }
+
+            Log::channel('firebase')->info('Firebase cleanup completed', [
+                'cleaned_up_count' => $cleanupCount
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Firebase cleanup failed', [
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
 }
