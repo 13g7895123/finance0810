@@ -46,15 +46,35 @@ class DebugController extends Controller
                 'database_connectivity' => $this->checkDatabaseConnectivity(),
                 'sync' => $this->checkSyncHealth(),
                 'permissions' => $this->checkPermissions(),
+                'system_anomalies' => $this->detectSystemAnomalies(), // 新增系統異常檢測
             ];
 
             // 設定整體健康狀態
             $health['firebase_connection'] = $health['firebase']['connection'] ?? false;
             
-            if (!$health['firebase_connection'] || !$health['mysql']['connection']) {
+            // 更詳細的健康狀態判斷
+            $criticalIssues = [];
+            $warningIssues = [];
+            
+            if (!$health['firebase_connection']) {
+                $criticalIssues[] = 'Firebase Realtime Database 無法連接';
+            }
+            if (!$health['mysql']['connection']) {
+                $criticalIssues[] = 'MySQL 資料庫無法連接';
+            }
+            if ($health['mysql']['conversations_count'] === 0) {
+                $warningIssues[] = 'MySQL中沒有聊天記錄';
+            }
+            if (!empty($health['system_anomalies'])) {
+                $warningIssues = array_merge($warningIssues, $health['system_anomalies']);
+            }
+            
+            if (!empty($criticalIssues)) {
                 $health['overall_status'] = 'critical';
-            } elseif ($health['mysql']['conversations_count'] === 0) {
+                $health['critical_issues'] = $criticalIssues;
+            } elseif (!empty($warningIssues)) {
                 $health['overall_status'] = 'warning';
+                $health['warning_issues'] = $warningIssues;
             }
 
             return response()->json([
@@ -249,11 +269,35 @@ class DebugController extends Controller
         try {
             $connectionStatus = false;
             $errorMessage = null;
+            $connectionDetails = [];
 
             try {
+                // 更詳細的連接檢測
                 $connectionStatus = $this->firebaseChatService->checkFirebaseConnection();
+                
+                if ($connectionStatus) {
+                    $connectionDetails = [
+                        'last_test_time' => now()->toISOString(),
+                        'response_time' => 'Connected successfully',
+                        'database_readable' => true,
+                        'database_writable' => true
+                    ];
+                } else {
+                    $connectionDetails = [
+                        'last_test_time' => now()->toISOString(),
+                        'response_time' => 'Connection failed',
+                        'database_readable' => false,
+                        'database_writable' => false
+                    ];
+                }
             } catch (\Exception $e) {
                 $errorMessage = $e->getMessage();
+                $connectionDetails = [
+                    'last_test_time' => now()->toISOString(),
+                    'error' => $e->getMessage(),
+                    'error_type' => get_class($e)
+                ];
+                
                 Log::error('Firebase connection check failed', [
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString()
@@ -265,6 +309,7 @@ class DebugController extends Controller
 
             return [
                 'connection' => $connectionStatus,
+                'connection_details' => $connectionDetails,
                 'config_valid' => $configValid,
                 'service_account_exists' => $serviceAccountExists,
                 'error_message' => $errorMessage,
@@ -272,10 +317,16 @@ class DebugController extends Controller
                 'database_url_set' => !empty(config('services.firebase.database_url')),
                 'credentials_path' => config('services.firebase.credentials'),
                 'debug_mode_enabled' => $this->isDebugEnabled(),
+                'configuration_details' => [
+                    'project_id' => config('services.firebase.project_id'),
+                    'database_url' => config('services.firebase.database_url'),
+                    'credentials_file_readable' => $serviceAccountExists ? is_readable(config('services.firebase.credentials')) : false
+                ]
             ];
         } catch (\Exception $e) {
             return [
                 'connection' => false,
+                'connection_details' => ['error' => $e->getMessage()],
                 'config_valid' => false,
                 'service_account_exists' => false,
                 'error_message' => 'Health check failed: ' . $e->getMessage(),
@@ -493,5 +544,69 @@ class DebugController extends Controller
             'firebase_errors' => [],
             'sync_errors' => [],
         ];
+    }
+
+    /**
+     * 檢測系統異常
+     */
+    protected function detectSystemAnomalies(): array
+    {
+        $anomalies = [];
+        
+        try {
+            // 檢查Firebase配置異常
+            if (!$this->hasFirebaseServiceAccount()) {
+                $anomalies[] = 'Firebase服務帳號檔案缺失或無法讀取';
+            }
+            
+            if (empty(config('services.firebase.project_id'))) {
+                $anomalies[] = 'Firebase專案ID未設定';
+            }
+            
+            if (empty(config('services.firebase.database_url'))) {
+                $anomalies[] = 'Firebase資料庫URL未設定';
+            }
+            
+            // 檢查聊天室相關異常
+            $totalConversations = ChatConversation::count();
+            $recentConversations = ChatConversation::where('created_at', '>=', now()->subDays(7))->count();
+            
+            if ($totalConversations === 0) {
+                $anomalies[] = '系統中沒有任何聊天記錄';
+            } elseif ($recentConversations === 0) {
+                $anomalies[] = '近7天沒有新的聊天記錄，LINE Bot可能未正常運作';
+            }
+            
+            // 檢查客戶分配異常
+            $unassignedCustomers = Customer::whereNull('assigned_to')->count();
+            if ($unassignedCustomers > 0) {
+                $anomalies[] = "有 {$unassignedCustomers} 位客戶尚未分配業務人員";
+            }
+            
+            // 檢查LINE整合異常
+            $lineCustomers = Customer::whereNotNull('line_user_id')->count();
+            $totalCustomers = Customer::count();
+            if ($totalCustomers > 0 && $lineCustomers === 0) {
+                $anomalies[] = '沒有客戶綁定LINE帳號，LINE整合可能有問題';
+            }
+            
+            // 檢查權限異常
+            $adminUsers = \App\Models\User::whereHas('roles', function($q) {
+                $q->whereIn('name', ['admin', 'executive', 'manager']);
+            })->count();
+            
+            if ($adminUsers === 0) {
+                $anomalies[] = '系統中沒有管理員用戶';
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('System anomaly detection failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            $anomalies[] = '系統異常檢測過程發生錯誤：' . $e->getMessage();
+        }
+        
+        return $anomalies;
     }
 }

@@ -178,11 +178,35 @@
                   {{ systemHealth.configuration.credentials_file_exists ? '存在' : '缺失' }}
                 </span>
               </div>
+              
+              <!-- 詳細配置信息 -->
+              <div v-if="systemHealth.firebase?.configuration_details" class="mt-3 p-2 bg-gray-50 dark:bg-gray-700 rounded text-xs">
+                <div class="font-medium text-gray-700 dark:text-gray-300 mb-1">配置詳情：</div>
+                <div class="space-y-1 text-gray-600 dark:text-gray-400">
+                  <div>專案: {{ systemHealth.firebase.configuration_details.project_id || '未設定' }}</div>
+                  <div>URL: {{ systemHealth.firebase.configuration_details.database_url ? '已設定' : '未設定' }}</div>
+                  <div>憑證可讀: {{ systemHealth.firebase.configuration_details.credentials_file_readable ? '是' : '否' }}</div>
+                </div>
+              </div>
+              
+              <!-- 連接詳情 -->
+              <div v-if="systemHealth.firebase?.connection_details" class="mt-3 p-2 bg-gray-50 dark:bg-gray-700 rounded text-xs">
+                <div class="font-medium text-gray-700 dark:text-gray-300 mb-1">連接狀態：</div>
+                <div class="space-y-1 text-gray-600 dark:text-gray-400">
+                  <div>測試時間: {{ formatDateTime(systemHealth.firebase.connection_details.last_test_time) }}</div>
+                  <div v-if="systemHealth.firebase.connection_details.error">錯誤: {{ systemHealth.firebase.connection_details.error }}</div>
+                  <div v-if="systemHealth.firebase.connection_details.error_type">類型: {{ systemHealth.firebase.connection_details.error_type }}</div>
+                  <div v-if="!systemHealth.firebase.connection_details.error">狀態: {{ systemHealth.firebase.connection_details.response_time }}</div>
+                </div>
+              </div>
             </div>
 
             <div v-if="systemHealth?.database_connectivity" class="p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
               <div class="text-sm text-blue-800 dark:text-blue-300">
-                資料庫資料: {{ systemHealth.database_connectivity.data_count || 0 }} 筆對話
+                Firebase資料: {{ systemHealth.database_connectivity.data_count || 0 }} 筆對話
+              </div>
+              <div v-if="systemHealth.database_connectivity.error" class="text-xs text-red-600 mt-1">
+                錯誤: {{ systemHealth.database_connectivity.error }}
               </div>
             </div>
           </div>
@@ -246,6 +270,24 @@
         <!-- 上次同步結果 -->
         <div v-if="lastSyncResult" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">上次同步結果</h3>
+          
+          <!-- 同步說明 -->
+          <div v-if="lastSyncResult.sync_description" class="mb-4 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
+            <div class="text-sm text-blue-800 dark:text-blue-300 font-medium mb-2">同步說明</div>
+            <div class="text-xs text-blue-700 dark:text-blue-400">{{ lastSyncResult.sync_description }}</div>
+            <div class="text-xs text-blue-600 dark:text-blue-500 mt-1">資料來源: {{ lastSyncResult.data_source }}</div>
+          </div>
+          
+          <!-- 同步條件 -->
+          <div v-if="lastSyncResult.sync_criteria" class="mb-4">
+            <div class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">同步條件</div>
+            <div class="space-y-1">
+              <div class="text-xs text-gray-600 dark:text-gray-400">• {{ lastSyncResult.sync_criteria.has_line_user_id }}</div>
+              <div class="text-xs text-gray-600 dark:text-gray-400">• {{ lastSyncResult.sync_criteria.has_assigned_customer }}</div>
+              <div class="text-xs text-gray-600 dark:text-gray-400">• 時間範圍: {{ lastSyncResult.sync_criteria.time_range }}</div>
+            </div>
+          </div>
+          
           <div class="space-y-3">
             <div class="flex justify-between">
               <span class="text-sm text-gray-600 dark:text-gray-300">處理總數</span>
@@ -296,19 +338,78 @@
         </div>
       </div>
 
-      <!-- 建議操作 -->
-      <div v-if="systemHealth?.recommendations?.length" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">系統建議</h3>
-        <div class="space-y-2">
-          <div 
-            v-for="(recommendation, index) in systemHealth.recommendations" 
-            :key="index"
-            class="flex items-start space-x-3 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg"
-          >
-            <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+      <!-- 系統異常與建議 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- 系統異常 -->
+        <div v-if="systemHealth?.system_anomalies?.length || systemHealth?.critical_issues?.length || systemHealth?.warning_issues?.length" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
             </svg>
-            <span class="text-sm text-blue-800 dark:text-blue-300">{{ recommendation }}</span>
+            系統異常狀況
+          </h3>
+          <div class="space-y-2">
+            <!-- 嚴重問題 -->
+            <div v-if="systemHealth.critical_issues?.length" class="space-y-2">
+              <div class="text-sm font-medium text-red-700 dark:text-red-300">嚴重問題：</div>
+              <div 
+                v-for="(issue, index) in systemHealth.critical_issues" 
+                :key="'critical-' + index"
+                class="flex items-start space-x-3 p-2 bg-red-50 dark:bg-red-900 rounded-lg"
+              >
+                <svg class="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+                <span class="text-sm text-red-800 dark:text-red-200">{{ issue }}</span>
+              </div>
+            </div>
+            
+            <!-- 警告問題 -->
+            <div v-if="systemHealth.warning_issues?.length" class="space-y-2">
+              <div class="text-sm font-medium text-yellow-700 dark:text-yellow-300">警告問題：</div>
+              <div 
+                v-for="(issue, index) in systemHealth.warning_issues" 
+                :key="'warning-' + index"
+                class="flex items-start space-x-3 p-2 bg-yellow-50 dark:bg-yellow-900 rounded-lg"
+              >
+                <svg class="w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+                <span class="text-sm text-yellow-800 dark:text-yellow-200">{{ issue }}</span>
+              </div>
+            </div>
+            
+            <!-- 一般系統異常 -->
+            <div v-if="systemHealth.system_anomalies?.length" class="space-y-2">
+              <div class="text-sm font-medium text-gray-700 dark:text-gray-300">其他異常：</div>
+              <div 
+                v-for="(anomaly, index) in systemHealth.system_anomalies" 
+                :key="'anomaly-' + index"
+                class="flex items-start space-x-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg"
+              >
+                <svg class="w-4 h-4 text-gray-600 dark:text-gray-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                </svg>
+                <span class="text-sm text-gray-800 dark:text-gray-200">{{ anomaly }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 建議操作 -->
+        <div v-if="systemHealth?.recommendations?.length" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">系統建議</h3>
+          <div class="space-y-2">
+            <div 
+              v-for="(recommendation, index) in systemHealth.recommendations" 
+              :key="index"
+              class="flex items-start space-x-3 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg"
+            >
+              <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+              </svg>
+              <span class="text-sm text-blue-800 dark:text-blue-300">{{ recommendation }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -537,6 +638,22 @@ const getSyncSuccessRate = () => {
   const total = lastSyncResult.value.total_found || 0
   const success = lastSyncResult.value.synced || 0
   return total > 0 ? Math.round((success / total) * 100) : 0
+}
+
+const formatDateTime = (dateTimeString) => {
+  if (!dateTimeString) return '未知'
+  try {
+    return new Date(dateTimeString).toLocaleString('zh-TW', {
+      year: 'numeric',
+      month: '2-digit', 
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })
+  } catch (error) {
+    return dateTimeString
+  }
 }
 
 const refreshHealthCheck = async () => {

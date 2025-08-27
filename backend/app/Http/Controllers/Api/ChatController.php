@@ -2720,6 +2720,13 @@ class ChatController extends BaseApiController
                 ->get();
 
             $results = [
+                'sync_description' => '同步MySQL聊天室對話記錄到Firebase Realtime Database',
+                'data_source' => 'chat_conversations 資料表',
+                'sync_criteria' => [
+                    'has_line_user_id' => '必須有LINE用戶ID',
+                    'has_assigned_customer' => '客戶必須已分配業務人員',
+                    'time_range' => $forceSync ? '全部對話' : '最近24小時內的對話'
+                ],
                 'total_found' => $conversations->count(),
                 'synced' => 0,
                 'failed' => 0,
