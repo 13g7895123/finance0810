@@ -41,6 +41,8 @@ Route::get('/health/info', [HealthController::class, 'info']);
 Route::get('/diagnose/data-flow', [ChatController::class, 'diagnoseDataFlow']);
 Route::get('/verify/webhook-execution', [ChatController::class, 'verifyWebhookExecution']);
 Route::get('/webhook/status', [ChatController::class, 'webhookStatus']);
+// Simple test route
+Route::get('/test/simple', function() { return ['status' => 'ok', 'timestamp' => now()->format('c')]; });
 
 // Test routes (public - for debugging)
 Route::get('/test/system', [TestController::class, 'systemTest']);
