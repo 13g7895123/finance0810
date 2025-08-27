@@ -1495,6 +1495,7 @@ class ChatController extends BaseApiController
 
             $customer = \App\Models\Customer::create([
                 'name' => 'LINE用戶 ' . substr($lineUserId, -6),
+                'phone' => '', // Required field, will be empty for now
                 'line_user_id' => $lineUserId,
                 'channel' => 'line',
                 'status' => 'new',
@@ -3798,6 +3799,7 @@ class ChatController extends BaseApiController
                         'line_user_id' => 'diagnostic_test_user_' . date('md')
                     ], [
                         'name' => 'Diagnostic Test User',
+                        'phone' => '0900000000', // 提供測試電話號碼
                         'channel' => 'line',
                         'status' => 'new',
                         'tracking_status' => 'pending'
