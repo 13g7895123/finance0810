@@ -37,6 +37,11 @@ Route::get('/health', [HealthController::class, 'check']);
 Route::get('/health/database', [HealthController::class, 'database']);
 Route::get('/health/info', [HealthController::class, 'info']);
 
+// Webhook verification routes (public - no auth required)
+Route::get('/diagnose/data-flow', [ChatController::class, 'diagnoseDataFlow']);
+Route::get('/verify/webhook-execution', [ChatController::class, 'verifyWebhookExecution']);
+Route::get('/webhook/status', [ChatController::class, 'webhookStatus']);
+
 // Test routes (public - for debugging)
 Route::get('/test/system', [TestController::class, 'systemTest']);
 Route::get('/test/auth', [TestController::class, 'authTest']);
@@ -46,9 +51,6 @@ Route::get('/test/simple-debug', [TestController::class, 'simpleDebug']);
 Route::get('/test/debug-auth', [TestController::class, 'detailedAuthDebug']);
 Route::get('/test/customers-basic', [TestController::class, 'testCustomersBasic']);
 Route::get('/test/webhook-firebase', [ChatController::class, 'testWebhookFirebase']);
-Route::get('/diagnose/data-flow', [ChatController::class, 'diagnoseDataFlow']);
-Route::get('/verify/webhook-execution', [ChatController::class, 'verifyWebhookExecution']);
-Route::get('/webhook/status', [ChatController::class, 'webhookStatus']);
 
 // Public routes
 Route::post('/auth/login', [AuthController::class, 'login']);
