@@ -3861,4 +3861,350 @@ class ChatController extends BaseApiController
             ], 500);
         }
     }
+
+    /**
+     * Point 66: 驗證 webhook 執行和 Firebase 寫入狀況的工具
+     * 公開端點，用於即時監控 webhook 執行狀況
+     */
+    public function verifyWebhookExecution(Request $request)
+    {
+        $verificationResults = [
+            'timestamp' => now()->toISOString(),
+            'verification_id' => 'verify_' . time(),
+            'steps' => [],
+            'overall_status' => 'pending',
+            'recommendations' => []
+        ];
+
+        try {
+            // Step 1: 檢查最近的 webhook 活動
+            $step1 = [
+                'step' => 1,
+                'name' => '檢查最近 Webhook 活動',
+                'status' => 'checking',
+                'data' => null
+            ];
+
+            try {
+                // 檢查最近 24 小時的對話記錄
+                $recentConversations = ChatConversation::where('created_at', '>=', now()->subHours(24))
+                    ->orderBy('created_at', 'desc')
+                    ->limit(10)
+                    ->get(['id', 'line_user_id', 'message_content', 'created_at', 'status']);
+
+                $step1['status'] = 'completed';
+                $step1['data'] = [
+                    'recent_count' => $recentConversations->count(),
+                    'latest_conversations' => $recentConversations->map(function($conv) {
+                        return [
+                            'id' => $conv->id,
+                            'line_user_id' => $conv->line_user_id,
+                            'message' => substr($conv->message_content, 0, 50),
+                            'created_at' => $conv->created_at->toISOString(),
+                            'status' => $conv->status
+                        ];
+                    })
+                ];
+
+                if ($recentConversations->count() === 0) {
+                    $step1['warning'] = '最近 24 小時內沒有新的對話記錄，可能 webhook 未被觸發';
+                }
+
+            } catch (\Exception $e) {
+                $step1['status'] = 'failed';
+                $step1['error'] = $e->getMessage();
+            }
+
+            $verificationResults['steps'][] = $step1;
+
+            // Step 2: 檢查 Firebase 連接狀態
+            $step2 = [
+                'step' => 2,
+                'name' => '檢查 Firebase 連接狀態',
+                'status' => 'checking',
+                'data' => null
+            ];
+
+            try {
+                $firebaseConnected = $this->firebaseChatService->checkFirebaseConnection();
+                $step2['status'] = $firebaseConnected ? 'completed' : 'failed';
+                $step2['data'] = [
+                    'connected' => $firebaseConnected,
+                    'service_available' => $this->firebaseChatService !== null,
+                    'config_check' => [
+                        'project_id' => !empty(config('services.firebase.project_id')),
+                        'database_url' => !empty(config('services.firebase.database_url'))
+                    ]
+                ];
+
+                if (!$firebaseConnected) {
+                    $step2['error'] = 'Firebase Realtime Database 連接失敗';
+                }
+
+            } catch (\Exception $e) {
+                $step2['status'] = 'failed';
+                $step2['error'] = $e->getMessage();
+            }
+
+            $verificationResults['steps'][] = $step2;
+
+            // Step 3: 檢查日誌文件
+            $step3 = [
+                'step' => 3,
+                'name' => '檢查 Webhook 日誌',
+                'status' => 'checking',
+                'data' => null
+            ];
+
+            try {
+                $logFiles = [];
+                $logPath = storage_path('logs');
+                
+                // 檢查標準 Laravel 日誌
+                $laravelLogFile = $logPath . '/laravel.log';
+                if (file_exists($laravelLogFile)) {
+                    $logFiles['laravel_log'] = [
+                        'exists' => true,
+                        'size' => filesize($laravelLogFile),
+                        'last_modified' => filemtime($laravelLogFile)
+                    ];
+                }
+
+                // 檢查 webhook 除錯日誌
+                $webhookLogFile = $logPath . '/webhook-debug.log';
+                if (file_exists($webhookLogFile)) {
+                    $logFiles['webhook_debug_log'] = [
+                        'exists' => true,
+                        'size' => filesize($webhookLogFile),
+                        'last_modified' => filemtime($webhookLogFile),
+                        'recent_content' => $this->getRecentLogContent($webhookLogFile, 10)
+                    ];
+                } else {
+                    $logFiles['webhook_debug_log'] = [
+                        'exists' => false,
+                        'note' => '沒有發現 webhook-debug.log 文件，可能需要觸發 webhook'
+                    ];
+                }
+
+                $step3['status'] = 'completed';
+                $step3['data'] = $logFiles;
+
+            } catch (\Exception $e) {
+                $step3['status'] = 'failed';
+                $step3['error'] = $e->getMessage();
+            }
+
+            $verificationResults['steps'][] = $step3;
+
+            // Step 4: 測試創建對話並同步
+            $step4 = [
+                'step' => 4,
+                'name' => '測試資料同步功能',
+                'status' => 'checking',
+                'data' => null
+            ];
+
+            try {
+                $testUserId = 'webhook_test_' . time();
+                
+                // 創建測試客戶
+                $testCustomer = \App\Models\Customer::firstOrCreate([
+                    'line_user_id' => $testUserId
+                ], [
+                    'name' => 'Webhook Test User',
+                    'channel' => 'line',
+                    'status' => 'new',
+                    'tracking_status' => 'pending'
+                ]);
+
+                // 創建測試對話
+                $testConversation = ChatConversation::create([
+                    'customer_id' => $testCustomer->id,
+                    'line_user_id' => $testUserId,
+                    'platform' => 'line',
+                    'message_type' => 'text',
+                    'message_content' => 'Webhook verification test message - ' . now()->toDateTimeString(),
+                    'message_timestamp' => now(),
+                    'is_from_customer' => true,
+                    'status' => 'unread'
+                ]);
+
+                $syncResult = false;
+                $syncError = null;
+
+                // 測試 Firebase 同步
+                if ($verificationResults['steps'][1]['status'] === 'completed') {
+                    try {
+                        $syncResult = $this->firebaseChatService->syncConversationToFirebase($testConversation);
+                    } catch (\Exception $e) {
+                        $syncError = $e->getMessage();
+                    }
+                }
+
+                $step4['status'] = 'completed';
+                $step4['data'] = [
+                    'test_customer_id' => $testCustomer->id,
+                    'test_conversation_id' => $testConversation->id,
+                    'mysql_write_success' => true,
+                    'firebase_sync_success' => $syncResult,
+                    'firebase_sync_error' => $syncError
+                ];
+
+            } catch (\Exception $e) {
+                $step4['status'] = 'failed';
+                $step4['error'] = $e->getMessage();
+            }
+
+            $verificationResults['steps'][] = $step4;
+
+            // 生成整體狀態和建議
+            $completedSteps = collect($verificationResults['steps'])->where('status', 'completed')->count();
+            $failedSteps = collect($verificationResults['steps'])->where('status', 'failed')->count();
+
+            if ($failedSteps === 0) {
+                $verificationResults['overall_status'] = 'healthy';
+                $verificationResults['recommendations'][] = '所有驗證步驟都通過，系統運作正常';
+            } elseif ($completedSteps > $failedSteps) {
+                $verificationResults['overall_status'] = 'partial';
+                $verificationResults['recommendations'][] = '部分功能正常，建議檢查失敗的步驟';
+            } else {
+                $verificationResults['overall_status'] = 'critical';
+                $verificationResults['recommendations'][] = '多個關鍵功能異常，需要立即修復';
+            }
+
+            // 具體建議
+            foreach ($verificationResults['steps'] as $step) {
+                if ($step['status'] === 'failed') {
+                    $verificationResults['recommendations'][] = "步驟 {$step['step']} 失敗：{$step['name']} - " . ($step['error'] ?? '未知錯誤');
+                } elseif (isset($step['warning'])) {
+                    $verificationResults['recommendations'][] = "步驟 {$step['step']} 警告：" . $step['warning'];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'verification' => $verificationResults,
+                'how_to_test' => [
+                    'step_1' => '發送 LINE 訊息到機器人',
+                    'step_2' => '等待 5-10 秒讓系統處理',
+                    'step_3' => '再次呼叫此 API 檢查結果',
+                    'step_4' => '檢查 MySQL 和 Firebase 是否都有新資料'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'verification' => $verificationResults
+            ], 500);
+        }
+    }
+
+    /**
+     * 獲取日誌文件的最近內容
+     */
+    private function getRecentLogContent(string $filePath, int $lines = 10): array
+    {
+        try {
+            if (!file_exists($filePath)) {
+                return [];
+            }
+
+            $fileLines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if (!$fileLines) {
+                return [];
+            }
+
+            $recentLines = array_slice($fileLines, -$lines);
+            
+            return array_map(function($line, $index) use ($recentLines) {
+                return [
+                    'line_number' => count($recentLines) - count($recentLines) + $index + 1,
+                    'content' => $line,
+                    'timestamp' => $this->extractTimestampFromLogLine($line)
+                ];
+            }, $recentLines, array_keys($recentLines));
+
+        } catch (\Exception $e) {
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * 從日誌行中提取時間戳
+     */
+    private function extractTimestampFromLogLine(string $line): ?string
+    {
+        // 嘗試匹配常見的時間戳格式
+        if (preg_match('/(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/', $line, $matches)) {
+            return $matches[1];
+        }
+        return null;
+    }
+
+    /**
+     * 即時監控 webhook 狀態（輕量級端點）
+     */
+    public function webhookStatus(Request $request)
+    {
+        try {
+            $since = $request->get('since', now()->subMinutes(5)->toISOString());
+            $sinceTime = \Carbon\Carbon::parse($since);
+
+            $recentActivity = ChatConversation::where('created_at', '>=', $sinceTime)
+                ->orderBy('created_at', 'desc')
+                ->limit(20)
+                ->get(['id', 'line_user_id', 'message_content', 'created_at', 'status', 'version']);
+
+            $status = [
+                'timestamp' => now()->toISOString(),
+                'since' => $sinceTime->toISOString(),
+                'activity_count' => $recentActivity->count(),
+                'firebase_connection' => false,
+                'last_activity' => null,
+                'recent_messages' => []
+            ];
+
+            // 檢查 Firebase 連接
+            try {
+                $status['firebase_connection'] = $this->firebaseChatService->checkFirebaseConnection();
+            } catch (\Exception $e) {
+                $status['firebase_error'] = $e->getMessage();
+            }
+
+            // 最近活動
+            if ($recentActivity->count() > 0) {
+                $latest = $recentActivity->first();
+                $status['last_activity'] = [
+                    'id' => $latest->id,
+                    'line_user_id' => $latest->line_user_id,
+                    'message' => substr($latest->message_content, 0, 50),
+                    'created_at' => $latest->created_at->toISOString(),
+                    'minutes_ago' => $latest->created_at->diffInMinutes(now())
+                ];
+
+                $status['recent_messages'] = $recentActivity->map(function($conv) {
+                    return [
+                        'id' => $conv->id,
+                        'user' => substr($conv->line_user_id, -6),
+                        'message' => substr($conv->message_content, 0, 30),
+                        'time' => $conv->created_at->format('H:i:s'),
+                        'version' => $conv->version
+                    ];
+                });
+            }
+
+            return response()->json([
+                'success' => true,
+                'status' => $status
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
