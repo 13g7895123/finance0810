@@ -49,6 +49,7 @@ class Customer extends Model
         'is_hidden',
         'line_display_name_original',
         'latest_case_at',
+        'version',
     ];
 
     /**

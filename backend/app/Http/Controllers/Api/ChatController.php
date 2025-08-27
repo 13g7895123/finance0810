@@ -1344,6 +1344,7 @@ class ChatController extends BaseApiController
                     'status' => \App\Models\Customer::STATUS_NEW,
                     'tracking_status' => \App\Models\Customer::TRACKING_PENDING,
                     'created_by' => 1, // System user
+                    'version' => 1, // 添加版本欄位
                     'assigned_to' => null, // Unassigned by default for LINE customers
                     'region' => '未知',
                     'website_source' => 'LINE Bot',
@@ -1501,6 +1502,7 @@ class ChatController extends BaseApiController
                 'status' => 'new',
                 'tracking_status' => 'pending',
                 'assigned_to' => $assignedTo,
+                'version' => 1, // 添加版本欄位
                 'website_source' => 'line',
                 'region' => 'unknown',
                 'source' => 'line_webhook'
@@ -3802,7 +3804,8 @@ class ChatController extends BaseApiController
                         'phone' => '0900000000', // 提供測試電話號碼
                         'channel' => 'line',
                         'status' => 'new',
-                        'tracking_status' => 'pending'
+                        'tracking_status' => 'pending',
+                        'version' => 1 // 添加版本欄位
                     ]);
 
                     // 創建測試對話
