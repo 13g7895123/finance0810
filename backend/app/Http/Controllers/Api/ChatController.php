@@ -227,15 +227,30 @@ class ChatController extends BaseApiController
                 // Update conversation status to failed
                 $this->safeUpdateStatus($conversation, 'failed');
                 
+                // Check LINE configuration and provide specific error
+                $settings = $this->getLineSettings();
+                $hasToken = !empty($settings['channel_access_token']);
+                
                 Log::error('LINE message send failed', [
                     'conversation_id' => $conversation->id,
-                    'line_user_id' => $userId
+                    'line_user_id' => $userId,
+                    'has_token' => $hasToken,
+                    'token_length' => $hasToken ? strlen($settings['channel_access_token']) : 0
                 ]);
+                
+                $errorMessage = $hasToken 
+                    ? 'LINE訊息發送失敗，可能是網路問題或LINE API錯誤，請重試' 
+                    : 'LINE Channel Access Token未設定，請聯繫系統管理員';
                 
                 return response()->json([
                     'success' => false,
                     'message' => '送出LINE訊息失敗',
-                    'error' => '送出LINE訊息失敗，請檢查LINE整合設定',
+                    'error' => $errorMessage,
+                    'details' => [
+                        'has_line_token' => $hasToken,
+                        'line_user_id' => $userId,
+                        'conversation_id' => $conversation->id
+                    ],
                     'conversation' => $conversation->load(['customer', 'user', 'replier'])
                 ], 500);
             }
@@ -243,11 +258,35 @@ class ChatController extends BaseApiController
             // Update conversation status to sent (with fallback handling)
             $this->safeUpdateStatus($conversation, 'sent');
             
-            // Sync to Firebase Realtime Database
-            $this->firebaseChatService->syncConversationToFirebase($conversation);
+            // Sync to Firebase Realtime Database with error handling
+            try {
+                $firebaseSync = $this->firebaseChatService->syncConversationToFirebase($conversation);
+                if ($firebaseSync) {
+                    Log::info('Firebase sync successful', ['conversation_id' => $conversation->id]);
+                } else {
+                    Log::warning('Firebase sync failed but message sent successfully', [
+                        'conversation_id' => $conversation->id,
+                        'line_user_id' => $userId
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::error('Firebase sync error', [
+                    'conversation_id' => $conversation->id,
+                    'error' => $e->getMessage()
+                ]);
+                // Don't fail the entire operation for Firebase sync issues
+            }
             
             // Broadcast the new message event for real-time updates
-            broadcast(new NewChatMessage($conversation, $userId));
+            try {
+                broadcast(new NewChatMessage($conversation, $userId));
+            } catch (\Exception $e) {
+                Log::error('Broadcast failed', [
+                    'conversation_id' => $conversation->id,
+                    'error' => $e->getMessage()
+                ]);
+                // Don't fail the entire operation for broadcast issues
+            }
             
             Log::info('Chat reply successful', ['conversation_id' => $conversation->id]);
 
@@ -650,11 +689,44 @@ class ChatController extends BaseApiController
             ],
         ]);
 
-        // Sync to Firebase Realtime Database
-        $this->firebaseChatService->syncConversationToFirebase($conversation);
+        // Sync to Firebase Realtime Database with error handling
+        try {
+            $firebaseSync = $this->firebaseChatService->syncConversationToFirebase($conversation);
+            if ($firebaseSync) {
+                Log::info('Webhook Firebase sync successful', [
+                    'conversation_id' => $conversation->id,
+                    'line_user_id' => $lineUserId
+                ]);
+            } else {
+                Log::error('Webhook Firebase sync failed', [
+                    'conversation_id' => $conversation->id,
+                    'line_user_id' => $lineUserId,
+                    'message_content' => substr($messageText, 0, 100)
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Webhook Firebase sync error', [
+                'conversation_id' => $conversation->id,
+                'line_user_id' => $lineUserId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
         
         // Broadcast the new message event for real-time updates
-        broadcast(new NewChatMessage($conversation, $lineUserId));
+        try {
+            broadcast(new NewChatMessage($conversation, $lineUserId));
+            Log::debug('Webhook broadcast successful', [
+                'conversation_id' => $conversation->id,
+                'line_user_id' => $lineUserId
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Webhook broadcast failed', [
+                'conversation_id' => $conversation->id,
+                'line_user_id' => $lineUserId,
+                'error' => $e->getMessage()
+            ]);
+        }
 
     }
 
