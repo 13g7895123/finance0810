@@ -482,4 +482,31 @@ class FirebaseChatService
             return false;
         }
     }
+
+    /**
+     * 寫入測試資料到Firebase（用於診斷）
+     */
+    public function writeTestData(string $key, array $data): bool
+    {
+        if (!$this->isDatabaseAvailable()) {
+            return false;
+        }
+
+        try {
+            $this->database->getReference('diagnostic_tests/' . $key)->set($data);
+            
+            Log::channel('firebase')->info('Test data written successfully', [
+                'key' => $key,
+                'data' => $data
+            ]);
+            
+            return true;
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('Failed to write test data', [
+                'key' => $key,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
 }

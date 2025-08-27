@@ -3683,4 +3683,182 @@ class ChatController extends BaseApiController
                config('services.firebase.debug_mode', false) || 
                env('FIREBASE_DEBUG_MODE', false);
     }
+
+    /**
+     * Point 65: 診斷MySQL和Firebase資料同步狀況
+     * 公開端點，無需認證，用於調試資料流向
+     */
+    public function diagnoseDataFlow(Request $request)
+    {
+        $results = [
+            'timestamp' => now()->toISOString(),
+            'mysql_status' => null,
+            'firebase_status' => null,
+            'test_results' => [],
+            'recommendations' => []
+        ];
+
+        try {
+            // 1. 檢查 MySQL 連接和資料狀況
+            $mysqlStats = [
+                'connection' => false,
+                'total_conversations' => 0,
+                'recent_conversations' => 0,
+                'customers_with_line' => 0,
+                'last_conversation' => null,
+                'sample_conversations' => []
+            ];
+
+            try {
+                $mysqlStats['connection'] = true;
+                $mysqlStats['total_conversations'] = ChatConversation::count();
+                $mysqlStats['recent_conversations'] = ChatConversation::where('created_at', '>=', now()->subHours(24))->count();
+                $mysqlStats['customers_with_line'] = \App\Models\Customer::whereNotNull('line_user_id')->count();
+                
+                $lastConversation = ChatConversation::latest()->first();
+                if ($lastConversation) {
+                    $mysqlStats['last_conversation'] = [
+                        'id' => $lastConversation->id,
+                        'customer_id' => $lastConversation->customer_id,
+                        'line_user_id' => $lastConversation->line_user_id,
+                        'message_content' => substr($lastConversation->message_content, 0, 50),
+                        'created_at' => $lastConversation->created_at->toISOString(),
+                        'version' => $lastConversation->version
+                    ];
+                }
+
+                // 取得最近 3 筆對話作為樣本
+                $mysqlStats['sample_conversations'] = ChatConversation::latest()
+                    ->take(3)
+                    ->get()
+                    ->map(function($conv) {
+                        return [
+                            'id' => $conv->id,
+                            'line_user_id' => $conv->line_user_id,
+                            'message' => substr($conv->message_content, 0, 30),
+                            'created_at' => $conv->created_at->toISOString()
+                        ];
+                    });
+
+            } catch (\Exception $e) {
+                $mysqlStats['error'] = $e->getMessage();
+            }
+
+            $results['mysql_status'] = $mysqlStats;
+
+            // 2. 檢查 Firebase 連接和資料狀況
+            $firebaseStats = [
+                'connection' => false,
+                'service_available' => false,
+                'config_valid' => false,
+                'test_read' => false,
+                'test_write' => false,
+                'sample_data' => []
+            ];
+
+            try {
+                $firebaseStats['service_available'] = $this->firebaseChatService !== null;
+                $firebaseStats['config_valid'] = !empty(config('services.firebase.project_id')) && 
+                                                 !empty(config('services.firebase.database_url'));
+
+                if ($this->firebaseChatService) {
+                    $firebaseStats['connection'] = $this->firebaseChatService->checkFirebaseConnection();
+                    
+                    // 測試讀取
+                    if ($firebaseStats['connection']) {
+                        try {
+                            $testData = $this->firebaseChatService->getMessagesFromFirebase('test', 1);
+                            $firebaseStats['test_read'] = true;
+                        } catch (\Exception $e) {
+                            $firebaseStats['read_error'] = $e->getMessage();
+                        }
+
+                        // 測試寫入
+                        try {
+                            $testKey = 'diagnostic_test_' . time();
+                            $success = $this->firebaseChatService->writeTestData($testKey, ['timestamp' => time()]);
+                            $firebaseStats['test_write'] = $success;
+                        } catch (\Exception $e) {
+                            $firebaseStats['write_error'] = $e->getMessage();
+                        }
+                    }
+                }
+
+            } catch (\Exception $e) {
+                $firebaseStats['error'] = $e->getMessage();
+            }
+
+            $results['firebase_status'] = $firebaseStats;
+
+            // 3. 創建測試對話並嘗試同步
+            if ($mysqlStats['connection'] && $firebaseStats['connection']) {
+                try {
+                    // 尋找或創建測試客戶
+                    $testCustomer = \App\Models\Customer::firstOrCreate([
+                        'line_user_id' => 'diagnostic_test_user_' . date('md')
+                    ], [
+                        'name' => 'Diagnostic Test User',
+                        'channel' => 'line',
+                        'status' => 'new',
+                        'tracking_status' => 'pending'
+                    ]);
+
+                    // 創建測試對話
+                    $testConversation = ChatConversation::create([
+                        'customer_id' => $testCustomer->id,
+                        'line_user_id' => $testCustomer->line_user_id,
+                        'platform' => 'line',
+                        'message_type' => 'text',
+                        'message_content' => 'Diagnostic test message at ' . now()->toDateTimeString(),
+                        'message_timestamp' => now(),
+                        'is_from_customer' => true,
+                        'status' => 'unread'
+                    ]);
+
+                    $results['test_results']['conversation_created'] = [
+                        'id' => $testConversation->id,
+                        'customer_id' => $testConversation->customer_id,
+                        'line_user_id' => $testConversation->line_user_id,
+                        'version' => $testConversation->version
+                    ];
+
+                    // 測試 Firebase 同步
+                    $syncResult = $this->firebaseChatService->syncConversationToFirebase($testConversation);
+                    $results['test_results']['firebase_sync'] = $syncResult;
+
+                } catch (\Exception $e) {
+                    $results['test_results']['error'] = $e->getMessage();
+                }
+            }
+
+            // 4. 生成建議
+            if (!$mysqlStats['connection']) {
+                $results['recommendations'][] = 'MySQL 資料庫連接失敗，請檢查資料庫配置';
+            }
+            
+            if ($mysqlStats['total_conversations'] === 0) {
+                $results['recommendations'][] = 'MySQL 中沒有對話記錄，可能是 webhook 未正確處理或創建失敗';
+            }
+            
+            if (!$firebaseStats['connection']) {
+                $results['recommendations'][] = 'Firebase Realtime Database 無法連接，請檢查配置和網路';
+            }
+            
+            if ($mysqlStats['total_conversations'] > 0 && !$firebaseStats['connection']) {
+                $results['recommendations'][] = 'MySQL 有資料但 Firebase 無法連接，資料未能同步';
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $results
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'trace' => config('app.debug') ? $e->getTraceAsString() : null
+            ], 500);
+        }
+    }
 }
