@@ -126,6 +126,7 @@ Route::middleware(['auth:api'])->group(function () {
         // Firebase Batch Operations
         Route::post('/firebase/batch-sync', [DebugController::class, 'batchSyncToFirebase']);
         Route::post('/firebase/reset', [DebugController::class, 'resetFirebaseData'])->middleware('role:admin');
+        Route::post('/firebase/test-connection', [DebugController::class, 'testFirebaseConnection']);
         
         // Chat Debug Operations
         Route::post('/chat/batch-sync', [ChatController::class, 'batchSyncToFirebaseDebug']);

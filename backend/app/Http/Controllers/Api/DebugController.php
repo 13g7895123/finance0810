@@ -535,6 +535,169 @@ class DebugController extends Controller
     }
 
     /**
+     * 測試Firebase Realtime Database連接
+     */
+    public function testFirebaseConnection(): JsonResponse
+    {
+        try {
+            // 檢查權限
+            if (!$this->isDebugEnabled() || !$this->hasAdminAccess()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '權限不足',
+                    'message' => '需要管理員權限且啟用除錯模式'
+                ], 403);
+            }
+
+            $testResults = [
+                'timestamp' => now()->toISOString(),
+                'test_steps' => [],
+                'overall_success' => false,
+                'connection_details' => []
+            ];
+
+            // 步驟 1: 檢查配置
+            $testResults['test_steps'][] = [
+                'step' => 1,
+                'name' => '檢查Firebase配置',
+                'status' => 'testing'
+            ];
+
+            $projectId = config('services.firebase.project_id');
+            $databaseUrl = config('services.firebase.database_url');
+            $credentialsPath = config('services.firebase.credentials');
+            
+            if (empty($projectId)) {
+                throw new \Exception('Firebase專案ID未設定');
+            }
+            if (empty($databaseUrl)) {
+                throw new \Exception('Firebase資料庫URL未設定');
+            }
+            if (!file_exists($credentialsPath)) {
+                throw new \Exception('Firebase服務帳號檔案不存在: ' . $credentialsPath);
+            }
+            if (!is_readable($credentialsPath)) {
+                throw new \Exception('Firebase服務帳號檔案無法讀取');
+            }
+
+            $testResults['test_steps'][0]['status'] = 'passed';
+            $testResults['connection_details']['config_check'] = 'passed';
+
+            // 步驟 2: 測試服務初始化
+            $testResults['test_steps'][] = [
+                'step' => 2,
+                'name' => '初始化Firebase服務',
+                'status' => 'testing'
+            ];
+
+            try {
+                $connectionTest = $this->firebaseChatService->checkFirebaseConnection();
+                $testResults['test_steps'][1]['status'] = $connectionTest ? 'passed' : 'failed';
+                $testResults['connection_details']['service_init'] = $connectionTest ? 'passed' : 'failed';
+            } catch (\Exception $e) {
+                $testResults['test_steps'][1]['status'] = 'failed';
+                $testResults['test_steps'][1]['error'] = $e->getMessage();
+                $testResults['connection_details']['service_init'] = 'failed';
+                throw $e;
+            }
+
+            // 步驟 3: 測試讀取權限
+            $testResults['test_steps'][] = [
+                'step' => 3,
+                'name' => '測試資料庫讀取權限',
+                'status' => 'testing'
+            ];
+
+            try {
+                // 嘗試讀取一個測試節點
+                $database = app('firebase.database');
+                $testPath = 'connection_test/' . time();
+                $testData = ['test' => true, 'timestamp' => time()];
+                
+                // 測試寫入
+                $database->getReference($testPath)->set($testData);
+                $testResults['connection_details']['write_test'] = 'passed';
+                
+                // 測試讀取
+                $readData = $database->getReference($testPath)->getValue();
+                if ($readData && isset($readData['test'])) {
+                    $testResults['connection_details']['read_test'] = 'passed';
+                    $testResults['test_steps'][2]['status'] = 'passed';
+                    
+                    // 清理測試資料
+                    $database->getReference($testPath)->remove();
+                    $testResults['connection_details']['cleanup'] = 'completed';
+                } else {
+                    throw new \Exception('讀取測試失敗');
+                }
+            } catch (\Exception $e) {
+                $testResults['test_steps'][2]['status'] = 'failed';
+                $testResults['test_steps'][2]['error'] = $e->getMessage();
+                $testResults['connection_details']['read_test'] = 'failed';
+                throw $e;
+            }
+
+            $testResults['overall_success'] = true;
+            $testResults['connection_details']['final_status'] = 'healthy';
+
+            Log::channel('firebase')->info('Firebase connection test completed successfully', $testResults);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Firebase Realtime Database連接測試成功',
+                'test_results' => $testResults
+            ]);
+
+        } catch (\Exception $e) {
+            $errorDetails = [
+                'error_type' => get_class($e),
+                'error_message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'timestamp' => now()->toISOString()
+            ];
+
+            Log::channel('firebase')->error('Firebase connection test failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'test_results' => $testResults ?? []
+            ]);
+
+            // 確保測試結果包含失敗狀態
+            if (!isset($testResults)) {
+                $testResults = [
+                    'timestamp' => now()->toISOString(),
+                    'test_steps' => [],
+                    'overall_success' => false,
+                    'connection_details' => []
+                ];
+            }
+            $testResults['overall_success'] = false;
+            $testResults['error_details'] = $errorDetails;
+
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'test_results' => $testResults,
+                'error_details' => [
+                    'exception_type' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => config('app.debug') ? $e->getTraceAsString() : null,
+                    'context' => 'Firebase Realtime Database connection test',
+                    'suggestions' => [
+                        '檢查Firebase專案設定是否正確',
+                        '確認服務帳號檔案存在且可讀取',
+                        '驗證Firebase Realtime Database是否已啟用',
+                        '檢查資料庫URL格式是否正確',
+                        '確認服務帳號權限包含資料庫讀寫權限'
+                    ]
+                ]
+            ], 500);
+        }
+    }
+
+    /**
      * 獲取最近的錯誤日誌
      */
     protected function getRecentErrors(): array
