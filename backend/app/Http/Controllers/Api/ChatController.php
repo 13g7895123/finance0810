@@ -94,7 +94,7 @@ class ChatController extends BaseApiController
                 'from' => $offset + 1,
                 'to' => min($offset + $perPage, $total),
                 'cached' => !$forceRefresh,
-                'timestamp' => now()->toISOString()
+                'timestamp' => now()->format('c')
             ]);
             
         } catch (\Exception $e) {
@@ -144,7 +144,7 @@ class ChatController extends BaseApiController
                 'success' => true,
                 'data' => $messages,
                 'has_more' => count($messages) === $limit,
-                'timestamp' => now()->toISOString()
+                'timestamp' => now()->format('c')
             ]);
             
         } catch (\Exception $e) {
@@ -1349,7 +1349,7 @@ class ChatController extends BaseApiController
                     'website_source' => 'LINE Bot',
                     'source_data' => [
                         'line_profile' => $profile,
-                        'first_contact' => now()->toISOString(),
+                        'first_contact' => now()->format('c'),
                         'event_type' => $event['type'] ?? 'unknown',
                     ],
                 ]);
@@ -1412,7 +1412,7 @@ class ChatController extends BaseApiController
                 // Update source data to include LINE profile
                 $sourceData = $existingCustomer->source_data ?? [];
                 $sourceData['line_profile'] = $profile;
-                $sourceData['line_integration_date'] = now()->toISOString();
+                $sourceData['line_integration_date'] = now()->format('c');
                 $updates['source_data'] = $sourceData;
                 
                 // Add note about LINE integration if this is a web form customer
@@ -1677,7 +1677,7 @@ class ChatController extends BaseApiController
             $customer->update([
                 'source_data' => array_merge($customer->source_data ?? [], [
                     'referral_code' => $referralCode,
-                    'referral_code_entered_at' => now()->toISOString(),
+                    'referral_code_entered_at' => now()->format('c'),
                 ]),
                 'notes' => ($customer->notes ? $customer->notes . "\n" : '') . "客戶輸入推薦碼：{$referralCode}",
             ]);
@@ -1710,7 +1710,7 @@ class ChatController extends BaseApiController
             $customer->update([
                 'source_data' => array_merge($customer->source_data ?? [], [
                     'referral_code_skipped' => true,
-                    'referral_code_skipped_at' => now()->toISOString(),
+                    'referral_code_skipped_at' => now()->format('c'),
                 ]),
                 'notes' => ($customer->notes ? $customer->notes . "\n" : '') . "客戶跳過推薦碼輸入",
             ]);
@@ -2000,7 +2000,7 @@ class ChatController extends BaseApiController
                                 'success' => true,
                                 'version' => $versionService->getCurrentVersion(),
                                 'data' => $this->formatChanges($changes),
-                                'timestamp' => now()->toISOString(),
+                                'timestamp' => now()->format('c'),
                                 'response_time' => round((microtime(true) - $startTime) * 1000, 2),
                                 'system_health' => $systemHealth
                             ]);
@@ -2023,7 +2023,7 @@ class ChatController extends BaseApiController
                 'success' => true,
                 'version' => $versionService->getCurrentVersion(),
                 'data' => [],
-                'timestamp' => now()->toISOString(),
+                'timestamp' => now()->format('c'),
                 'timeout' => true,
                 'system_health' => $systemHealth
             ]);
@@ -2296,7 +2296,7 @@ class ChatController extends BaseApiController
                 'cache_stats' => $this->cacheService->getCacheStats(),
                 'query_performance' => $performanceMonitor->getQueryStats(),
                 'database_stats' => $this->getDatabaseStats(),
-                'timestamp' => now()->toISOString()
+                'timestamp' => now()->format('c')
             ];
             
             return response()->json([
@@ -2684,7 +2684,7 @@ class ChatController extends BaseApiController
                 'database_connectivity' => $this->testFirebaseDatabaseConnection(),
                 'sync_statistics' => $this->getFirebaseSyncStatistics(),
                 'recent_errors' => $this->getRecentFirebaseErrors(),
-                'timestamp' => now()->toISOString(),
+                'timestamp' => now()->format('c'),
                 'checked_by' => $user->id
             ];
 
@@ -2757,7 +2757,7 @@ class ChatController extends BaseApiController
                 'basic_connection' => $testResult,
                 'can_read_data' => is_array($conversations),
                 'data_count' => is_array($conversations) ? count($conversations) : 0,
-                'last_test_time' => now()->toISOString()
+                'last_test_time' => now()->format('c')
             ];
         } catch (\Exception $e) {
             return [
@@ -2765,7 +2765,7 @@ class ChatController extends BaseApiController
                 'can_read_data' => false,
                 'data_count' => 0,
                 'error' => $e->getMessage(),
-                'last_test_time' => now()->toISOString()
+                'last_test_time' => now()->format('c')
             ];
         }
     }
@@ -2797,12 +2797,12 @@ class ChatController extends BaseApiController
                 'needs_sync_count' => $needsSyncCount,
                 'today_conversations' => $todayConversations,
                 'sync_enabled' => env('FIREBASE_ENABLED', true),
-                'last_calculated' => now()->toISOString()
+                'last_calculated' => now()->format('c')
             ];
         } catch (\Exception $e) {
             return [
                 'error' => 'Failed to calculate sync statistics: ' . $e->getMessage(),
-                'last_calculated' => now()->toISOString()
+                'last_calculated' => now()->format('c')
             ];
         }
     }
@@ -3137,7 +3137,7 @@ class ChatController extends BaseApiController
                 'success' => true,
                 'message' => '批次同步完成',
                 'data' => $results,
-                'timestamp' => now()->toISOString()
+                'timestamp' => now()->format('c')
             ]);
 
         } catch (\Exception $e) {
@@ -3190,7 +3190,7 @@ class ChatController extends BaseApiController
             $checkAll = $request->boolean('check_all', false);
 
             $validationResults = [
-                'timestamp' => now()->toISOString(),
+                'timestamp' => now()->format('c'),
                 'total_checked' => 0,
                 'mysql_count' => 0,
                 'firebase_count' => 0,
@@ -3291,7 +3291,7 @@ class ChatController extends BaseApiController
             $cleanupResults = [
                 'dry_run' => $dryRun,
                 'days_old_threshold' => $daysOld,
-                'timestamp' => now()->toISOString(),
+                'timestamp' => now()->format('c'),
                 'conversations_to_clean' => 0,
                 'messages_to_clean' => 0,
                 'cleaned_conversations' => [],
@@ -3320,7 +3320,7 @@ class ChatController extends BaseApiController
                             if ($deleteResult) {
                                 $cleanupResults['cleaned_conversations'][] = [
                                     'firebase_id' => $conversation['firebaseId'],
-                                    'last_updated' => $lastUpdate->toISOString(),
+                                    'last_updated' => $lastUpdate->format('c'),
                                     'status' => 'cleaned'
                                 ];
                             } else {
@@ -3332,7 +3332,7 @@ class ChatController extends BaseApiController
                         } else {
                             $cleanupResults['cleaned_conversations'][] = [
                                 'firebase_id' => $conversation['firebaseId'],
-                                'last_updated' => $lastUpdate->toISOString(),
+                                'last_updated' => $lastUpdate->format('c'),
                                 'status' => 'would_be_cleaned'
                             ];
                         }
@@ -3469,7 +3469,7 @@ class ChatController extends BaseApiController
                 'success' => true,
                 'message' => 'Permission test completed',
                 'data' => $permissionTests,
-                'test_timestamp' => now()->toISOString()
+                'test_timestamp' => now()->format('c')
             ]);
 
         } catch (\Exception $e) {
@@ -3632,7 +3632,7 @@ class ChatController extends BaseApiController
                 'success' => true,
                 'message' => "完整同步完成：處理 {$results['processed']} 筆，成功 {$results['synced']} 筆，失敗 {$results['failed']} 筆，跳過 {$results['skipped']} 筆",
                 'data' => $results,
-                'timestamp' => now()->toISOString()
+                'timestamp' => now()->format('c')
             ]);
 
         } catch (\Exception $e) {
@@ -3691,7 +3691,7 @@ class ChatController extends BaseApiController
     public function diagnoseDataFlow(Request $request)
     {
         $results = [
-            'timestamp' => now()->toISOString(),
+            'timestamp' => now()->format('c'),
             'mysql_status' => null,
             'firebase_status' => null,
             'test_results' => [],
@@ -3722,7 +3722,7 @@ class ChatController extends BaseApiController
                         'customer_id' => $lastConversation->customer_id,
                         'line_user_id' => $lastConversation->line_user_id,
                         'message_content' => substr($lastConversation->message_content, 0, 50),
-                        'created_at' => $lastConversation->created_at->toISOString(),
+                        'created_at' => $lastConversation->created_at->format('c'),
                         'version' => $lastConversation->version
                     ];
                 }
@@ -3736,7 +3736,7 @@ class ChatController extends BaseApiController
                             'id' => $conv->id,
                             'line_user_id' => $conv->line_user_id,
                             'message' => substr($conv->message_content, 0, 30),
-                            'created_at' => $conv->created_at->toISOString()
+                            'created_at' => $conv->created_at->format('c')
                         ];
                     });
 
@@ -3869,7 +3869,7 @@ class ChatController extends BaseApiController
     public function verifyWebhookExecution(Request $request)
     {
         $verificationResults = [
-            'timestamp' => now()->toISOString(),
+            'timestamp' => now()->format('c'),
             'verification_id' => 'verify_' . time(),
             'steps' => [],
             'overall_status' => 'pending',
@@ -3900,7 +3900,7 @@ class ChatController extends BaseApiController
                             'id' => $conv->id,
                             'line_user_id' => $conv->line_user_id,
                             'message' => substr($conv->message_content, 0, 50),
-                            'created_at' => $conv->created_at->toISOString(),
+                            'created_at' => $conv->created_at->format('c'),
                             'status' => $conv->status
                         ];
                     })
@@ -4149,7 +4149,7 @@ class ChatController extends BaseApiController
     public function webhookStatus(Request $request)
     {
         try {
-            $since = $request->get('since', now()->subMinutes(5)->toISOString());
+            $since = $request->get('since', now()->subMinutes(5)->format('c'));
             $sinceTime = \Carbon\Carbon::parse($since);
 
             $recentActivity = ChatConversation::where('created_at', '>=', $sinceTime)
@@ -4158,8 +4158,8 @@ class ChatController extends BaseApiController
                 ->get(['id', 'line_user_id', 'message_content', 'created_at', 'status', 'version']);
 
             $status = [
-                'timestamp' => now()->toISOString(),
-                'since' => $sinceTime->toISOString(),
+                'timestamp' => now()->format('c'),
+                'since' => $sinceTime->format('c'),
                 'activity_count' => $recentActivity->count(),
                 'firebase_connection' => false,
                 'last_activity' => null,
@@ -4180,7 +4180,7 @@ class ChatController extends BaseApiController
                     'id' => $latest->id,
                     'line_user_id' => $latest->line_user_id,
                     'message' => substr($latest->message_content, 0, 50),
-                    'created_at' => $latest->created_at->toISOString(),
+                    'created_at' => $latest->created_at->format('c'),
                     'minutes_ago' => $latest->created_at->diffInMinutes(now())
                 ];
 
