@@ -795,7 +795,15 @@ class ChatController extends BaseApiController
         $messageId = $event['message']['id'] ?? null;
         $timestamp = $event['timestamp'] ?? null;
         
+        // Debug log at start
+        file_put_contents(storage_path('logs/webhook-debug.log'), 
+            date('Y-m-d H:i:s') . " - handleTextMessage called with LINE user: $lineUserId, message: $messageText\n", 
+            FILE_APPEND | LOCK_EX);
+        
         if (!$lineUserId || !$messageText) {
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Missing LINE user ID or message text, returning\n", 
+                FILE_APPEND | LOCK_EX);
             return;
         }
 
@@ -804,8 +812,24 @@ class ChatController extends BaseApiController
             'message' => $messageText
         ]);
 
+        file_put_contents(storage_path('logs/webhook-debug.log'), 
+            date('Y-m-d H:i:s') . " - About to call findOrCreateCustomer\n", 
+            FILE_APPEND | LOCK_EX);
+
         // Find or create customer record
-        $customer = $this->findOrCreateCustomer($lineUserId, $event);
+        try {
+            $customer = $this->findOrCreateCustomer($lineUserId, $event);
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - findOrCreateCustomer returned customer ID: " . ($customer ? $customer->id : 'null') . "\n", 
+                FILE_APPEND | LOCK_EX);
+        } catch (\Exception $e) {
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - findOrCreateCustomer FAILED: " . $e->getMessage() . "\n", 
+                FILE_APPEND | LOCK_EX);
+            
+            // Create a simple customer fallback
+            $customer = $this->createSimpleCustomer($lineUserId);
+        }
         
         // Check if this is a referral code response
         $isReferralCode = false;
@@ -819,23 +843,45 @@ class ChatController extends BaseApiController
         }
         
         // Save conversation
-        $conversation = ChatConversation::create([
-            'customer_id' => $customer->id,
-            'user_id' => $customer->assigned_to,
-            'line_user_id' => $lineUserId,
-            'platform' => 'line',
-            'message_type' => 'text',
-            'message_content' => $messageText,
-            'message_timestamp' => $timestamp ? \Carbon\Carbon::createFromTimestamp($timestamp / 1000) : now(),
-            'is_from_customer' => true,
-            'status' => 'unread',
-            'metadata' => [
-                'message_id' => $messageId,
-                'timestamp' => $timestamp,
-                'event_type' => 'message',
-                'is_referral_code' => $isReferralCode,
-            ],
-        ]);
+        if (!$customer) {
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - ERROR: Customer is null, cannot create conversation\n", 
+                FILE_APPEND | LOCK_EX);
+            return;
+        }
+
+        file_put_contents(storage_path('logs/webhook-debug.log'), 
+            date('Y-m-d H:i:s') . " - Creating conversation for customer {$customer->id}\n", 
+            FILE_APPEND | LOCK_EX);
+
+        try {
+            $conversation = ChatConversation::create([
+                'customer_id' => $customer->id,
+                'user_id' => $customer->assigned_to,
+                'line_user_id' => $lineUserId,
+                'platform' => 'line',
+                'message_type' => 'text',
+                'message_content' => $messageText,
+                'message_timestamp' => $timestamp ? \Carbon\Carbon::createFromTimestamp($timestamp / 1000) : now(),
+                'is_from_customer' => true,
+                'status' => 'unread',
+                'metadata' => [
+                    'message_id' => $messageId,
+                    'timestamp' => $timestamp,
+                    'event_type' => 'message',
+                    'is_referral_code' => $isReferralCode,
+                ],
+            ]);
+
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Conversation created with ID: {$conversation->id}\n", 
+                FILE_APPEND | LOCK_EX);
+        } catch (\Exception $e) {
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Conversation creation FAILED: " . $e->getMessage() . "\n", 
+                FILE_APPEND | LOCK_EX);
+            return;
+        }
 
         // Sync to Firebase Realtime Database with error handling
         try {
@@ -1394,6 +1440,54 @@ class ChatController extends BaseApiController
                 'trace' => $e->getTraceAsString()
             ]);
             throw $e;
+        }
+    }
+
+    /**
+     * Create a simple customer as fallback
+     */
+    protected function createSimpleCustomer($lineUserId)
+    {
+        try {
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Creating simple customer for LINE user: $lineUserId\n", 
+                FILE_APPEND | LOCK_EX);
+
+            // Check if customer already exists
+            $existingCustomer = \App\Models\Customer::where('line_user_id', $lineUserId)->first();
+            if ($existingCustomer) {
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Simple customer found existing: {$existingCustomer->id}\n", 
+                    FILE_APPEND | LOCK_EX);
+                return $existingCustomer;
+            }
+
+            // Get admin user for assignment
+            $adminUser = \App\Models\User::where('role', 'admin')->first();
+            $assignedTo = $adminUser ? $adminUser->id : 1; // fallback to ID 1
+
+            $customer = \App\Models\Customer::create([
+                'name' => 'LINE用戶 ' . substr($lineUserId, -6),
+                'line_user_id' => $lineUserId,
+                'channel' => 'line',
+                'status' => 'new',
+                'tracking_status' => 'pending',
+                'assigned_to' => $assignedTo,
+                'website_source' => 'line',
+                'region' => 'unknown',
+                'source' => 'line_webhook'
+            ]);
+
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Simple customer created with ID: {$customer->id}\n", 
+                FILE_APPEND | LOCK_EX);
+
+            return $customer;
+        } catch (\Exception $e) {
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Simple customer creation FAILED: " . $e->getMessage() . "\n", 
+                FILE_APPEND | LOCK_EX);
+            return null;
         }
     }
 
