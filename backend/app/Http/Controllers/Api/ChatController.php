@@ -1031,7 +1031,20 @@ class ChatController extends BaseApiController
         $signature = $request->header('X-Line-Signature');
         $body = $request->getContent();
         
+        // Log incoming signature details for debugging
+        Log::info('LINE Webhook Signature Verification', [
+            'has_signature' => !empty($signature),
+            'signature_length' => strlen($signature ?? ''),
+            'body_length' => strlen($body ?? ''),
+            'body_hash' => md5($body ?? ''),
+            'headers' => $request->headers->all()
+        ]);
+        
         if (!$signature || !$body) {
+            Log::warning('LINE Webhook missing signature or body', [
+                'signature' => $signature,
+                'body_empty' => empty($body)
+            ]);
             return false;
         }
 
@@ -1041,12 +1054,31 @@ class ChatController extends BaseApiController
         
         if (!$channelSecret) {
             Log::warning('LINE Channel Secret not configured for webhook verification');
-            return true; // Allow webhook if secret not configured (for testing)
+            // For development/testing, check if we should skip verification
+            if (config('app.env') === 'local' || config('app.debug')) {
+                Log::info('Skipping signature verification in debug mode');
+                return true;
+            }
+            return false; // In production, require channel secret
         }
 
         $expectedSignature = base64_encode(hash_hmac('sha256', $body, $channelSecret, true));
         
-        return hash_equals($expectedSignature, $signature);
+        // Log signature comparison for debugging
+        $isValid = hash_equals($expectedSignature, $signature);
+        
+        if (!$isValid) {
+            Log::error('LINE Webhook signature mismatch', [
+                'expected' => substr($expectedSignature, 0, 10) . '...',
+                'received' => substr($signature, 0, 10) . '...',
+                'channel_secret_configured' => !empty($channelSecret),
+                'channel_secret_length' => strlen($channelSecret)
+            ]);
+        } else {
+            Log::info('LINE Webhook signature verified successfully');
+        }
+        
+        return $isValid;
     }
 
     /**

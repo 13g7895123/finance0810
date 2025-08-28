@@ -152,6 +152,10 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/firebase/reset', [DebugController::class, 'resetFirebaseData'])->middleware('role:admin');
         Route::post('/firebase/test-connection', [DebugController::class, 'testFirebaseConnection']);
         
+        // LINE Settings Management
+        Route::get('/line/settings', [DebugController::class, 'getLineSettings']);
+        Route::post('/line/settings', [DebugController::class, 'updateLineSettings']);
+        
         // Chat Debug Operations
         Route::post('/chat/batch-sync', [ChatController::class, 'batchSyncToFirebaseDebug']);
         Route::post('/chat/full-sync', [ChatController::class, 'fullSyncToFirebase']);

@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Models\LineIntegrationSetting;
 
 class DebugController extends Controller
 {
@@ -1329,6 +1330,113 @@ class DebugController extends Controller
                 'success' => false,
                 'error' => $e->getMessage(),
                 'timestamp' => now()->toISOString()
+            ], 500);
+        }
+    }
+
+    /**
+     * 更新 LINE webhook 設定
+     */
+    public function updateLineSettings(Request $request): JsonResponse
+    {
+        try {
+            // 檢查權限
+            if (!$this->isDebugEnabled() || !$this->hasAdminAccess()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '需要管理員權限且啟用除錯模式'
+                ], 403);
+            }
+
+            $request->validate([
+                'channel_secret' => 'nullable|string',
+                'channel_access_token' => 'nullable|string',
+            ]);
+
+            $updated = [];
+
+            // 更新 Channel Secret
+            if ($request->has('channel_secret')) {
+                LineIntegrationSetting::setValue(
+                    'channel_secret',
+                    $request->input('channel_secret'),
+                    'string',
+                    'LINE Channel Secret for webhook signature verification',
+                    true
+                );
+                $updated[] = 'channel_secret';
+            }
+
+            // 更新 Channel Access Token
+            if ($request->has('channel_access_token')) {
+                LineIntegrationSetting::setValue(
+                    'channel_access_token',
+                    $request->input('channel_access_token'),
+                    'string',
+                    'LINE Channel Access Token for sending messages',
+                    true
+                );
+                $updated[] = 'channel_access_token';
+            }
+
+            // 清除快取
+            \Cache::forget('line_integration_settings');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'LINE 設定已更新',
+                'updated_fields' => $updated,
+                'current_settings' => [
+                    'channel_secret_configured' => !empty(LineIntegrationSetting::getValue('channel_secret')),
+                    'channel_access_token_configured' => !empty(LineIntegrationSetting::getValue('channel_access_token')),
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 取得當前 LINE 設定狀態
+     */
+    public function getLineSettings(): JsonResponse
+    {
+        try {
+            // 檢查權限
+            if (!$this->isDebugEnabled() || !$this->hasAdminAccess()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '需要管理員權限且啟用除錯模式'
+                ], 403);
+            }
+
+            $settings = LineIntegrationSetting::getAllSettings(true);
+            
+            return response()->json([
+                'success' => true,
+                'settings' => [
+                    'channel_secret_configured' => !empty($settings['channel_secret']),
+                    'channel_secret_length' => strlen($settings['channel_secret'] ?? ''),
+                    'channel_access_token_configured' => !empty($settings['channel_access_token']),
+                    'channel_access_token_length' => strlen($settings['channel_access_token'] ?? ''),
+                    'from_database' => true,
+                    'from_env' => [
+                        'LINE_BOT_CHANNEL_SECRET' => !empty(env('LINE_BOT_CHANNEL_SECRET')),
+                        'LINE_CHANNEL_SECRET' => !empty(env('LINE_CHANNEL_SECRET')),
+                        'LINE_BOT_CHANNEL_ACCESS_TOKEN' => !empty(env('LINE_BOT_CHANNEL_ACCESS_TOKEN')),
+                        'LINE_CHANNEL_ACCESS_TOKEN' => !empty(env('LINE_CHANNEL_ACCESS_TOKEN')),
+                    ]
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
             ], 500);
         }
     }
