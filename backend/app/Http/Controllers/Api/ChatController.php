@@ -3805,7 +3805,8 @@ class ChatController extends BaseApiController
                         'channel' => 'line',
                         'status' => 'new',
                         'tracking_status' => 'pending',
-                        'version' => 1 // 添加版本欄位
+                        'version' => 1, // 添加版本欄位
+                        'version_updated_at' => now() // 添加版本更新時間
                     ]);
 
                     // 創建測試對話

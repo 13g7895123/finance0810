@@ -50,6 +50,7 @@ class Customer extends Model
         'line_display_name_original',
         'latest_case_at',
         'version',
+        'version_updated_at',
     ];
 
     /**
@@ -68,6 +69,7 @@ class Customer extends Model
         'blacklist_reported_at' => 'datetime',
         'blacklist_approved_at' => 'datetime',
         'latest_case_at' => 'datetime',
+        'version_updated_at' => 'datetime',
     ];
 
     /**
