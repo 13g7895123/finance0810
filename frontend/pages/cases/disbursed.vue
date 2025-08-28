@@ -3,24 +3,24 @@
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">已撥款案件</h1>
-        <p class="text-gray-600 dark:text-gray-400 mt-2">顯示來自 WP 表單的進件（可搜尋、編輯、刪除）</p>
+        <h1 class="text-3xl font-bold text-gray-900 ">已撥款案件</h1>
+        <p class="text-gray-600 mt-2">顯示來自 WP 表單的進件（可搜尋、編輯、刪除）</p>
       </div>
       <div class="flex items-center space-x-3">
         <input
           v-model="search"
           type="text"
           placeholder="搜尋姓名/手機/Email/LINE/網站... (至少2個字符)"
-          class="px-3 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
+          class="px-3 py-2 border rounded-lg "
         />
         <template v-if="authStore?.hasPermission && authStore.hasPermission('customer_management')">
-          <select v-model="selectedAssignee" class="px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700">
+          <select v-model="selectedAssignee" class="px-3 py-2 border rounded ">
             <option value="all">全部承辦</option>
             <option value="null">未指派</option>
             <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
           </select>
         </template>
-        <select v-model="pagination.perPage" class="px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700">
+        <select v-model="pagination.perPage" class="px-3 py-2 border rounded ">
           <option v-for="option in PAGINATION_OPTIONS" :key="option.value" :value="option.value">
             {{ option.label }}
           </option>
@@ -29,10 +29,10 @@
     </div>
 
     <!-- Table -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-between">
-        <h3 class="text-lg font-medium text-gray-900 dark:text-white">WP 進件列表</h3>
-        <div class="text-sm text-gray-500 dark:text-gray-400">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+        <h3 class="text-lg font-medium text-gray-900 ">WP 進件列表</h3>
+        <div class="text-sm text-gray-500 ">
           第
           <span class="font-medium">{{ startIndex + 1 }}</span>
           -
@@ -43,154 +43,154 @@
 
       <div class="overflow-x-auto">
         <table class="w-full">
-          <thead class="bg-gray-50 dark:bg-gray-700">
+          <thead class="bg-gray-50 ">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">網站</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">來源管道</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">時間</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">承辦業務</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Email</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">LINE ID</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">地區</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">地址</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">需求金額</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">諮詢項目</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">可聯繫時間</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">IP 位址</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">備註</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">網站</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">來源管道</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">時間</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">承辦業務</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">LINE ID</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">地區</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">地址</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">需求金額</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">諮詢項目</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">可聯繫時間</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP 位址</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">備註</th>
               <!-- 自定義欄位（可見）動態欄位 -->
-              <th v-for="cf in visibleCaseFields" :key="cf.id" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ cf.label }}</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">操作</th>
+              <th v-for="cf in visibleCaseFields" :key="cf.id" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ cf.label }}</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
             </tr>
           </thead>
-          <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody class="bg-white divide-y divide-gray-200 ">
             <tr v-if="loading">
-              <td colspan="6" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">載入中...</td>
+              <td colspan="6" class="px-6 py-6 text-center text-gray-500 ">載入中...</td>
             </tr>
-            <tr v-for="lead in leads" :key="lead.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
+            <tr v-for="lead in leads" :key="lead.id" class="hover:bg-gray-50 ">
               <!-- 網站 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
-                <div class="text-gray-900 dark:text-white">{{ extractDomain(lead.payload?.['頁面_URL'] || lead.source) || '-' }}</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[240px]">{{ lead.payload?.['頁面_URL'] || lead.source }}</div>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">
+                <div class="text-gray-900 ">{{ extractDomain(lead.payload?.['頁面_URL'] || lead.source) || '-' }}</div>
+                <div class="text-xs text-gray-500 truncate max-w-[240px]">{{ lead.payload?.['頁面_URL'] || lead.source }}</div>
               </td>
               <!-- 來源管道 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.channel || 'wp' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.channel || 'wp' }}</td>
               <!-- 時間 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">
                 <div>{{ formatDate(lead.created_at) }}</div>
                 <div class="text-sm">{{ formatTime(lead.created_at) }}</div>
               </td>
               <!-- 承辦業務 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">
                 {{ lead.assignee?.name || '-' }}
               </td>
               <!-- Email -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.email || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.email || '-' }}</td>
               <!-- LINE ID -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.line_id || lead.payload?.['LINE_ID'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.line_id || lead.payload?.['LINE_ID'] || '-' }}</td>
               <!-- 地區 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '-' }}</td>
               <!-- 地址 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['房屋地址'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.payload?.['房屋地址'] || '-' }}</td>
               <!-- 需求金額 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['資金需求'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.payload?.['資金需求'] || '-' }}</td>
               <!-- 諮詢項目 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['貸款需求'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.payload?.['貸款需求'] || '-' }}</td>
               <!-- 可聯繫時間 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.payload?.['方便聯絡時間'] || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.payload?.['方便聯絡時間'] || '-' }}</td>
               <!-- IP 位址 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.ip_address || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.ip_address || '-' }}</td>
               <!-- 備註 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">{{ lead.notes || lead.payload?.['備註'] || lead.payload?.notes || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.notes || lead.payload?.['備註'] || lead.payload?.notes || '-' }}</td>
               <!-- 動態自定義欄位顯示（is_visible=true） -->
-              <td v-for="cf in visibleCaseFields" :key="cf.id" class="px-6 py-4 whitespace-nowrap text-base text-gray-700 dark:text-gray-300">
+              <td v-for="cf in visibleCaseFields" :key="cf.id" class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">
                 {{ formatCustomFieldValue(lead.payload?.[cf.key], cf) }}
               </td>
               <!-- 操作 -->
               <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">
-                <button @click="onEdit(lead)" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">編輯</button>
-                <!-- <button @click="openConvert(lead)" class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300">轉送件</button> -->
-                <button @click="onDelete(lead)" class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">刪除</button>
+                <button @click="onEdit(lead)" class="text-blue-600 hover:text-blue-800 ">編輯</button>
+                <!-- <button @click="openConvert(lead)" class="text-green-600 hover:text-green-900 ">轉送件</button> -->
+                <button @click="onDelete(lead)" class="text-red-600 hover:text-red-800 ">刪除</button>
               </td>
             </tr>
             <tr v-if="!loading && leads.length === 0">
-              <td colspan="15" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">沒有資料</td>
+              <td colspan="15" class="px-6 py-6 text-center text-gray-500 ">沒有資料</td>
             </tr>
           </tbody>
         </table>
       </div>
 
       <!-- Pagination -->
-      <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
         <div class="flex space-x-2">
-          <button @click="prevPage" :disabled="pagination.currentPage === 1" class="px-3 py-1 border rounded text-sm disabled:opacity-50 dark:bg-gray-800 dark:border-gray-600">上一頁</button>
-          <button @click="nextPage" :disabled="pagination.currentPage === totalPages" class="px-3 py-1 border rounded text-sm disabled:opacity-50 dark:bg-gray-800 dark:border-gray-600">下一頁</button>
+          <button @click="prevPage" :disabled="pagination.currentPage === 1" class="px-3 py-1 border rounded text-sm disabled:opacity-50 ">上一頁</button>
+          <button @click="nextPage" :disabled="pagination.currentPage === totalPages" class="px-3 py-1 border rounded text-sm disabled:opacity-50 ">下一頁</button>
         </div>
-        <div class="text-sm text-gray-500 dark:text-gray-400">第 {{ pagination.currentPage }} / {{ totalPages }} 頁</div>
+        <div class="text-sm text-gray-500 ">第 {{ pagination.currentPage }} / {{ totalPages }} 頁</div>
       </div>
     </div>
 
     <!-- Edit Modal -->
     <div v-if="editOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeEdit">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-xl max-h-[80vh] overflow-y-auto">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">編輯進件</h3>
+      <div class="bg-white rounded-lg p-6 w-full max-w-xl max-h-[80vh] overflow-y-auto">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">編輯進件</h3>
         <form @submit.prevent="saveEdit" class="space-y-3">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="block text-sm mb-1">網站（頁面URL）</label>
-              <input v-model="form.page_url" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <input v-model="form.page_url" class="w-full px-3 py-2 border rounded " />
             </div>
             <div>
               <label class="block text-sm mb-1">來源管道</label>
-              <select v-model="form.channel" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700">
+              <select v-model="form.channel" class="w-full px-3 py-2 border rounded ">
                 <option v-for="opt in CHANNEL_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
             <div>
               <label class="block text-sm mb-1">案件狀態</label>
-              <select v-model="form.status" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700">
+              <select v-model="form.status" class="w-full px-3 py-2 border rounded ">
                 <option v-for="opt in STATUS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
             <div>
               <label class="block text-sm mb-1">時間</label>
-              <input v-model="form.created_at" type="datetime-local" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <input v-model="form.created_at" type="datetime-local" class="w-full px-3 py-2 border rounded " />
             </div>
             <div>
               <label class="block text-sm mb-1">Email</label>
-              <input v-model="form.email" type="email" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <input v-model="form.email" type="email" class="w-full px-3 py-2 border rounded " />
             </div>
             <div>
               <label class="block text-sm mb-1">LINE ID</label>
-              <input v-model="form.line_id" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <input v-model="form.line_id" class="w-full px-3 py-2 border rounded " />
             </div>
             <div>
               <label class="block text-sm mb-1">地區</label>
-              <input v-model="form.region" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <input v-model="form.region" class="w-full px-3 py-2 border rounded " />
             </div>
             <div>
               <label class="block text-sm mb-1">地址</label>
-              <input v-model="form.address" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <input v-model="form.address" class="w-full px-3 py-2 border rounded " />
             </div>
             <div>
               <label class="block text-sm mb-1">需求金額</label>
-              <input v-model.number="form.required_amount" type="number" min="0" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <input v-model.number="form.required_amount" type="number" min="0" class="w-full px-3 py-2 border rounded " />
             </div>
             <div>
               <label class="block text-sm mb-1">諮詢項目</label>
-              <input v-model="form.loan_purpose" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <input v-model="form.loan_purpose" class="w-full px-3 py-2 border rounded " />
             </div>
             <div>
               <label class="block text-sm mb-1">可聯繫時間</label>
-              <input v-model="form.contact_time" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <input v-model="form.contact_time" class="w-full px-3 py-2 border rounded " />
             </div>
             <div>
               <label class="block text-sm mb-1">IP 位址</label>
-              <input v-model="form.ip_address" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <input v-model="form.ip_address" class="w-full px-3 py-2 border rounded " />
             </div>
             <div class="md:col-span-2">
               <label class="block text-sm mb-1">備註</label>
-              <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"></textarea>
+              <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 border rounded "></textarea>
             </div>
 
             <!-- 自定義欄位（案件）顯示於表格/彈窗 -->
@@ -205,21 +205,21 @@
                       v-if="['text','number','decimal','date'].includes(cf.type)"
                       :type="cf.type === 'decimal' ? 'number' : (cf.type === 'number' ? 'number' : (cf.type === 'date' ? 'date' : 'text'))"
                       :step="cf.type === 'decimal' ? 'any' : undefined"
-                      class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"
+                      class="w-full px-3 py-2 border rounded "
                       :required="cf.is_required"
                       v-model="customFieldValues[cf.key]"
                     />
                     <!-- 文字區塊 -->
                     <textarea
                       v-else-if="cf.type === 'textarea'"
-                      class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"
+                      class="w-full px-3 py-2 border rounded "
                       :required="cf.is_required"
                       v-model="customFieldValues[cf.key]"
                     ></textarea>
                     <!-- 單選 -->
                     <select
                       v-else-if="cf.type === 'select'"
-                      class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"
+                      class="w-full px-3 py-2 border rounded "
                       :required="cf.is_required"
                       v-model="customFieldValues[cf.key]"
                     >
@@ -253,7 +253,7 @@
             </template>
           </div>
           <div class="flex justify-end space-x-3 pt-2">
-            <button type="button" class="px-4 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" @click="closeEdit">取消</button>
+            <button type="button" class="px-4 py-2 border rounded " @click="closeEdit">取消</button>
             <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded" :disabled="saving">{{ saving ? '儲存中...' : '儲存' }}</button>
           </div>
         </form>
@@ -263,33 +263,33 @@
 
   <!-- Convert Modal -->
   <div v-if="convertOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeConvert">
-    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">送件（建立案件）</h3>
+    <div class="bg-white rounded-lg p-6 w-full max-w-lg">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">送件（建立案件）</h3>
       <form @submit.prevent="doConvert" class="space-y-3">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label class="block text-sm mb-1">貸款金額</label>
-            <input v-model.number="convertForm.loan_amount" required type="number" min="0" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+            <input v-model.number="convertForm.loan_amount" required type="number" min="0" class="w-full px-3 py-2 border rounded " />
           </div>
           <div>
             <label class="block text-sm mb-1">貸款類型</label>
-            <input v-model="convertForm.loan_type" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+            <input v-model="convertForm.loan_type" class="w-full px-3 py-2 border rounded " />
           </div>
           <div>
             <label class="block text-sm mb-1">期數（月）</label>
-            <input v-model.number="convertForm.loan_term" type="number" min="0" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+            <input v-model.number="convertForm.loan_term" type="number" min="0" class="w-full px-3 py-2 border rounded " />
           </div>
           <div>
             <label class="block text-sm mb-1">利率</label>
-            <input v-model.number="convertForm.interest_rate" type="number" min="0" step="0.01" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+            <input v-model.number="convertForm.interest_rate" type="number" min="0" step="0.01" class="w-full px-3 py-2 border rounded " />
           </div>
           <div class="md:col-span-2">
             <label class="block text-sm mb-1">備註</label>
-            <textarea v-model="convertForm.notes" rows="2" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"></textarea>
+            <textarea v-model="convertForm.notes" rows="2" class="w-full px-3 py-2 border rounded "></textarea>
           </div>
         </div>
         <div class="flex justify-end space-x-3 pt-2">
-          <button type="button" class="px-4 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" @click="closeConvert">取消</button>
+          <button type="button" class="px-4 py-2 border rounded " @click="closeConvert">取消</button>
           <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">送件</button>
         </div>
       </form>
@@ -443,18 +443,18 @@ const getInputComponent = (cf) => ({
       <input v-if="['text','number','decimal','date'].includes(cf.type)"
              :type="cf.type === 'decimal' ? 'number' : (cf.type === 'text' ? 'text' : (cf.type === 'date' ? 'date' : 'number'))"
              step="any"
-             class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"
+             class="w-full px-3 py-2 border rounded "
              :required="cf.is_required"
              :value="modelValue"
              @input="$emit('update:modelValue', $event.target.value)"
       />
       <textarea v-else-if="cf.type==='textarea'"
-                class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"
+                class="w-full px-3 py-2 border rounded "
                 :required="cf.is_required"
                 :value="modelValue"
                 @input="$emit('update:modelValue', $event.target.value)"></textarea>
       <select v-else-if="cf.type==='select'"
-              class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"
+              class="w-full px-3 py-2 border rounded "
               :required="cf.is_required"
               :value="modelValue"
               @change="$emit('update:modelValue', $event.target.value)">
@@ -462,7 +462,7 @@ const getInputComponent = (cf) => ({
         <option v-for="opt in (cf.options||[])" :key="opt" :value="opt">{{ opt }}</option>
       </select>
       <select v-else-if="cf.type==='multiselect'" multiple
-              class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700"
+              class="w-full px-3 py-2 border rounded "
               :required="cf.is_required"
               @change="$emit('update:modelValue', Array.from($event.target.selectedOptions).map(o=>o.value))">
         <option v-for="opt in (cf.options||[])" :key="opt" :value="opt" :selected="(modelValue||[]).includes(opt)">{{ opt }}</option>

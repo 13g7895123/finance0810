@@ -2,30 +2,30 @@
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">自定義欄位（案件）</h1>
-        <p class="text-gray-600 dark:text-gray-400 mt-2">管理 entity_type = case 的欄位（支援：文字、文字區塊、數字、小數、日期、單選、多選、是/否）</p>
+        <h1 class="text-3xl font-bold text-gray-900 ">自定義欄位（案件）</h1>
+        <p class="text-gray-600 mt-2">管理 entity_type = case 的欄位（支援：文字、文字區塊、數字、小數、日期、單選、多選、是/否）</p>
       </div>
       <button @click="openCreate" class="px-3 py-2 bg-blue-600 text-white rounded">新增欄位</button>
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-between">
-        <h3 class="text-lg font-medium text-gray-900 dark:text-white">欄位清單</h3>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+        <h3 class="text-lg font-medium text-gray-900 ">欄位清單</h3>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full">
-          <thead class="bg-gray-50 dark:bg-gray-700">
+          <thead class="bg-gray-50 ">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">排序</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">名稱</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">鍵值 Key</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">類型</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">必填</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">顯示</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">操作</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">排序</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">名稱</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">鍵值 Key</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">類型</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">必填</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">顯示</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
             </tr>
           </thead>
-          <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody class="bg-white divide-y divide-gray-200 ">
             <tr v-if="loading"><td colspan="7" class="px-6 py-6 text-center text-gray-500">載入中...</td></tr>
             <tr v-for="f in fields" :key="f.id">
               <td class="px-6 py-3">{{ f.sort_order }}</td>
@@ -47,21 +47,21 @@
 
     <!-- 表單 Modal -->
     <div v-if="formOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeForm">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-xl">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ form.id ? '編輯欄位' : '新增欄位' }}</h3>
+      <div class="bg-white rounded-lg p-6 w-full max-w-xl">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ form.id ? '編輯欄位' : '新增欄位' }}</h3>
         <form @submit.prevent="save" class="space-y-3">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="block text-sm mb-1">顯示名稱 (label)</label>
-              <input v-model="form.label" required class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <input v-model="form.label" required class="w-full px-3 py-2 border rounded " />
             </div>
             <div>
               <label class="block text-sm mb-1">鍵值 Key</label>
-              <input v-model="form.key" :disabled="!!form.id" required class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <input v-model="form.key" :disabled="!!form.id" required class="w-full px-3 py-2 border rounded " />
             </div>
             <div>
               <label class="block text-sm mb-1">類型</label>
-              <select v-model="form.type" required class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700">
+              <select v-model="form.type" required class="w-full px-3 py-2 border rounded ">
                 <option v-for="t in FIELD_TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
               </select>
             </div>
@@ -72,7 +72,7 @@
             </div>
             <div>
               <label class="block text-sm mb-1">排序</label>
-              <input v-model.number="form.sort_order" type="number" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" />
+              <input v-model.number="form.sort_order" type="number" class="w-full px-3 py-2 border rounded " />
             </div>
             <div>
               <label class="inline-flex items-center mt-7">
@@ -84,11 +84,11 @@
           <!-- 選項（select/multiselect） -->
           <div v-if="['select','multiselect'].includes(form.type)">
             <label class="block text-sm mb-1">選項 (以逗號分隔)</label>
-            <input v-model="optionsText" class="w-full px-3 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" placeholder="例如：高,中,低" />
+            <input v-model="optionsText" class="w-full px-3 py-2 border rounded " placeholder="例如：高,中,低" />
           </div>
 
           <div class="flex justify-end space-x-3 pt-2">
-            <button type="button" class="px-4 py-2 border rounded dark:bg-gray-900 dark:border-gray-700" @click="closeForm">取消</button>
+            <button type="button" class="px-4 py-2 border rounded " @click="closeForm">取消</button>
             <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded" :disabled="saving">{{ saving ? '儲存中...' : '儲存' }}</button>
           </div>
         </form>

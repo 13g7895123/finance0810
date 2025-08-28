@@ -3,8 +3,8 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">權限管理</h1>
-        <p class="text-gray-600 dark:text-gray-400 mt-2">管理用戶權限和角色設定</p>
+        <h1 class="text-3xl font-bold text-gray-900 ">權限管理</h1>
+        <p class="text-gray-600 mt-2">管理用戶權限和角色設定</p>
       </div>
       
       <!-- Quick Actions -->
@@ -18,7 +18,7 @@
         </button>
         <button
           @click="viewMode = viewMode === 'roles' ? 'matrix' : 'roles'"
-          class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+          class="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
         >
           <component :is="viewMode === 'roles' ? TableCellsIcon : Squares2X2Icon" class="w-4 h-4 mr-2" />
           {{ viewMode === 'roles' ? '矩陣視圖' : '角色視圖' }}
@@ -29,17 +29,17 @@
     <!-- Loading State -->
     <div v-if="loading" class="text-center py-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-      <p class="text-gray-600 dark:text-gray-400">載入權限資料中...</p>
+      <p class="text-gray-600 ">載入權限資料中...</p>
     </div>
 
     <div v-else>
       <!-- Role-based View -->
       <div v-if="viewMode === 'roles'" class="space-y-6">
         <!-- Role Selector with Visual Cards -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+        <div class="bg-white rounded-lg shadow-sm p-6">
           <div class="flex items-center justify-between mb-6">
-            <h2 class="text-xl font-semibold text-gray-900 dark:text-white">選擇管理角色</h2>
-            <div class="text-sm text-gray-500 dark:text-gray-400">
+            <h2 class="text-xl font-semibold text-gray-900 ">選擇管理角色</h2>
+            <div class="text-sm text-gray-500 ">
               共 {{ roles.length }} 個角色
             </div>
           </div>
@@ -51,8 +51,8 @@
               @click="selectRole(role)"
               class="relative p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md"
               :class="{
-                'border-primary-500 bg-primary-50 dark:bg-primary-900/20': selectedRole?.id === role.id,
-                'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500': selectedRole?.id !== role.id
+                'border-primary-500 bg-primary-50 selectedRole?.id === role.id,
+                'border-gray-200 hover:border-gray-300 selectedRole?.id !== role.id
               }"
             >
               <div class="flex items-center space-x-3 mb-3">
@@ -67,18 +67,18 @@
                   />
                 </div>
                 <div>
-                  <h3 class="font-semibold text-gray-900 dark:text-white">{{ role.display_name }}</h3>
+                  <h3 class="font-semibold text-gray-900 ">{{ role.display_name }}</h3>
                 </div>
               </div>
               
               <div class="space-y-2">
                 <div class="flex items-center justify-between">
-                  <span class="text-xs text-gray-500 dark:text-gray-400">用戶數</span>
-                  <span class="text-xs font-medium text-gray-900 dark:text-white">{{ getUsersInRole(role.id).length }}</span>
+                  <span class="text-xs text-gray-500 ">用戶數</span>
+                  <span class="text-xs font-medium text-gray-900 ">{{ getUsersInRole(role.id).length }}</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="text-xs text-gray-500 dark:text-gray-400">權限數</span>
-                  <span class="text-xs font-medium text-gray-900 dark:text-white">{{ getRolePermissionCount(role.id) }}</span>
+                  <span class="text-xs text-gray-500 ">權限數</span>
+                  <span class="text-xs font-medium text-gray-900 ">{{ getRolePermissionCount(role.id) }}</span>
                 </div>
               </div>
               
@@ -92,7 +92,7 @@
         <!-- Selected Role Management -->
         <div v-if="selectedRole" class="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <!-- Permission Management - Main Section -->
-          <div class="xl:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+          <div class="xl:col-span-2 bg-white rounded-lg shadow-sm">
             <div class="p-6">
               <div class="flex items-center justify-between mb-6">
                 <div class="flex items-center space-x-3">
@@ -107,15 +107,15 @@
                     />
                   </div>
                   <div>
-                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ selectedRole.display_name }} 權限設定</h2>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">管理此角色的系統權限</p>
+                    <h2 class="text-xl font-semibold text-gray-900 ">{{ selectedRole.display_name }} 權限設定</h2>
+                    <p class="text-sm text-gray-500 ">管理此角色的系統權限</p>
                   </div>
                 </div>
                 
                 <div class="flex items-center space-x-2">
                   <button
                     @click="toggleAllPermissions"
-                    class="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300"
+                    class="text-sm text-primary-600 hover:text-primary-800 "
                   >
                     {{ allPermissionsSelected ? '取消全選' : '全選' }}
                   </button>
@@ -125,24 +125,24 @@
               <!-- Permission Categories -->
               <div class="space-y-4 max-h-96 overflow-y-auto">
                 <div v-for="(categoryPermissions, category) in permissions" :key="category" 
-                     class="border border-gray-200 dark:border-gray-600 rounded-lg">
+                     class="border border-gray-200 rounded-lg">
                   <div 
                     @click="toggleCategory(category)"
-                    class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+                    class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors duration-200"
                   >
                     <div class="flex items-center space-x-3">
                       <component 
                         :is="Array.isArray(expandedCategories) && expandedCategories.includes(category) ? ChevronDownIcon : ChevronRightIcon" 
                         class="w-4 h-4 text-gray-400" 
                       />
-                      <h3 class="font-medium text-gray-900 dark:text-white capitalize">{{ getCategoryDisplayName(category) }}</h3>
-                      <span class="inline-flex px-2 py-1 text-xs bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded-full">
+                      <h3 class="font-medium text-gray-900 capitalize">{{ getCategoryDisplayName(category) }}</h3>
+                      <span class="inline-flex px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
                         {{ getCategoryPermissionCount(category) }}
                       </span>
                     </div>
                     
                     <div class="flex items-center space-x-2">
-                      <div class="text-xs text-gray-500 dark:text-gray-400">
+                      <div class="text-xs text-gray-500 ">
                         {{ getCategorySelectedCount(category) }}/{{ categoryPermissions.length }} 已選
                       </div>
                       <input 
@@ -155,10 +155,10 @@
                     </div>
                   </div>
                   
-                  <div v-if="Array.isArray(expandedCategories) && expandedCategories.includes(category)" class="border-t border-gray-200 dark:border-gray-600">
+                  <div v-if="Array.isArray(expandedCategories) && expandedCategories.includes(category)" class="border-t border-gray-200 ">
                     <div class="p-4 space-y-3">
                       <div v-for="permission in categoryPermissions" :key="permission.id" 
-                           class="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200">
+                           class="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors duration-200">
                         <input 
                           :id="`perm-${permission.id}`" 
                           type="checkbox" 
@@ -167,10 +167,10 @@
                           class="w-4 h-4 mt-1 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
                         >
                         <div class="flex-1 min-w-0">
-                          <label :for="`perm-${permission.id}`" class="block text-sm font-medium text-gray-900 dark:text-white cursor-pointer">
+                          <label :for="`perm-${permission.id}`" class="block text-sm font-medium text-gray-900 cursor-pointer">
                             {{ permission.display_name }}
                           </label>
-                          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ permission.description }}</p>
+                          <p class="text-xs text-gray-500 mt-1">{{ permission.description }}</p>
                         </div>
                       </div>
                     </div>
@@ -183,20 +183,20 @@
           <!-- Role Users & Summary -->
           <div class="space-y-6">
             <!-- Role Summary -->
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-              <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">角色統計</h3>
+            <div class="bg-white rounded-lg shadow-sm p-6">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">角色統計</h3>
               <div class="space-y-4">
                 <div class="flex items-center justify-between">
-                  <span class="text-sm text-gray-600 dark:text-gray-400">用戶數量</span>
-                  <span class="text-lg font-semibold text-gray-900 dark:text-white">{{ getUsersInRole(selectedRole.id).length }}</span>
+                  <span class="text-sm text-gray-600 ">用戶數量</span>
+                  <span class="text-lg font-semibold text-gray-900 ">{{ getUsersInRole(selectedRole.id).length }}</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="text-sm text-gray-600 dark:text-gray-400">權限數量</span>
-                  <span class="text-lg font-semibold text-gray-900 dark:text-white">{{ rolePermissions.length }}</span>
+                  <span class="text-sm text-gray-600 ">權限數量</span>
+                  <span class="text-lg font-semibold text-gray-900 ">{{ rolePermissions.length }}</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="text-sm text-gray-600 dark:text-gray-400">完整度</span>
-                  <span class="text-lg font-semibold text-primary-600 dark:text-primary-400">
+                  <span class="text-sm text-gray-600 ">完整度</span>
+                  <span class="text-lg font-semibold text-primary-600 ">
                     {{ Math.round((rolePermissions.length / getTotalPermissionCount()) * 100) }}%
                   </span>
                 </div>
@@ -204,12 +204,12 @@
             </div>
 
             <!-- Users in Role -->
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <div class="bg-white rounded-lg shadow-sm p-6">
               <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">此角色的用戶</h3>
+                <h3 class="text-lg font-semibold text-gray-900 ">此角色的用戶</h3>
                 <button
                   @click="showUserAssignment = true"
-                  class="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300 flex items-center space-x-1"
+                  class="text-sm text-primary-600 hover:text-primary-800 flex items-center space-x-1"
                 >
                   <UserPlusIcon class="w-4 h-4" />
                   <span>分配用戶</span>
@@ -218,16 +218,16 @@
               
               <div class="space-y-3 max-h-64 overflow-y-auto">
                 <div v-for="user in getUsersInRole(selectedRole.id)" :key="user.id" 
-                     class="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                     class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                   <img :src="user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366f1&color=fff`" 
                        :alt="user.name" class="w-8 h-8 rounded-full">
                   <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ user.name }}</div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ user.email }}</div>
+                    <div class="text-sm font-medium text-gray-900 truncate">{{ user.name }}</div>
+                    <div class="text-xs text-gray-500 truncate">{{ user.email }}</div>
                   </div>
                   <button
                     @click="handleRemoveUserFromRole(user.id, selectedRole.id)"
-                    class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                    class="text-red-600 hover:text-red-800 "
                   >
                     <XMarkIcon class="w-4 h-4" />
                   </button>
@@ -235,7 +235,7 @@
                 
                 <div v-if="getUsersInRole(selectedRole.id).length === 0" class="text-center py-8">
                   <UsersIcon class="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <p class="text-sm text-gray-500 dark:text-gray-400">此角色暫無用戶</p>
+                  <p class="text-sm text-gray-500 ">此角色暫無用戶</p>
                 </div>
               </div>
             </div>
@@ -244,16 +244,16 @@
       </div>
 
       <!-- Matrix View -->
-      <div v-else class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+      <div v-else class="bg-white rounded-lg shadow-sm">
         <div class="p-6">
           <div class="flex items-center justify-between mb-6">
-            <h2 class="text-xl font-semibold text-gray-900 dark:text-white">權限矩陣視圖</h2>
+            <h2 class="text-xl font-semibold text-gray-900 ">權限矩陣視圖</h2>
             <div class="flex items-center space-x-3">
               <input
                 v-model="matrixSearch"
                 type="text"
                 placeholder="搜尋權限..."
-                class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm"
+                class="px-3 py-2 border border-gray-300 rounded-lg text-sm"
               >
             </div>
           </div>
@@ -261,12 +261,12 @@
           <div class="overflow-x-auto">
             <table class="min-w-full">
               <thead>
-                <tr class="border-b border-gray-200 dark:border-gray-700">
-                  <th class="text-left py-3 px-4 font-medium text-gray-900 dark:text-white sticky left-0 bg-white dark:bg-gray-800 z-10">
+                <tr class="border-b border-gray-200 ">
+                  <th class="text-left py-3 px-4 font-medium text-gray-900 sticky left-0 bg-white z-10">
                     權限
                   </th>
                   <th v-for="role in roles" :key="role.id" 
-                      class="text-center py-3 px-2 font-medium text-gray-900 dark:text-white min-w-24">
+                      class="text-center py-3 px-2 font-medium text-gray-900 min-w-24">
                     <div class="flex flex-col items-center space-y-1">
                       <component 
                         :is="getRoleIcon(role.name)" 
@@ -280,17 +280,17 @@
               </thead>
               <tbody>
                 <template v-for="(categoryPermissions, category) in filteredMatrixPermissions" :key="category">
-                  <tr class="bg-gray-50 dark:bg-gray-700">
-                    <td colspan="100%" class="py-2 px-4 font-medium text-gray-900 dark:text-white text-sm capitalize">
+                  <tr class="bg-gray-50 ">
+                    <td colspan="100%" class="py-2 px-4 font-medium text-gray-900 text-sm capitalize">
                       {{ getCategoryDisplayName(category) }}
                     </td>
                   </tr>
                   <tr v-for="permission in categoryPermissions" :key="permission.id" 
-                      class="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td class="py-3 px-4 sticky left-0 bg-white dark:bg-gray-800">
+                      class="border-b border-gray-100 hover:bg-gray-50 ">
+                    <td class="py-3 px-4 sticky left-0 bg-white ">
                       <div>
-                        <div class="text-sm font-medium text-gray-900 dark:text-white">{{ permission.display_name }}</div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">{{ permission.description }}</div>
+                        <div class="text-sm font-medium text-gray-900 ">{{ permission.display_name }}</div>
+                        <div class="text-xs text-gray-500 ">{{ permission.description }}</div>
                       </div>
                     </td>
                     <td v-for="role in roles" :key="role.id" class="text-center py-3 px-2">
@@ -312,11 +312,11 @@
 
     <!-- Quick User Assignment Modal -->
     <div v-if="showQuickAssign" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-96 overflow-hidden">
+      <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-96 overflow-hidden">
         <div class="p-6">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">快速用戶角色分配</h3>
-            <button @click="showQuickAssign = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <h3 class="text-lg font-medium text-gray-900 ">快速用戶角色分配</h3>
+            <button @click="showQuickAssign = false" class="text-gray-400 hover:text-gray-600 ">
               <XMarkIcon class="w-5 h-5" />
             </button>
           </div>
@@ -324,19 +324,19 @@
           <div class="grid grid-cols-2 gap-4 overflow-y-auto max-h-80">
             <!-- Users Column -->
             <div>
-              <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">用戶</h4>
+              <h4 class="text-sm font-medium text-gray-900 mb-3">用戶</h4>
               <div class="space-y-2">
                 <div v-for="user in users" :key="user.id" 
-                     class="flex items-center space-x-3 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
+                     class="flex items-center space-x-3 p-2 rounded hover:bg-gray-50 ">
                   <img :src="user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366f1&color=fff`" 
                        :alt="user.name" class="w-6 h-6 rounded-full">
                   <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ user.name }}</div>
+                    <div class="text-sm font-medium text-gray-900 truncate">{{ user.name }}</div>
                   </div>
                   <select 
                     v-model="quickAssignRoles[user.id]"
                     @change="assignQuickRole(user.id, quickAssignRoles[user.id])"
-                    class="text-xs border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-white"
+                    class="text-xs border border-gray-300 rounded "
                   >
                     <option value="">選擇角色</option>
                     <option v-for="role in roles" :key="role.id" :value="role.id">
@@ -349,19 +349,19 @@
             
             <!-- Roles Column -->
             <div>
-              <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">角色分佈</h4>
+              <h4 class="text-sm font-medium text-gray-900 mb-3">角色分佈</h4>
               <div class="space-y-2">
                 <div v-for="role in roles" :key="role.id" 
-                     class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                     class="flex items-center justify-between p-2 bg-gray-50 rounded">
                   <div class="flex items-center space-x-2">
                     <component 
                       :is="getRoleIcon(role.name)" 
                       class="w-4 h-4"
                       :class="getRoleIconColor(role.name)"
                     />
-                    <span class="text-sm font-medium text-gray-900 dark:text-white">{{ role.display_name }}</span>
+                    <span class="text-sm font-medium text-gray-900 ">{{ role.display_name }}</span>
                   </div>
-                  <span class="text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full">
+                  <span class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full">
                     {{ getUsersInRole(role.id).length }}
                   </span>
                 </div>
@@ -374,34 +374,34 @@
 
     <!-- User Assignment Modal -->
     <div v-if="showUserAssignment" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+      <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
         <div class="p-6">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">分配用戶到角色</h3>
-            <button @click="showUserAssignment = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <h3 class="text-lg font-medium text-gray-900 ">分配用戶到角色</h3>
+            <button @click="showUserAssignment = false" class="text-gray-400 hover:text-gray-600 ">
               <XMarkIcon class="w-5 h-5" />
             </button>
           </div>
           
           <div class="space-y-3 max-h-64 overflow-y-auto">
             <div v-for="user in getAvailableUsersForRole(selectedRole?.id)" :key="user.id" 
-                 class="flex items-center space-x-3 p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+                 class="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 ">
               <img :src="user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366f1&color=fff`" 
                    :alt="user.name" class="w-8 h-8 rounded-full">
               <div class="flex-1 min-w-0">
-                <div class="text-sm font-medium text-gray-900 dark:text-white">{{ user.name }}</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">{{ user.email }}</div>
+                <div class="text-sm font-medium text-gray-900 ">{{ user.name }}</div>
+                <div class="text-xs text-gray-500 ">{{ user.email }}</div>
               </div>
               <button
                 @click="assignUserToRole(user.id, selectedRole.id)"
-                class="text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300"
+                class="text-primary-600 hover:text-primary-800 "
               >
                 <PlusIcon class="w-4 h-4" />
               </button>
             </div>
             
             <div v-if="getAvailableUsersForRole(selectedRole?.id).length === 0" class="text-center py-8">
-              <p class="text-sm text-gray-500 dark:text-gray-400">所有用戶已分配此角色</p>
+              <p class="text-sm text-gray-500 ">所有用戶已分配此角色</p>
             </div>
           </div>
         </div>
@@ -753,24 +753,24 @@ const getRoleIcon = (roleName) => {
 
 const getRoleIconColor = (roleName) => {
   const colorMap = {
-    admin: 'text-purple-600 dark:text-purple-400',
-    executive: 'text-purple-600 dark:text-purple-400',
-    manager: 'text-blue-600 dark:text-blue-400',
-    staff: 'text-green-600 dark:text-green-400',
-    sales: 'text-green-600 dark:text-green-400'
+    admin: 'text-purple-600 
+    executive: 'text-purple-600 
+    manager: 'text-blue-600 
+    staff: 'text-green-600 
+    sales: 'text-green-600 
   }
-  return colorMap[roleName] || 'text-gray-600 dark:text-gray-400'
+  return colorMap[roleName] || 'text-gray-600 
 }
 
 const getRoleIconBg = (roleName) => {
   const bgMap = {
-    admin: 'bg-purple-100 dark:bg-purple-900/20',
-    executive: 'bg-purple-100 dark:bg-purple-900/20',
-    manager: 'bg-blue-100 dark:bg-blue-900/20',
-    staff: 'bg-green-100 dark:bg-green-900/20',
-    sales: 'bg-green-100 dark:bg-green-900/20'
+    admin: 'bg-purple-100 
+    executive: 'bg-purple-100 
+    manager: 'bg-blue-100 
+    staff: 'bg-green-100 
+    sales: 'bg-green-100 
   }
-  return bgMap[roleName] || 'bg-gray-100 dark:bg-gray-900/20'
+  return bgMap[roleName] || 'bg-gray-100 
 }
 
 const getCategoryDisplayName = (category) => {

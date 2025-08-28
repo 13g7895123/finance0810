@@ -3,8 +3,8 @@
     <!-- 頁面標題 -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">客戶資料管理</h1>
-        <p class="text-gray-600 dark:text-gray-400 mt-2">
+        <h1 class="text-3xl font-bold text-gray-900 ">客戶資料管理</h1>
+        <p class="text-gray-600 mt-2">
           <span v-if="authStore.isSales">您的客戶清單</span>
           <span v-else>所有客戶資料總覽</span>
         </p>
@@ -81,7 +81,7 @@
       <template #filters>
         <select
           v-model="statusFilter"
-          class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          class="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">所有狀態</option>
           <option v-for="(label, value) in getStatusOptions()" :key="value" :value="value">
@@ -113,10 +113,10 @@
             />
           </div>
           <div class="ml-4">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">
+            <div class="text-sm font-medium text-gray-900 ">
               {{ item.name }}
             </div>
-            <div class="text-sm text-gray-500 dark:text-gray-400">
+            <div class="text-sm text-gray-500 ">
               {{ item.region || '未填寫地區' }}
             </div>
           </div>
@@ -126,8 +126,8 @@
       <!-- Contact Info Cell -->
       <template #cell-contact_info="{ item }">
         <div>
-          <div class="text-sm text-gray-900 dark:text-white">{{ item.email || '未提供' }}</div>
-          <div class="text-sm text-gray-500 dark:text-gray-400">{{ item.phone }}</div>
+          <div class="text-sm text-gray-900 ">{{ item.email || '未提供' }}</div>
+          <div class="text-sm text-gray-500 ">{{ item.phone }}</div>
         </div>
       </template>
       
@@ -155,7 +155,7 @@
         <div class="flex items-center space-x-2">
           <div v-if="item.line_user_id" class="flex items-center space-x-1">
             <div class="w-2 h-2 bg-green-400 rounded-full"></div>
-            <span class="text-xs text-green-600 dark:text-green-400">已綁定</span>
+            <span class="text-xs text-green-600 ">已綁定</span>
           </div>
           <div v-else class="flex items-center space-x-1">
             <div class="w-2 h-2 bg-gray-300 rounded-full"></div>
@@ -182,28 +182,28 @@
         <div class="flex items-center space-x-2 justify-end">
           <button 
             @click="viewCustomer(item)"
-            class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+            class="text-blue-600 hover:text-blue-800 transition-colors"
           >
             查看
           </button>
           <button 
             v-if="authStore.hasPermission('customer_management') || item.assigned_to === authStore.user?.id"
             @click="editCustomer(item)"
-            class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors"
+            class="text-gray-600 hover:text-gray-800 transition-colors"
           >
             編輯
           </button>
           <button 
             v-if="authStore.hasPermission('customer_management')"
             @click="openAssignModal(item)"
-            class="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 transition-colors"
+            class="text-green-600 hover:text-green-800 transition-colors"
           >
             指派
           </button>
           <button 
             v-if="authStore.hasPermission('customer_management')"
             @click="confirmDeleteCustomer(item)"
-            class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
+            class="text-red-600 hover:text-red-800 transition-colors"
           >
             刪除
           </button>
@@ -217,12 +217,12 @@
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
       @click.self="closeCreateModal"
     >
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+      <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">新增客戶</h3>
+          <h3 class="text-lg font-semibold text-gray-900 ">新增客戶</h3>
           <button 
             @click="closeCreateModal"
-            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            class="text-gray-400 hover:text-gray-600 "
           >
             ✕
           </button>
@@ -230,59 +230,59 @@
         
         <form @submit.prevent="submitCreateForm" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               客戶姓名 *
             </label>
             <input
               v-model="customerForm.name"
               type="text"
               required
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               電話 *
             </label>
             <input
               v-model="customerForm.phone"
               type="tel"
               required
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               電子郵件
             </label>
             <input
               v-model="customerForm.email"
               type="email"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               地區
             </label>
             <input
               v-model="customerForm.region"
               type="text"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               備註
             </label>
             <textarea
               v-model="customerForm.notes"
               rows="3"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             ></textarea>
           </div>
           
@@ -290,7 +290,7 @@
             <button
               type="button"
               @click="closeCreateModal"
-              class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
+              class="px-4 py-2 text-gray-600 hover:text-gray-800 "
             >
               取消
             </button>
@@ -312,12 +312,12 @@
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
       @click.self="closeEditModal"
     >
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+      <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">編輯客戶</h3>
+          <h3 class="text-lg font-semibold text-gray-900 ">編輯客戶</h3>
           <button 
             @click="closeEditModal"
-            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            class="text-gray-400 hover:text-gray-600 "
           >
             ✕
           </button>
@@ -325,58 +325,58 @@
         
         <form @submit.prevent="submitEditForm" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               客戶姓名 *
             </label>
             <input
               v-model="customerForm.name"
               type="text"
               required
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               電話 *
             </label>
             <input
               v-model="customerForm.phone"
               type="tel"
               required
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               電子郵件
             </label>
             <input
               v-model="customerForm.email"
               type="email"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               地區
             </label>
             <input
               v-model="customerForm.region"
               type="text"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               狀態
             </label>
             <select
               v-model="customerForm.status"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option v-for="(label, value) in getStatusOptions()" :key="value" :value="value">
                 {{ label }}
@@ -385,13 +385,13 @@
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               備註
             </label>
             <textarea
               v-model="customerForm.notes"
               rows="3"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             ></textarea>
           </div>
           
@@ -399,7 +399,7 @@
             <button
               type="button"
               @click="closeEditModal"
-              class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
+              class="px-4 py-2 text-gray-600 hover:text-gray-800 "
             >
               取消
             </button>
@@ -421,12 +421,12 @@
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
       @click.self="closeViewModal"
     >
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+      <div class="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">客戶詳情</h3>
+          <h3 class="text-lg font-semibold text-gray-900 ">客戶詳情</h3>
           <button 
             @click="closeViewModal"
-            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            class="text-gray-400 hover:text-gray-600 "
           >
             ✕
           </button>
@@ -435,23 +435,23 @@
         <div v-if="selectedCustomer" class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">客戶姓名</label>
-              <p class="text-gray-900 dark:text-white">{{ selectedCustomer.name }}</p>
+              <label class="block text-sm font-medium text-gray-700 ">客戶姓名</label>
+              <p class="text-gray-900 ">{{ selectedCustomer.name }}</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">電話</label>
-              <p class="text-gray-900 dark:text-white">{{ selectedCustomer.phone }}</p>
+              <label class="block text-sm font-medium text-gray-700 ">電話</label>
+              <p class="text-gray-900 ">{{ selectedCustomer.phone }}</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">電子郵件</label>
-              <p class="text-gray-900 dark:text-white">{{ selectedCustomer.email || '未提供' }}</p>
+              <label class="block text-sm font-medium text-gray-700 ">電子郵件</label>
+              <p class="text-gray-900 ">{{ selectedCustomer.email || '未提供' }}</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">地區</label>
-              <p class="text-gray-900 dark:text-white">{{ selectedCustomer.region || '未填寫' }}</p>
+              <label class="block text-sm font-medium text-gray-700 ">地區</label>
+              <p class="text-gray-900 ">{{ selectedCustomer.region || '未填寫' }}</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">狀態</label>
+              <label class="block text-sm font-medium text-gray-700 ">狀態</label>
               <span 
                 class="inline-flex px-2 py-1 text-sm font-semibold rounded-full"
                 :class="getStatusClass(selectedCustomer.status)"
@@ -460,12 +460,12 @@
               </span>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">負責業務</label>
-              <p class="text-gray-900 dark:text-white">{{ selectedCustomer.assigned_user?.name || '未分配' }}</p>
+              <label class="block text-sm font-medium text-gray-700 ">負責業務</label>
+              <p class="text-gray-900 ">{{ selectedCustomer.assigned_user?.name || '未分配' }}</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">LINE 用戶</label>
-              <p class="text-gray-900 dark:text-white">
+              <label class="block text-sm font-medium text-gray-700 ">LINE 用戶</label>
+              <p class="text-gray-900 ">
                 {{ selectedCustomer.line_display_name || '未綁定' }}
                 <span v-if="selectedCustomer.line_user_id" class="text-xs text-gray-500">
                   ({{ selectedCustomer.line_user_id }})
@@ -473,14 +473,14 @@
               </p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">建立時間</label>
-              <p class="text-gray-900 dark:text-white">{{ formatDate(selectedCustomer.created_at) }}</p>
+              <label class="block text-sm font-medium text-gray-700 ">建立時間</label>
+              <p class="text-gray-900 ">{{ formatDate(selectedCustomer.created_at) }}</p>
             </div>
           </div>
           
           <div v-if="selectedCustomer.notes">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">備註</label>
-            <p class="text-gray-900 dark:text-white whitespace-pre-wrap">{{ selectedCustomer.notes }}</p>
+            <label class="block text-sm font-medium text-gray-700 ">備註</label>
+            <p class="text-gray-900 whitespace-pre-wrap">{{ selectedCustomer.notes }}</p>
           </div>
         </div>
       </div>
@@ -492,12 +492,12 @@
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
       @click.self="closeAssignModal"
     >
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+      <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">指派業務</h3>
+          <h3 class="text-lg font-semibold text-gray-900 ">指派業務</h3>
           <button 
             @click="closeAssignModal"
-            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            class="text-gray-400 hover:text-gray-600 "
           >
             ✕
           </button>
@@ -505,21 +505,21 @@
         
         <div v-if="assigningCustomer" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               客戶：{{ assigningCustomer.name }}
             </label>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               目前負責業務：{{ assigningCustomer.assigned_user?.name || '未分配' }}
             </label>
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               選擇新的負責業務 * ({{ salesUsers.length }} 位業務人員)
             </label>
             <select
               v-model="selectedAssignUser"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             >
               <option value="">請選擇業務人員</option>
@@ -538,7 +538,7 @@
             <button
               type="button"
               @click="closeAssignModal"
-              class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
+              class="px-4 py-2 text-gray-600 hover:text-gray-800 "
             >
               取消
             </button>
@@ -643,11 +643,11 @@ const getCaseStatusText = (status) => {
 
 const getCaseStatusClass = (status) => {
   switch (status) {
-    case 'submitted': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-    case 'approved': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-    case 'rejected': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-    case 'disbursed': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
-    default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300'
+    case 'submitted': return 'bg-blue-100 text-blue-800 
+    case 'approved': return 'bg-green-100 text-green-800 
+    case 'rejected': return 'bg-red-100 text-red-800 
+    case 'disbursed': return 'bg-purple-100 text-purple-800 
+    default: return 'bg-gray-100 text-gray-800 
   }
 }
 
@@ -1091,12 +1091,12 @@ const submitEditForm = async () => {
 const getStatusClass = (status) => {
   const statusOptions = getStatusOptions()
   const classes = {
-    'new': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-    'contacted': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
-    'interested': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
-    'not_interested': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
-    'invalid': 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
-    'converted': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300'
+    'new': 'bg-blue-100 text-blue-800 
+    'contacted': 'bg-yellow-100 text-yellow-800 
+    'interested': 'bg-green-100 text-green-800 
+    'not_interested': 'bg-red-100 text-red-800 
+    'invalid': 'bg-gray-100 text-gray-800 
+    'converted': 'bg-purple-100 text-purple-800 
   }
   return classes[status] || classes.new
 }

@@ -71,7 +71,7 @@
       </div>
       
       <!-- Data Table -->
-      <table v-else class="min-w-full divide-y divide-gray-200">
+      <table v-else class="min-w-full divide-y divide-gray-200 rounded-lg overflow-hidden">
         <thead class="bg-gray-50">
           <tr>
             <th 
@@ -130,7 +130,7 @@
     </div>
     
     <!-- Pagination -->
-    <div v-if="showPagination && totalPages > 1" class="px-6 py-6 border-t border-gray-200 bg-gray-50">
+    <div v-if="showPagination && totalPages > 1" class="px-6 py-6 border-t border-gray-200 bg-gray-50 rounded-b-xl">
       <div class="flex items-center justify-between">
         <div class="flex items-center space-x-4">
           <p class="text-sm text-gray-700">

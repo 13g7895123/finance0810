@@ -191,7 +191,7 @@ useHead({
         <div class="card-modern p-6 fade-in">
           <div class="flex items-center justify-between mb-4">
             <h4 class="text-lg font-medium text-gray-900 ">{{ statsData.websitePerformance.bearLoan.name }}</h4>
-            <div class="px-3 py-1 bg-green-100  text-green-800 dark:text-green-300 text-sm font-medium rounded-full">
+            <div class="px-3 py-1 bg-green-100  text-green-800 text-sm font-medium rounded-full">
               主力網站
             </div>
           </div>
@@ -215,7 +215,7 @@ useHead({
         <div class="card-modern p-6 fade-in">
           <div class="flex items-center justify-between mb-4">
             <h4 class="text-lg font-medium text-gray-900 ">{{ statsData.websitePerformance.websiteA.name }}</h4>
-            <div class="px-3 py-1 bg-blue-100  text-blue-800 dark:text-blue-300 text-sm font-medium rounded-full">
+            <div class="px-3 py-1 bg-blue-100  text-blue-800 text-sm font-medium rounded-full">
               次要網站
             </div>
           </div>

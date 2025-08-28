@@ -5,7 +5,7 @@
         v-for="notification in notifications"
         :key="notification.id"
         :class="[
-          'max-w-sm w-full bg-white dark:bg-gray-800 shadow-lg rounded-lg pointer-events-auto overflow-hidden',
+          'max-w-sm w-full bg-white shadow-lg rounded-lg pointer-events-auto overflow-hidden',
           'border-l-4',
           {
             'border-green-500': notification.type === 'success',
@@ -32,14 +32,14 @@
               />
             </div>
             <div class="ml-3 w-0 flex-1">
-              <p class="text-sm font-medium text-gray-900 dark:text-white">
+              <p class="text-sm font-medium text-gray-900 ">
                 {{ notification.message }}
               </p>
             </div>
             <div class="ml-4 flex-shrink-0 flex">
               <button
                 @click="removeNotification(notification.id)"
-                class="bg-white dark:bg-gray-800 rounded-md inline-flex text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                class="bg-white rounded-md inline-flex text-gray-400 hover:text-gray-600 "
               >
                 <Icon name="heroicons:x-mark" class="h-5 w-5" />
               </button>

@@ -1,6 +1,6 @@
 <template>
-  <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-6 py-3">
-    <div class="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+  <footer class="bg-white border-t border-gray-200 px-6 py-3">
+    <div class="flex items-center justify-between text-sm text-gray-600 ">
       <!-- Left side - Version -->
       <div class="flex items-center space-x-4">
         <span>版本 1.0.0</span>
@@ -20,7 +20,7 @@
         >
           隱私政策
         </a>
-        <span class="w-px h-4 bg-gray-300 dark:bg-gray-600"></span>
+        <span class="w-px h-4 bg-gray-300 "></span>
         <a 
           href="#" 
           class="hover:text-primary-500 transition-colors duration-200"

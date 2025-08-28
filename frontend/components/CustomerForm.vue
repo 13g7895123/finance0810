@@ -4,27 +4,27 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">姓名</label>
-          <input v-model="form.name" type="text" class="w-full px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700" required />
+          <input v-model="form.name" type="text" class="w-full px-3 py-2 border rounded " required />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">手機號碼</label>
-          <input v-model="form.phone" type="text" class="w-full px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700" required />
+          <input v-model="form.phone" type="text" class="w-full px-3 py-2 border rounded " required />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Email</label>
-          <input v-model="form.email" type="email" class="w-full px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700" />
+          <input v-model="form.email" type="email" class="w-full px-3 py-2 border rounded " />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">所在地區</label>
-          <input v-model="form.region" type="text" class="w-full px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700" />
+          <input v-model="form.region" type="text" class="w-full px-3 py-2 border rounded " />
         </div>
         <div class="md:col-span-2">
           <label class="block text-sm font-medium mb-1">地址</label>
-          <input v-model="form.address" type="text" class="w-full px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700" />
+          <input v-model="form.address" type="text" class="w-full px-3 py-2 border rounded " />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">來源管道</label>
-          <select v-model="form.channel" class="w-full px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700">
+          <select v-model="form.channel" class="w-full px-3 py-2 border rounded ">
             <option value="">未指定</option>
             <option value="wp_form">WP 表單</option>
             <option value="line">LINE OA</option>
@@ -34,15 +34,15 @@
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">網站來源 (domain)</label>
-          <input v-model="form.website_source" type="text" class="w-full px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700" />
+          <input v-model="form.website_source" type="text" class="w-full px-3 py-2 border rounded " />
         </div>
         <div class="md:col-span-2">
           <label class="block text-sm font-medium mb-1">備註</label>
-          <textarea v-model="form.notes" rows="3" class="w-full px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700" />
+          <textarea v-model="form.notes" rows="3" class="w-full px-3 py-2 border rounded " />
         </div>
       </div>
       <div class="flex justify-end space-x-3">
-        <button type="button" class="px-4 py-2 rounded border dark:border-gray-700" @click="$emit('cancel')">取消</button>
+        <button type="button" class="px-4 py-2 rounded border " @click="$emit('cancel')">取消</button>
         <button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white">儲存</button>
       </div>
     </form>

@@ -1,13 +1,13 @@
 <template>
   <div class="space-y-6">
-    <div class="bg-white dark:bg-gray-800 rounded-lg-custom shadow-sm p-6">
-      <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+    <div class="bg-white rounded-lg-custom shadow-sm p-6">
+      <h2 class="text-2xl font-bold text-gray-900 mb-6">
         主題設定
       </h2>
       
       <!-- Theme Mode -->
       <div class="mb-8">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
           顯示模式
         </h3>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -18,8 +18,8 @@
             class="p-4 border rounded-lg transition-all duration-200"
             :class="[
               colorMode.preference === mode.value
-                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                ? 'border-primary-500 bg-primary-50 
+                : 'border-gray-200 hover:border-gray-300 
             ]"
           >
             <component :is="mode.icon" class="w-6 h-6 mx-auto mb-2" />
@@ -30,7 +30,7 @@
 
       <!-- Primary Color -->
       <div class="mb-8">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
           主要顏色
         </h3>
         <div class="grid grid-cols-6 sm:grid-cols-8 gap-3">
@@ -42,8 +42,8 @@
             :style="{ backgroundColor: color.value }"
             :class="[
               themeStore.primaryColor === color.value
-                ? 'border-gray-900 dark:border-white'
-                : 'border-gray-300 dark:border-gray-600'
+                ? 'border-gray-900 
+                : 'border-gray-300 
             ]"
             :title="color.name"
           />
@@ -52,14 +52,14 @@
 
       <!-- Custom Color -->
       <div class="mb-8">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
           自定義顏色
         </h3>
         <div class="flex items-center space-x-4">
           <input
             v-model="customColor"
             type="color"
-            class="w-12 h-12 rounded-lg border border-gray-300 dark:border-gray-600"
+            class="w-12 h-12 rounded-lg border border-gray-300 "
           />
           <button
             @click="setPrimaryColor(customColor)"
@@ -72,10 +72,10 @@
 
       <!-- Preview -->
       <div class="mb-8">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
           預覽
         </h3>
-        <div class="p-6 border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div class="p-6 border border-gray-200 rounded-lg">
           <div class="flex items-center space-x-4 mb-4">
             <button class="px-4 py-2 bg-primary-500 text-white rounded-lg">
               主要按鈕
@@ -84,7 +84,7 @@
               次要按鈕
             </button>
           </div>
-          <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+          <div class="w-full bg-gray-200 rounded-full h-2">
             <div 
               class="h-2 rounded-full"
               :style="{ backgroundColor: themeStore.primaryColor, width: '60%' }"

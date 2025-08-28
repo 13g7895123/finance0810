@@ -12,7 +12,7 @@
             />
             <div
               v-if="user.online"
-              class="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"
+              class="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"
             ></div>
           </div>
           <div class="ml-3">

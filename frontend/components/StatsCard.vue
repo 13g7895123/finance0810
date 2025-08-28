@@ -16,8 +16,8 @@
           <ChartBarIcon v-else class="w-6 h-6" :class="iconClass" />
         </div>
         <div>
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ title }}</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ subtitle }}</p>
+          <h3 class="text-lg font-semibold text-gray-900 ">{{ title }}</h3>
+          <p class="text-sm text-gray-500 ">{{ subtitle }}</p>
         </div>
       </div>
       
@@ -41,10 +41,10 @@
 
     <!-- 主要數據 -->
     <div class="mb-3">
-      <div class="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+      <div class="text-3xl font-bold text-gray-900 mb-1">
         {{ formattedValue }}
       </div>
-      <div class="text-sm text-gray-500 dark:text-gray-400">
+      <div class="text-sm text-gray-500 ">
         {{ description }}
       </div>
     </div>
@@ -52,10 +52,10 @@
     <!-- 進度條 (可選) -->
     <div v-if="progress !== undefined" class="mb-4">
       <div class="flex justify-between items-center mb-2">
-        <span class="text-sm text-gray-600 dark:text-gray-400">完成度</span>
-        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ progress }}%</span>
+        <span class="text-sm text-gray-600 ">完成度</span>
+        <span class="text-sm font-medium text-gray-900 ">{{ progress }}%</span>
       </div>
-      <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+      <div class="w-full bg-gray-200 rounded-full h-2">
         <div 
           class="h-2 rounded-full transition-all duration-500"
           :class="getProgressClass()"
@@ -73,7 +73,7 @@
     <div v-else-if="link" class="pt-4 mt-4">
       <NuxtLink 
         :to="link"
-        class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium flex items-center space-x-1"
+        class="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center space-x-1"
       >
         <span>查看詳情</span>
         <ArrowRightIcon class="w-4 h-4" />
@@ -167,13 +167,13 @@ const getIcon = (iconName) => {
 // 圖示背景顏色類別
 const iconBgClass = computed(() => {
   const colorMap = {
-    blue: 'bg-blue-100 dark:bg-blue-900/20',
-    green: 'bg-green-100 dark:bg-green-900/20',
-    yellow: 'bg-yellow-100 dark:bg-yellow-900/20',
-    red: 'bg-red-100 dark:bg-red-900/20',
-    purple: 'bg-purple-100 dark:bg-purple-900/20',
-    indigo: 'bg-indigo-100 dark:bg-indigo-900/20',
-    pink: 'bg-pink-100 dark:bg-pink-900/20'
+    blue: 'bg-blue-100 
+    green: 'bg-green-100 
+    yellow: 'bg-yellow-100 
+    red: 'bg-red-100 
+    purple: 'bg-purple-100 
+    indigo: 'bg-indigo-100 
+    pink: 'bg-pink-100 
   }
   return colorMap[props.iconColor]
 })
@@ -181,13 +181,13 @@ const iconBgClass = computed(() => {
 // 圖示顏色類別
 const iconClass = computed(() => {
   const colorMap = {
-    blue: 'text-blue-600 dark:text-blue-400',
-    green: 'text-green-600 dark:text-green-400',
-    yellow: 'text-yellow-600 dark:text-yellow-400',
-    red: 'text-red-600 dark:text-red-400',
-    purple: 'text-purple-600 dark:text-purple-400',
-    indigo: 'text-indigo-600 dark:text-indigo-400',
-    pink: 'text-pink-600 dark:text-pink-400'
+    blue: 'text-blue-600 
+    green: 'text-green-600 
+    yellow: 'text-yellow-600 
+    red: 'text-red-600 
+    purple: 'text-purple-600 
+    indigo: 'text-indigo-600 
+    pink: 'text-pink-600 
   }
   return colorMap[props.iconColor]
 })
@@ -230,10 +230,10 @@ const getTrendIcon = () => {
 
 // 獲取趨勢顏色類別
 const getTrendClass = () => {
-  if (!props.trend) return 'text-gray-500 dark:text-gray-400'
-  if (props.trend > 0) return 'text-green-600 dark:text-green-400'
-  if (props.trend < 0) return 'text-red-600 dark:text-red-400'
-  return 'text-gray-500 dark:text-gray-400'
+  if (!props.trend) return 'text-gray-500 
+  if (props.trend > 0) return 'text-green-600 
+  if (props.trend < 0) return 'text-red-600 
+  return 'text-gray-500 
 }
 
 // 獲取進度條顏色類別

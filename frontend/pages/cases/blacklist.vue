@@ -2,17 +2,17 @@
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">黑名單案件</h1>
-        <p class="text-gray-600 dark:text-gray-400 mt-2">顯示黑名單（blacklist）的案件，僅供檢視</p>
+        <h1 class="text-3xl font-bold text-gray-900 ">黑名單案件</h1>
+        <p class="text-gray-600 mt-2">顯示黑名單（blacklist）的案件，僅供檢視</p>
       </div>
       <div class="flex items-center space-x-3">
         <input
           v-model="search"
           type="text"
           placeholder="搜尋姓名/手機/Email/LINE/網站... (至少2個字符)"
-          class="px-3 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
+          class="px-3 py-2 border rounded-lg "
         />
-        <select v-model="pagination.perPage" class="px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700">
+        <select v-model="pagination.perPage" class="px-3 py-2 border rounded ">
           <option v-for="option in PAGINATION_OPTIONS" :key="option.value" :value="option.value">
             {{ option.label }}
           </option>
@@ -20,10 +20,10 @@
       </div>
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-between">
-        <h3 class="text-lg font-medium text-gray-900 dark:text-white">案件清單</h3>
-        <div class="text-sm text-gray-500 dark:text-gray-400">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+        <h3 class="text-lg font-medium text-gray-900 ">案件清單</h3>
+        <div class="text-sm text-gray-500 ">
           第 <span class="font-medium">{{ startIndex + 1 }}</span> -
           <span class="font-medium">{{ Math.min(endIndex, pagination.total) }}</span>
           筆，共 <span class="font-medium">{{ pagination.total }}</span> 筆
@@ -31,32 +31,32 @@
       </div>
       <div class="overflow-x-auto">
         <table class="w-full">
-          <thead class="bg-gray-50 dark:bg-gray-700">
+          <thead class="bg-gray-50 ">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">網站</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">來源管道</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">時間</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">承辦業務</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Email</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">LINE ID</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">地區</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">地址</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">需求金額</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">諮詢項目</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">可聯繫時間</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">IP 位址</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">備註</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">狀態</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">網站</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">來源管道</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">時間</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">承辦業務</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">LINE ID</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">地區</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">地址</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">需求金額</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">諮詢項目</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">可聯繫時間</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP 位址</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">備註</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">狀態</th>
             </tr>
           </thead>
-          <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody class="bg-white divide-y divide-gray-200 ">
             <tr v-if="loading">
-              <td colspan="15" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">載入中...</td>
+              <td colspan="15" class="px-6 py-6 text-center text-gray-500 ">載入中...</td>
             </tr>
-            <tr v-for="lead in leads" :key="lead.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
+            <tr v-for="lead in leads" :key="lead.id" class="hover:bg-gray-50 ">
               <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">
-                <div class="text-gray-900 dark:text-white">{{ extractDomain(lead.payload?.['頁面_URL'] || lead.source) || '-' }}</div>
-                <div class="text-sm text-gray-500 dark:text-gray-400">{{ lead.payload?.['頁面_URL'] || lead.source }}</div>
+                <div class="text-gray-900 ">{{ extractDomain(lead.payload?.['頁面_URL'] || lead.source) || '-' }}</div>
+                <div class="text-sm text-gray-500 ">{{ lead.payload?.['頁面_URL'] || lead.source }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.channel || '-' }}</td>
               <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">
@@ -78,17 +78,17 @@
               </td>
             </tr>
             <tr v-if="!loading && leads.length === 0">
-              <td colspan="15" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400">沒有資料</td>
+              <td colspan="15" class="px-6 py-6 text-center text-gray-500 ">沒有資料</td>
             </tr>
           </tbody>
         </table>
       </div>
-      <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
         <div class="flex space-x-2">
-          <button @click="prevPage" :disabled="pagination.currentPage === 1" class="px-3 py-1 border rounded text-sm disabled:opacity-50 dark:bg-gray-800 dark:border-gray-600">上一頁</button>
-          <button @click="nextPage" :disabled="pagination.currentPage === totalPages" class="px-3 py-1 border rounded text-sm disabled:opacity-50 dark:bg-gray-800 dark:border-gray-600">下一頁</button>
+          <button @click="prevPage" :disabled="pagination.currentPage === 1" class="px-3 py-1 border rounded text-sm disabled:opacity-50 ">上一頁</button>
+          <button @click="nextPage" :disabled="pagination.currentPage === totalPages" class="px-3 py-1 border rounded text-sm disabled:opacity-50 ">下一頁</button>
         </div>
-        <div class="text-sm text-gray-500 dark:text-gray-400">第 {{ pagination.currentPage }} / {{ totalPages }} 頁</div>
+        <div class="text-sm text-gray-500 ">第 {{ pagination.currentPage }} / {{ totalPages }} 頁</div>
       </div>
     </div>
   </div>
@@ -149,13 +149,13 @@ const formatTime = (d) => new Date(d).toLocaleTimeString('zh-TW', { hour: '2-dig
 const getStatusClass = (status) => {
   const base = 'px-2 py-1 rounded text-xs '
   switch (status) {
-    case 'pending': return base + 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
-    case 'intake': return base + 'bg-amber-100 text-amber-700 dark:bg-amber-700 dark:text-amber-200'
-    case 'approved': return base + 'bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-200'
-    case 'submitted': return base + 'bg-blue-100 text-blue-700 dark:bg-blue-700 dark:text-blue-200'
-    case 'disbursed': return base + 'bg-purple-100 text-purple-700 dark:bg-purple-700 dark:text-purple-200'
-    case 'blacklist': return base + 'bg-red-100 text-red-700 dark:bg-red-700 dark:text-red-200'
-    default: return base + 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+    case 'pending': return base + 'bg-gray-100 text-gray-700 
+    case 'intake': return base + 'bg-amber-100 text-amber-700 
+    case 'approved': return base + 'bg-green-100 text-green-700 
+    case 'submitted': return base + 'bg-blue-100 text-blue-700 
+    case 'disbursed': return base + 'bg-purple-100 text-purple-700 
+    case 'blacklist': return base + 'bg-red-100 text-red-700 
+    default: return base + 'bg-gray-100 text-gray-700 
   }
 }
 </script>
