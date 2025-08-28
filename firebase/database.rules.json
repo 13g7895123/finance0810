@@ -1,35 +1,6 @@
 {
   "rules": {
-    // 允許服務帳戶完全存取 (對應後端 Laravel 應用)
-    ".read": "auth != null",
-    ".write": "auth != null",
-    
-    // 對話資料結構權限
-    "conversations": {
-      "$lineUserId": {
-        ".read": "auth != null",
-        ".write": "auth != null",
-        ".validate": "newData.hasChildren(['id', 'customerName', 'lastMessage'])",
-        
-        "messages": {
-          "$messageId": {
-            ".read": "auth != null", 
-            ".write": "auth != null",
-            ".validate": "newData.hasChildren(['senderId', 'content', 'timestamp'])"
-          }
-        }
-      }
-    },
-    
-    // 系統診斷和測試路徑
-    "system": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    
-    "diagnostic_tests": {
-      ".read": "auth != null",
-      ".write": "auth != null"  
-    }
+    ".read": "now < 1758556800000",  // 2025-9-23
+    ".write": "now < 1758556800000"  // 2025-9-23
   }
 }
