@@ -535,17 +535,149 @@ class DebugController extends Controller
     }
 
     /**
+     * 簡單的Firebase連接診斷 (不需要認證，僅用於除錯)
+     */
+    public function diagnosticFirebaseConnection(): JsonResponse
+    {
+        try {
+            $diagnostic = [
+                'timestamp' => now()->toISOString(),
+                'config_check' => [],
+                'service_binding_check' => [],
+                'connection_test' => [],
+                'recommendations' => []
+            ];
+
+            // 1. 檢查配置
+            $projectId = config('services.firebase.project_id');
+            $databaseUrl = config('services.firebase.database_url');
+            $credentialsPath = config('services.firebase.credentials');
+            
+            $diagnostic['config_check'] = [
+                'project_id_set' => !empty($projectId),
+                'project_id' => $projectId ?: 'Not set',
+                'database_url_set' => !empty($databaseUrl),
+                'database_url' => $databaseUrl ?: 'Not set',
+                'credentials_path' => $credentialsPath ?: 'Not set',
+                'credentials_file_exists' => $credentialsPath && file_exists($credentialsPath),
+                'credentials_readable' => $credentialsPath && is_readable($credentialsPath),
+            ];
+
+            // 2. 檢查服務綁定
+            try {
+                $database = app('firebase.database');
+                $diagnostic['service_binding_check'] = [
+                    'service_bound' => true,
+                    'service_class' => get_class($database),
+                    'is_mock' => strpos(get_class($database), 'class@anonymous') !== false,
+                ];
+                
+                // 3. 如果不是mock，嘗試連接測試
+                if (!$diagnostic['service_binding_check']['is_mock']) {
+                    try {
+                        $testPath = 'diagnostic/connection_test_' . time();
+                        $testData = ['test' => true, 'timestamp' => time()];
+                        
+                        $database->getReference($testPath)->set($testData);
+                        $snapshot = $database->getReference($testPath)->getSnapshot();
+                        $database->getReference($testPath)->remove();
+                        
+                        $diagnostic['connection_test'] = [
+                            'connection_successful' => true,
+                            'write_test' => 'passed',
+                            'read_test' => $snapshot->exists() ? 'passed' : 'failed',
+                            'cleanup_test' => 'completed',
+                        ];
+                    } catch (\Exception $e) {
+                        $diagnostic['connection_test'] = [
+                            'connection_successful' => false,
+                            'error' => $e->getMessage(),
+                            'error_class' => get_class($e),
+                        ];
+                    }
+                } else {
+                    $diagnostic['connection_test'] = [
+                        'connection_successful' => false,
+                        'error' => 'Using mock database - Firebase not properly initialized',
+                        'reason' => 'Configuration issues or initialization failure',
+                    ];
+                }
+                
+            } catch (\Exception $e) {
+                $diagnostic['service_binding_check'] = [
+                    'service_bound' => false,
+                    'error' => $e->getMessage(),
+                    'error_class' => get_class($e),
+                ];
+            }
+
+            // 生成建議
+            if (!$diagnostic['config_check']['project_id_set']) {
+                $diagnostic['recommendations'][] = '設定 FIREBASE_PROJECT_ID 環境變數';
+            }
+            if (!$diagnostic['config_check']['database_url_set']) {
+                $diagnostic['recommendations'][] = '設定 FIREBASE_DATABASE_URL 環境變數';
+            }
+            if (!$diagnostic['config_check']['credentials_file_exists']) {
+                $diagnostic['recommendations'][] = '確認 Firebase 服務帳號檔案存在於: ' . $credentialsPath;
+            }
+            if (isset($diagnostic['service_binding_check']['is_mock']) && $diagnostic['service_binding_check']['is_mock']) {
+                $diagnostic['recommendations'][] = '檢查 Laravel 日誌獲取 Firebase 初始化錯誤詳情';
+                $diagnostic['recommendations'][] = '確認所有 Firebase 配置正確且檔案可讀取';
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Firebase 連接診斷完成',
+                'diagnostic' => $diagnostic
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'error_details' => [
+                    'exception_type' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => config('app.debug') ? $e->getTraceAsString() : null,
+                ]
+            ], 500);
+        }
+    }
+
+    /**
      * 測試Firebase Realtime Database連接
      */
     public function testFirebaseConnection(): JsonResponse
     {
         try {
-            // 檢查權限
-            if (!$this->isDebugEnabled() || !$this->hasAdminAccess()) {
+            // 檢查權限，提供更詳細的權限診斷
+            $debugEnabled = $this->isDebugEnabled();
+            $hasAdminAccess = $this->hasAdminAccess();
+            $user = auth()->user();
+            
+            if (!$debugEnabled || !$hasAdminAccess) {
                 return response()->json([
                     'success' => false,
                     'error' => '權限不足',
-                    'message' => '需要管理員權限且啟用除錯模式'
+                    'message' => '需要管理員權限且啟用除錯模式',
+                    'debug_info' => [
+                        'debug_enabled' => $debugEnabled,
+                        'has_admin_access' => $hasAdminAccess,
+                        'user_authenticated' => $user !== null,
+                        'user_id' => $user ? $user->id : null,
+                        'user_roles' => $user ? $user->getRoleNames() : [],
+                        'is_admin' => $user ? $user->isAdmin() : false,
+                        'is_manager' => $user ? $user->isManager() : false,
+                        'app_debug' => config('app.debug'),
+                        'firebase_debug_mode' => config('services.firebase.debug_mode'),
+                        'suggestions' => [
+                            '請確認已登入且具有管理員權限',
+                            '檢查 APP_DEBUG 或 FIREBASE_DEBUG_MODE 設定',
+                            '嘗試使用 /api/debug/firebase/diagnostic 進行不需認證的診斷'
+                        ]
+                    ]
                 ], 403);
             }
 
