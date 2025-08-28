@@ -816,19 +816,26 @@ class ChatController extends BaseApiController
             date('Y-m-d H:i:s') . " - About to call findOrCreateCustomer\n", 
             FILE_APPEND | LOCK_EX);
 
-        // Find or create customer record
-        try {
-            $customer = $this->findOrCreateCustomer($lineUserId, $event);
+        // Find or create customer record - 使用簡化版本確保可靠性
+        $customer = $this->createSimpleCustomer($lineUserId);
+        
+        // 如果簡化版本失敗，記錄錯誤並嘗試複雜版本
+        if (!$customer) {
             file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - findOrCreateCustomer returned customer ID: " . ($customer ? $customer->id : 'null') . "\n", 
+                date('Y-m-d H:i:s') . " - Simple customer creation failed, trying complex version\n", 
                 FILE_APPEND | LOCK_EX);
-        } catch (\Exception $e) {
-            file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - findOrCreateCustomer FAILED: " . $e->getMessage() . "\n", 
-                FILE_APPEND | LOCK_EX);
-            
-            // Create a simple customer fallback
-            $customer = $this->createSimpleCustomer($lineUserId);
+                
+            try {
+                $customer = $this->findOrCreateCustomer($lineUserId, $event);
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Complex findOrCreateCustomer returned customer ID: " . ($customer ? $customer->id : 'null') . "\n", 
+                    FILE_APPEND | LOCK_EX);
+            } catch (\Exception $e) {
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Complex findOrCreateCustomer ALSO FAILED: " . $e->getMessage() . "\n", 
+                    FILE_APPEND | LOCK_EX);
+                return;
+            }
         }
         
         // Check if this is a referral code response
@@ -1496,13 +1503,14 @@ class ChatController extends BaseApiController
 
             $customer = \App\Models\Customer::create([
                 'name' => 'LINE用戶 ' . substr($lineUserId, -6),
-                'phone' => '', // Required field, will be empty for now
+                'phone' => '0900000000', // 提供預設電話號碼避免必填錯誤
                 'line_user_id' => $lineUserId,
                 'channel' => 'line',
                 'status' => 'new',
                 'tracking_status' => 'pending',
                 'assigned_to' => $assignedTo,
-                'version' => 1, // 添加版本欄位
+                'version' => 1,
+                'version_updated_at' => now(), // 添加版本更新時間
                 'website_source' => 'line',
                 'region' => 'unknown',
                 'source' => 'line_webhook'
