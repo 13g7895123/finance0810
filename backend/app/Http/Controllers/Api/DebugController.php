@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class DebugController extends Controller
 {
@@ -929,5 +930,120 @@ class DebugController extends Controller
         }
         
         return $anomalies;
+    }
+    
+    /**
+     * 測試模擬 LINE webhook 並檢查 Firebase 同步
+     */
+    public function testWebhookFirebaseSync(): JsonResponse
+    {
+        try {
+            $testResults = [
+                'timestamp' => now()->toISOString(),
+                'test_line_user_id' => null,
+                'customer_created' => false,
+                'conversation_created' => false,
+                'firebase_sync_attempted' => false,
+                'firebase_sync_success' => false,
+                'errors' => []
+            ];
+            
+            // 生成測試用的 LINE User ID
+            $testLineUserId = 'test_webhook_' . Str::random(10);
+            $testResults['test_line_user_id'] = $testLineUserId;
+            
+            // Step 1: 創建或查找客戶
+            try {
+                $customer = Customer::firstOrCreate(
+                    ['name' => 'Firebase Webhook 測試用戶'],
+                    [
+                        'phone' => '0900000000',
+                        'channel' => 'line',
+                        'status' => 'new',
+                        'tracking_status' => 'pending',
+                        'version' => 1,
+                        'version_updated_at' => now()
+                    ]
+                );
+                $testResults['customer_created'] = true;
+                $testResults['customer_id'] = $customer->id;
+            } catch (\Exception $e) {
+                $testResults['errors'][] = 'Customer creation failed: ' . $e->getMessage();
+                return response()->json($testResults, 500);
+            }
+            
+            // Step 2: 創建對話記錄
+            try {
+                $conversation = ChatConversation::create([
+                    'customer_id' => $customer->id,
+                    'user_id' => $customer->assigned_to,
+                    'line_user_id' => $testLineUserId,
+                    'platform' => 'line',
+                    'message_type' => 'text',
+                    'message_content' => 'Firebase Webhook 同步測試訊息 - ' . now()->format('H:i:s'),
+                    'message_timestamp' => now(),
+                    'is_from_customer' => true,
+                    'status' => 'unread',
+                    'metadata' => [
+                        'test' => true,
+                        'webhook_test' => true,
+                        'timestamp' => time()
+                    ]
+                ]);
+                
+                $testResults['conversation_created'] = true;
+                $testResults['conversation_id'] = $conversation->id;
+            } catch (\Exception $e) {
+                $testResults['errors'][] = 'Conversation creation failed: ' . $e->getMessage();
+                return response()->json($testResults, 500);
+            }
+            
+            // Step 3: 測試 Firebase 同步
+            try {
+                $testResults['firebase_sync_attempted'] = true;
+                
+                // 獲取 Firebase Database 實例的狀態
+                $database = app('firebase.database');
+                $testResults['firebase_database_available'] = $database !== null;
+                $testResults['firebase_database_class'] = $database ? get_class($database) : 'null';
+                
+                // 檢查是否為 Mock 實例
+                if ($database) {
+                    $className = get_class($database);
+                    $testResults['is_mock_database'] = str_contains($className, 'class@anonymous') || str_contains($className, 'Mock');
+                }
+                
+                $syncResult = $this->firebaseChatService->syncConversationToFirebase($conversation);
+                $testResults['firebase_sync_success'] = $syncResult;
+                
+                if (!$syncResult) {
+                    $testResults['errors'][] = 'Firebase sync returned false - likely using Mock database or connection failed';
+                }
+                
+            } catch (\Exception $e) {
+                $testResults['errors'][] = 'Firebase sync exception: ' . $e->getMessage();
+                $testResults['firebase_sync_success'] = false;
+            }
+            
+            // Step 4: 清理測試資料
+            try {
+                $conversation->delete();
+                // 如果是新創建的測試客戶且名稱符合，也刪除
+                if ($customer->name === 'Firebase Webhook 測試用戶' && $customer->wasRecentlyCreated) {
+                    $customer->delete();
+                }
+            } catch (\Exception $e) {
+                $testResults['errors'][] = 'Cleanup failed: ' . $e->getMessage();
+            }
+            
+            return response()->json($testResults);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Webhook Firebase sync test failed',
+                'message' => $e->getMessage(),
+                'trace' => config('app.debug') ? $e->getTraceAsString() : null
+            ], 500);
+        }
     }
 }

@@ -22,7 +22,18 @@ class FirebaseChatService
      */
     protected function isDatabaseAvailable(): bool
     {
-        return $this->database !== null;
+        if ($this->database === null) {
+            return false;
+        }
+        
+        // 檢查是否為 Mock Database 實例
+        $className = get_class($this->database);
+        if (str_contains($className, 'class@anonymous') || str_contains($className, 'Mock')) {
+            Log::warning('Firebase Database is a mock instance, not available for real operations');
+            return false;
+        }
+        
+        return true;
     }
 
     /**
@@ -36,14 +47,19 @@ class FirebaseChatService
             FILE_APPEND | LOCK_EX);
             
         // 檢查 Realtime Database 是否可用
-        if (!$this->database) {
+        if (!$this->isDatabaseAvailable()) {
             $errorMsg = 'Realtime Database not available, skipping sync';
-            file_put_contents(storage_path('logs/webhook-debug.log'), 
+            $logFile = storage_path('logs/webhook-debug.log');
+            if (!file_exists(dirname($logFile))) {
+                @mkdir(dirname($logFile), 0755, true);
+            }
+            @file_put_contents($logFile, 
                 date('Y-m-d H:i:s') . " - ERROR: $errorMsg\n", 
                 FILE_APPEND | LOCK_EX);
                 
             Log::channel('firebase')->warning($errorMsg, [
-                'conversation_id' => $conversation->id
+                'conversation_id' => $conversation->id,
+                'database_class' => $this->database ? get_class($this->database) : 'null'
             ]);
             return false;
         }

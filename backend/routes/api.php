@@ -59,6 +59,7 @@ Route::get('/test/webhook-firebase', [ChatController::class, 'testWebhookFirebas
 Route::get('/firebase/diagnostic', [DebugController::class, 'diagnosticFirebaseConnection']);
 Route::get('/debug/firebase/diagnostic', [DebugController::class, 'diagnosticFirebaseConnection']);
 Route::get('/firebase/status', [DebugController::class, 'quickFirebaseStatus']);
+Route::get('/test/webhook-firebase-sync', [DebugController::class, 'testWebhookFirebaseSync']);
 
 // Public routes
 Route::post('/auth/login', [AuthController::class, 'login']);
