@@ -20,7 +20,7 @@ use App\Http\Resources\ChatIncrementalResource;
 use App\Services\ChatQueryCacheService;
 use App\Services\FirebaseChatService;
 use App\Services\FirebaseSyncService;
-use App\Services\WebhookLoggerService;
+// Removed WebhookLoggerService dependency
 
 class ChatController extends BaseApiController
 {
@@ -4274,130 +4274,193 @@ class ChatController extends BaseApiController
     }
     
     /**
-     * 測試用的 webhook 端點，無需簽名驗證
+     * 測試用的 webhook 端點，簡化版本無需複雜依賴
      */
     public function webhookTest(Request $request)
     {
-        $logger = new WebhookLoggerService();
-        
         try {
-            // Start comprehensive logging
-            $logger->startExecution($request, 'line_test');
+            $executionId = 'test_' . time() . '_' . rand(1000, 9999);
             
             // Create logs directory if it doesn't exist
             $logDir = storage_path('logs');
             if (!is_dir($logDir)) {
-                mkdir($logDir, 0755, true);
+                @mkdir($logDir, 0755, true);
             }
             
-            // Keep original file logging for backward compatibility
-            file_put_contents(storage_path('logs/webhook-test-debug.log'), 
+            $logFile = storage_path('logs/webhook-test-debug.log');
+            
+            // Basic request logging
+            @file_put_contents($logFile, 
                 date('Y-m-d H:i:s') . " - Test webhook called from IP: " . $request->ip() . 
-                " [ExecutionID: " . $logger->getExecutionId() . "]\n", 
+                " [ExecutionID: $executionId]\n", 
                 FILE_APPEND | LOCK_EX);
             
-            // Log request data
+            // Parse request data
             $requestData = [
                 'method' => $request->method(),
-                'url' => $request->fullUrl(),
-                'headers' => $request->headers->all(),
-                'body' => $request->getContent(),
-                'parsed_body' => $request->all(),
+                'content_type' => $request->header('Content-Type'),
+                'body_size' => strlen($request->getContent()),
                 'ip' => $request->ip(),
-                'user_agent' => $request->userAgent()
+                'timestamp' => now()->toISOString()
             ];
             
-            $logger->logStep('request_parsed', $requestData);
-            Log::info('LINE Test Webhook received', array_merge($requestData, ['execution_id' => $logger->getExecutionId()]));
-            
-            // Skip signature verification for testing
-            file_put_contents(storage_path('logs/webhook-test-debug.log'), 
-                date('Y-m-d H:i:s') . " - Skipping signature verification (test mode)\n", 
+            @file_put_contents($logFile, 
+                date('Y-m-d H:i:s') . " - Request data: " . json_encode($requestData) . "\n", 
                 FILE_APPEND | LOCK_EX);
-
-            // Parse and log events
+            
+            // Parse events
             $events = $request->input('events', []);
             $eventCount = count($events);
-            $logger->setEvents($events);
             
-            file_put_contents(storage_path('logs/webhook-test-debug.log'), 
+            @file_put_contents($logFile, 
                 date('Y-m-d H:i:s') . " - Processing $eventCount events\n", 
                 FILE_APPEND | LOCK_EX);
-                
-            Log::info('LINE Test Webhook received events', [
-                'events_count' => $eventCount, 
-                'events' => $events,
-                'execution_id' => $logger->getExecutionId()
-            ]);
 
-            // Process each event with detailed logging
+            // Process each event (simplified)
             $processedEvents = [];
             foreach ($events as $index => $event) {
                 try {
-                    file_put_contents(storage_path('logs/webhook-test-debug.log'), 
-                        date('Y-m-d H:i:s') . " - Processing event $index: " . json_encode($event) . "\n", 
+                    @file_put_contents($logFile, 
+                        date('Y-m-d H:i:s') . " - Processing event $index\n", 
                         FILE_APPEND | LOCK_EX);
                     
-                    $result = $this->processEventWithLogging($event, $logger, $index);
-                    $logger->logEventProcessing($index, $event, $result);
+                    $eventType = $event['type'] ?? 'unknown';
+                    
+                    if ($eventType === 'message') {
+                        $result = $this->processTestMessage($event, $executionId);
+                    } else {
+                        $result = ['status' => 'skipped', 'type' => $eventType, 'reason' => 'not_message_event'];
+                    }
+                    
                     $processedEvents[] = $result;
                     
                 } catch (\Exception $e) {
                     $errorMsg = "Event $index processing failed: " . $e->getMessage();
-                    file_put_contents(storage_path('logs/webhook-test-debug.log'), 
+                    @file_put_contents($logFile, 
                         date('Y-m-d H:i:s') . " - ERROR: $errorMsg\n", 
                         FILE_APPEND | LOCK_EX);
                     
-                    $logger->logStep("event_{$index}_failed", [
-                        'event' => $event,
-                        'error' => $e->getMessage(),
-                        'file' => $e->getFile(),
-                        'line' => $e->getLine()
-                    ], 'failed');
-                    
-                    // Continue processing other events even if one fails
                     $processedEvents[] = ['status' => 'failed', 'error' => $e->getMessage()];
                 }
             }
 
-            file_put_contents(storage_path('logs/webhook-test-debug.log'), 
-                date('Y-m-d H:i:s') . " - Test webhook processing completed successfully\n", 
+            @file_put_contents($logFile, 
+                date('Y-m-d H:i:s') . " - Test webhook processing completed\n", 
                 FILE_APPEND | LOCK_EX);
 
             $results = [
-                'status' => 'ok',
-                'execution_id' => $logger->getExecutionId(),
+                'status' => 'success',
+                'execution_id' => $executionId,
                 'events_processed' => $eventCount,
                 'events_results' => $processedEvents,
-                'test_mode' => true
+                'test_mode' => true,
+                'timestamp' => now()->toISOString()
             ];
-            
-            $logger->completeExecution($results);
             
             return response()->json($results);
             
         } catch (\Exception $e) {
             $error = [
-                'error' => $e->getMessage(),
+                'status' => 'error',
+                'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
+                'test_mode' => true,
+                'timestamp' => now()->toISOString()
             ];
             
-            file_put_contents(storage_path('logs/webhook-test-debug.log'), 
+            $logFile = storage_path('logs/webhook-test-debug.log');
+            @file_put_contents($logFile, 
                 date('Y-m-d H:i:s') . " - EXCEPTION: " . json_encode($error) . "\n", 
                 FILE_APPEND | LOCK_EX);
+            
+            return response()->json($error, 500);
+        }
+    }
+    
+    /**
+     * 簡化的訊息處理方法
+     */
+    private function processTestMessage($event, $executionId)
+    {
+        try {
+            $lineUserId = $event['source']['userId'] ?? null;
+            $messageText = $event['message']['text'] ?? '';
+            $messageType = $event['message']['type'] ?? 'unknown';
+            
+            if (!$lineUserId) {
+                return ['status' => 'failed', 'reason' => 'missing_line_user_id'];
+            }
+            
+            if ($messageType !== 'text') {
+                return ['status' => 'skipped', 'reason' => 'not_text_message', 'type' => $messageType];
+            }
+            
+            // Try to create/find customer (simplified)
+            $customer = null;
+            try {
+                $customer = \App\Models\Customer::where('line_user_id', $lineUserId)->first();
+                if (!$customer) {
+                    $customer = \App\Models\Customer::create([
+                        'name' => 'Test User ' . substr($lineUserId, -6),
+                        'phone' => '0900000000',
+                        'line_user_id' => $lineUserId,
+                        'channel' => 'line',
+                        'status' => 'new',
+                        'tracking_status' => 'pending',
+                        'version' => 1,
+                        'version_updated_at' => now()
+                    ]);
+                }
+            } catch (\Exception $e) {
+                return ['status' => 'failed', 'reason' => 'customer_creation_failed', 'error' => $e->getMessage()];
+            }
+            
+            // Try to create conversation
+            try {
+                $conversation = \App\Models\ChatConversation::create([
+                    'customer_id' => $customer->id,
+                    'user_id' => $customer->assigned_to,
+                    'line_user_id' => $lineUserId,
+                    'platform' => 'line',
+                    'message_type' => 'text',
+                    'message_content' => $messageText,
+                    'message_timestamp' => now(),
+                    'is_from_customer' => true,
+                    'status' => 'unread',
+                    'metadata' => ['test' => true, 'execution_id' => $executionId]
+                ]);
                 
-            Log::error('LINE Test Webhook error', array_merge($error, ['execution_id' => $logger->getExecutionId()]));
+                // Try Firebase sync (optional, won't fail if it doesn't work)
+                $firebaseSync = false;
+                try {
+                    if ($this->firebaseChatService) {
+                        $firebaseSync = $this->firebaseChatService->syncConversationToFirebase($conversation);
+                    }
+                } catch (\Exception $e) {
+                    // Firebase sync failure is not critical for test
+                }
+                
+                // Clean up test data
+                $conversation->delete();
+                if ($customer->name && str_starts_with($customer->name, 'Test User')) {
+                    $customer->delete();
+                }
+                
+                return [
+                    'status' => 'success',
+                    'customer_id' => $customer->id,
+                    'conversation_id' => $conversation->id,
+                    'firebase_synced' => $firebaseSync,
+                    'message_preview' => substr($messageText, 0, 50)
+                ];
+                
+            } catch (\Exception $e) {
+                return ['status' => 'failed', 'reason' => 'conversation_creation_failed', 'error' => $e->getMessage()];
+            }
             
-            $logger->failExecution($e->getMessage(), $error);
-            
-            return response()->json([
-                'error' => 'Webhook processing failed',
-                'message' => $e->getMessage(),
-                'execution_id' => $logger->getExecutionId(),
-                'test_mode' => true
-            ], 500);
+        } catch (\Exception $e) {
+            return ['status' => 'failed', 'reason' => 'general_error', 'error' => $e->getMessage()];
         }
     }
 }
