@@ -20,6 +20,7 @@ use App\Http\Resources\ChatIncrementalResource;
 use App\Services\ChatQueryCacheService;
 use App\Services\FirebaseChatService;
 use App\Services\FirebaseSyncService;
+use App\Services\WebhookLoggerService;
 
 class ChatController extends BaseApiController
 {
@@ -316,13 +317,19 @@ class ChatController extends BaseApiController
      */
     public function webhook(Request $request)
     {
-        // Force write to file for debugging
-        file_put_contents(storage_path('logs/webhook-debug.log'), 
-            date('Y-m-d H:i:s') . " - Webhook called from IP: " . $request->ip() . "\n", 
-            FILE_APPEND | LOCK_EX);
-            
+        $logger = new WebhookLoggerService();
+        
         try {
-            // Log all incoming data for debugging
+            // Start comprehensive logging
+            $logger->startExecution($request, 'line');
+            
+            // Keep original file logging for backward compatibility
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Webhook called from IP: " . $request->ip() . 
+                " [ExecutionID: " . $logger->getExecutionId() . "]\n", 
+                FILE_APPEND | LOCK_EX);
+            
+            // Log request data
             $requestData = [
                 'method' => $request->method(),
                 'url' => $request->fullUrl(),
@@ -333,43 +340,79 @@ class ChatController extends BaseApiController
                 'user_agent' => $request->userAgent()
             ];
             
-            file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - Request data: " . json_encode($requestData) . "\n", 
-                FILE_APPEND | LOCK_EX);
-            
-            Log::info('LINE Webhook received', $requestData);
+            $logger->logStep('request_parsed', $requestData);
+            Log::info('LINE Webhook received', array_merge($requestData, ['execution_id' => $logger->getExecutionId()]));
             
             // Verify LINE webhook signature
-            if (!$this->verifySignature($request)) {
+            $signatureValid = $this->verifySignature($request);
+            $logger->logSignatureVerification($signatureValid);
+            
+            if (!$signatureValid) {
                 $error = 'Invalid signature verification failed';
                 file_put_contents(storage_path('logs/webhook-debug.log'), 
-                    date('Y-m-d H:i:s') . " - ERROR: $error\n", 
+                    date('Y-m-d H:i:s') . " - ERROR: $error [ExecutionID: " . $logger->getExecutionId() . "]\n", 
                     FILE_APPEND | LOCK_EX);
-                Log::error($error);
+                
+                $logger->failExecution($error, ['signature_check_failed' => true]);
                 return response()->json(['error' => $error], 400);
             }
 
+            // Parse and log events
             $events = $request->input('events', []);
             $eventCount = count($events);
+            $logger->setEvents($events);
             
             file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - Processing $eventCount events\n", 
+                date('Y-m-d H:i:s') . " - Processing $eventCount events [ExecutionID: " . $logger->getExecutionId() . "]\n", 
                 FILE_APPEND | LOCK_EX);
                 
-            Log::info('LINE Webhook received events', ['events_count' => $eventCount, 'events' => $events]);
+            Log::info('LINE Webhook received events', [
+                'events_count' => $eventCount, 
+                'events' => $events,
+                'execution_id' => $logger->getExecutionId()
+            ]);
 
+            // Process each event with detailed logging
+            $processedEvents = [];
             foreach ($events as $index => $event) {
-                file_put_contents(storage_path('logs/webhook-debug.log'), 
-                    date('Y-m-d H:i:s') . " - Processing event $index: " . json_encode($event) . "\n", 
-                    FILE_APPEND | LOCK_EX);
-                $this->processEvent($event);
+                try {
+                    file_put_contents(storage_path('logs/webhook-debug.log'), 
+                        date('Y-m-d H:i:s') . " - Processing event $index: " . json_encode($event) . 
+                        " [ExecutionID: " . $logger->getExecutionId() . "]\n", 
+                        FILE_APPEND | LOCK_EX);
+                    
+                    $result = $this->processEventWithLogging($event, $logger, $index);
+                    $logger->logEventProcessing($index, $event, $result);
+                    $processedEvents[] = $result;
+                    
+                } catch (\Exception $e) {
+                    $logger->logStep("event_{$index}_failed", [
+                        'event' => $event,
+                        'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine()
+                    ], 'failed');
+                    
+                    // Continue processing other events even if one fails
+                    $processedEvents[] = ['status' => 'failed', 'error' => $e->getMessage()];
+                }
             }
 
             file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - Webhook processing completed successfully\n", 
+                date('Y-m-d H:i:s') . " - Webhook processing completed successfully [ExecutionID: " . $logger->getExecutionId() . "]\n", 
                 FILE_APPEND | LOCK_EX);
 
-            return response()->json(['status' => 'ok']);
+            $results = [
+                'status' => 'ok',
+                'execution_id' => $logger->getExecutionId(),
+                'events_processed' => $eventCount,
+                'events_results' => $processedEvents
+            ];
+            
+            $logger->completeExecution($results);
+            
+            return response()->json($results);
+            
         } catch (\Exception $e) {
             $error = [
                 'error' => $e->getMessage(),
@@ -379,15 +422,286 @@ class ChatController extends BaseApiController
             ];
             
             file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - EXCEPTION: " . json_encode($error) . "\n", 
+                date('Y-m-d H:i:s') . " - EXCEPTION: " . json_encode($error) . 
+                " [ExecutionID: " . $logger->getExecutionId() . "]\n", 
                 FILE_APPEND | LOCK_EX);
                 
-            Log::error('LINE Webhook error', $error);
+            Log::error('LINE Webhook error', array_merge($error, ['execution_id' => $logger->getExecutionId()]));
             
-            return response()->json(['error' => 'Internal server error'], 500);
+            $logger->failExecution($e->getMessage(), $error);
+            
+            return response()->json([
+                'error' => 'Internal server error',
+                'execution_id' => $logger->getExecutionId()
+            ], 500);
         }
     }
 
+    /**
+     * Process event with comprehensive logging wrapper
+     */
+    protected function processEventWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    {
+        $eventType = $event['type'] ?? 'unknown';
+        $logger->logStep("event_{$eventIndex}_started", [
+            'event_type' => $eventType,
+            'event_details' => $event
+        ]);
+
+        try {
+            switch ($eventType) {
+                case 'message':
+                    $result = $this->handleMessageWithLogging($event, $logger, $eventIndex);
+                    break;
+                case 'follow':
+                    $result = $this->handleFollowWithLogging($event, $logger, $eventIndex);
+                    break;
+                case 'unfollow':
+                    $result = $this->handleUnfollowWithLogging($event, $logger, $eventIndex);
+                    break;
+                default:
+                    $logger->logStep("event_{$eventIndex}_unhandled", [
+                        'event_type' => $eventType,
+                        'message' => 'Unhandled LINE event type'
+                    ]);
+                    Log::info('Unhandled LINE event type', [
+                        'type' => $eventType,
+                        'execution_id' => $logger->getExecutionId()
+                    ]);
+                    $result = ['status' => 'unhandled', 'type' => $eventType];
+            }
+
+            $logger->logStep("event_{$eventIndex}_completed", [
+                'event_type' => $eventType,
+                'result' => $result
+            ]);
+
+            return $result;
+
+        } catch (\Exception $e) {
+            $logger->logStep("event_{$eventIndex}_exception", [
+                'event_type' => $eventType,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ], 'failed');
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle message events with logging
+     */
+    protected function handleMessageWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    {
+        $messageType = $event['message']['type'] ?? 'unknown';
+        $logger->logStep("message_{$eventIndex}_handling", [
+            'message_type' => $messageType,
+            'message_content' => $event['message'] ?? null
+        ]);
+
+        switch ($messageType) {
+            case 'text':
+                return $this->handleTextMessageWithLogging($event, $logger, $eventIndex);
+            case 'image':
+            case 'video':
+            case 'audio':
+            case 'file':
+                return $this->handleMediaMessageWithLogging($event, $logger, $eventIndex);
+            case 'sticker':
+                return $this->handleStickerMessageWithLogging($event, $logger, $eventIndex);
+            case 'location':
+                return $this->handleLocationMessageWithLogging($event, $logger, $eventIndex);
+            default:
+                $logger->logStep("message_{$eventIndex}_unhandled", [
+                    'message_type' => $messageType,
+                    'message' => 'Unhandled LINE message type'
+                ]);
+                Log::info('Unhandled LINE message type', [
+                    'type' => $messageType,
+                    'execution_id' => $logger->getExecutionId()
+                ]);
+                return ['status' => 'unhandled', 'message_type' => $messageType];
+        }
+    }
+
+    /**
+     * Handle text messages with comprehensive logging
+     */
+    protected function handleTextMessageWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    {
+        $lineUserId = $event['source']['userId'] ?? null;
+        $messageText = $event['message']['text'] ?? null;
+        $timestamp = $event['timestamp'] ?? null;
+        
+        $logger->logStep("text_message_{$eventIndex}_processing", [
+            'line_user_id' => $lineUserId,
+            'message_length' => strlen($messageText ?? ''),
+            'timestamp' => $timestamp
+        ]);
+
+        if (!$lineUserId || !$messageText) {
+            $logger->logStep("text_message_{$eventIndex}_invalid", [
+                'missing_user_id' => !$lineUserId,
+                'missing_text' => !$messageText,
+                'message' => 'Missing required fields'
+            ], 'failed');
+            return ['status' => 'failed', 'reason' => 'missing_required_fields'];
+        }
+
+        try {
+            // Customer creation/finding
+            $logger->logStep("customer_{$eventIndex}_lookup_start", ['line_user_id' => $lineUserId]);
+            $customer = $this->createSimpleCustomer($lineUserId);
+            
+            if (!$customer) {
+                $logger->logCustomerOperation('simple_creation_failed', null, ['line_user_id' => $lineUserId]);
+                $customer = $this->findOrCreateCustomer($lineUserId, $event);
+            }
+
+            if (!$customer) {
+                $logger->logCustomerOperation('creation_failed', null, ['line_user_id' => $lineUserId]);
+                return ['status' => 'failed', 'reason' => 'customer_creation_failed'];
+            }
+
+            $logger->logCustomerOperation('found_or_created', $customer->id, [
+                'line_user_id' => $lineUserId,
+                'customer_name' => $customer->name
+            ]);
+
+            // Conversation creation
+            $logger->logStep("conversation_{$eventIndex}_creation_start", [
+                'customer_id' => $customer->id,
+                'assigned_to' => $customer->assigned_to
+            ]);
+
+            DB::beginTransaction();
+            $logger->logDatabaseTransaction('begin', true, ['operation' => 'conversation_creation']);
+
+            $conversation = ChatConversation::create([
+                'customer_id' => $customer->id,
+                'user_id' => $customer->assigned_to,
+                'line_user_id' => $lineUserId,
+                'platform' => 'line',
+                'message_type' => 'text',
+                'message_content' => $messageText,
+                'message_timestamp' => $timestamp ? \Carbon\Carbon::createFromTimestamp($timestamp / 1000) : now(),
+                'is_from_customer' => true,
+                'status' => 'unread',
+                'metadata' => [
+                    'event_timestamp' => $timestamp,
+                    'execution_id' => $logger->getExecutionId()
+                ],
+            ]);
+
+            DB::commit();
+            $logger->logDatabaseTransaction('commit', true, ['conversation_id' => $conversation->id]);
+            
+            $logger->logConversationOperation('created', $conversation->id, [
+                'message_type' => 'text',
+                'message_length' => strlen($messageText),
+                'customer_id' => $customer->id
+            ]);
+
+            // Firebase sync
+            try {
+                $logger->logStep("firebase_sync_{$eventIndex}_start", ['conversation_id' => $conversation->id]);
+                $firebaseSync = $this->firebaseChatService->syncConversationToFirebase($conversation);
+                
+                $logger->logFirebaseSync($firebaseSync, $conversation->id);
+                
+                if ($firebaseSync) {
+                    Log::info('Firebase sync successful', [
+                        'conversation_id' => $conversation->id,
+                        'line_user_id' => $lineUserId,
+                        'execution_id' => $logger->getExecutionId()
+                    ]);
+                }
+                
+            } catch (\Exception $e) {
+                $logger->logFirebaseSync(false, $conversation->id, $e->getMessage());
+                Log::error('Firebase sync failed', [
+                    'conversation_id' => $conversation->id,
+                    'error' => $e->getMessage(),
+                    'execution_id' => $logger->getExecutionId()
+                ]);
+            }
+
+            return [
+                'status' => 'success',
+                'customer_id' => $customer->id,
+                'conversation_id' => $conversation->id,
+                'firebase_synced' => $firebaseSync ?? false
+            ];
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $logger->logDatabaseTransaction('rollback', true, ['error' => $e->getMessage()]);
+            
+            $logger->logStep("text_message_{$eventIndex}_exception", [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ], 'failed');
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle follow events with logging
+     */
+    protected function handleFollowWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    {
+        $logger->logStep("follow_{$eventIndex}_processing", $event);
+        $this->handleFollow($event);
+        return ['status' => 'success', 'type' => 'follow'];
+    }
+
+    /**
+     * Handle unfollow events with logging
+     */
+    protected function handleUnfollowWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    {
+        $logger->logStep("unfollow_{$eventIndex}_processing", $event);
+        $this->handleUnfollow($event);
+        return ['status' => 'success', 'type' => 'unfollow'];
+    }
+
+    /**
+     * Handle media messages with logging
+     */
+    protected function handleMediaMessageWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    {
+        $messageType = $event['message']['type'] ?? 'unknown';
+        $logger->logStep("media_{$eventIndex}_processing", [
+            'media_type' => $messageType,
+            'event' => $event
+        ]);
+        $this->handleMediaMessage($event);
+        return ['status' => 'success', 'type' => 'media', 'media_type' => $messageType];
+    }
+
+    /**
+     * Handle sticker messages with logging
+     */
+    protected function handleStickerMessageWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    {
+        $logger->logStep("sticker_{$eventIndex}_processing", $event);
+        $this->handleStickerMessage($event);
+        return ['status' => 'success', 'type' => 'sticker'];
+    }
+
+    /**
+     * Handle location messages with logging
+     */
+    protected function handleLocationMessageWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    {
+        $logger->logStep("location_{$eventIndex}_processing", $event);
+        $this->handleLocationMessage($event);
+        return ['status' => 'success', 'type' => 'location'];
+    }
 
     /**
      * Test webhook and Firebase sync functionality

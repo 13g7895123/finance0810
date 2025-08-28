@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\BankRecordController;
 use App\Http\Controllers\Api\VersionController;
 use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\DebugController;
+use App\Http\Controllers\Api\WebhookLogController;
 
 /*
 |--------------------------------------------------------------------------
@@ -160,6 +161,21 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('{entityType}', [SyncController::class, 'getUpdates']);
         Route::post('{entityType}/validate', [SyncController::class, 'validateIntegrity']);
         Route::get('{entityType}/stats', [SyncController::class, 'getStats']);
+    });
+    
+    // Webhook Execution Logs - Available to all authenticated users
+    Route::prefix('webhook-logs')->group(function () {
+        Route::get('/', [WebhookLogController::class, 'index']);
+        Route::get('/statistics', [WebhookLogController::class, 'statistics']);
+        Route::get('/recent', [WebhookLogController::class, 'recent']);
+        Route::get('/export', [WebhookLogController::class, 'export']);
+        Route::get('/execution/{executionId}', [WebhookLogController::class, 'getByExecutionId']);
+        Route::get('/{id}', [WebhookLogController::class, 'show']);
+    });
+    
+    // Webhook Log Management (Admin/Manager only)
+    Route::middleware(['role:admin|executive|manager'])->group(function () {
+        Route::delete('/webhook-logs/cleanup', [WebhookLogController::class, 'cleanup']);
     });
     
     // Query Performance and Cache Management (Admin/Manager only)
