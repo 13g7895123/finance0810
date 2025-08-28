@@ -21,7 +21,7 @@
             :class="[
               showFootbar 
                 ? 'bg-primary-500' 
-                : 'bg-gray-200 
+                : 'bg-gray-200'
             ]"
           >
             <span
