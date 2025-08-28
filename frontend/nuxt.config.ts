@@ -32,6 +32,20 @@ export default defineNuxtConfig({
   vite: {
     server: {
       allowedHosts: ['finance.local', 'localhost']
+    },
+    build: {
+      rollupOptions: {
+        external: (id) => {
+          // Firebase modules should be treated as external in production
+          if (id.includes('firebase/')) {
+            return false // Let rollup bundle firebase modules instead of treating them as external
+          }
+          return false
+        }
+      }
+    },
+    optimizeDeps: {
+      include: ['firebase/app', 'firebase/database']
     }
   },
   // Enable hot module replacement in development

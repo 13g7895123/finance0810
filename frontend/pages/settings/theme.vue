@@ -42,8 +42,8 @@
             :style="{ backgroundColor: color.value }"
             :class="[
               themeStore.primaryColor === color.value
-                ? 'border-gray-900 
-                : 'border-gray-300 
+                ? 'border-gray-900'
+                : 'border-gray-300'
             ]"
             :title="color.name"
           />

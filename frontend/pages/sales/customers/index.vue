@@ -643,11 +643,11 @@ const getCaseStatusText = (status) => {
 
 const getCaseStatusClass = (status) => {
   switch (status) {
-    case 'submitted': return 'bg-blue-100 text-blue-800 
-    case 'approved': return 'bg-green-100 text-green-800 
-    case 'rejected': return 'bg-red-100 text-red-800 
-    case 'disbursed': return 'bg-purple-100 text-purple-800 
-    default: return 'bg-gray-100 text-gray-800 
+    case 'submitted': return 'bg-blue-100 text-blue-800'
+    case 'approved': return 'bg-green-100 text-green-800'
+    case 'rejected': return 'bg-red-100 text-red-800'
+    case 'disbursed': return 'bg-purple-100 text-purple-800'
+    default: return 'bg-gray-100 text-gray-800'
   }
 }
 
@@ -1091,12 +1091,12 @@ const submitEditForm = async () => {
 const getStatusClass = (status) => {
   const statusOptions = getStatusOptions()
   const classes = {
-    'new': 'bg-blue-100 text-blue-800 
-    'contacted': 'bg-yellow-100 text-yellow-800 
-    'interested': 'bg-green-100 text-green-800 
-    'not_interested': 'bg-red-100 text-red-800 
-    'invalid': 'bg-gray-100 text-gray-800 
-    'converted': 'bg-purple-100 text-purple-800 
+    'new': 'bg-blue-100 text-blue-800',
+    'contacted': 'bg-yellow-100 text-yellow-800',
+    'interested': 'bg-green-100 text-green-800',
+    'not_interested': 'bg-red-100 text-red-800',
+    'invalid': 'bg-gray-100 text-gray-800',
+    'converted': 'bg-purple-100 text-purple-800'
   }
   return classes[status] || classes.new
 }

@@ -51,8 +51,8 @@
               @click="selectRole(role)"
               class="relative p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md"
               :class="{
-                'border-primary-500 bg-primary-50 selectedRole?.id === role.id,
-                'border-gray-200 hover:border-gray-300 selectedRole?.id !== role.id
+                'border-primary-500 bg-primary-50': selectedRole?.id === role.id,
+                'border-gray-200 hover:border-gray-300': selectedRole?.id !== role.id
               }"
             >
               <div class="flex items-center space-x-3 mb-3">
@@ -753,24 +753,24 @@ const getRoleIcon = (roleName) => {
 
 const getRoleIconColor = (roleName) => {
   const colorMap = {
-    admin: 'text-purple-600 
-    executive: 'text-purple-600 
-    manager: 'text-blue-600 
-    staff: 'text-green-600 
-    sales: 'text-green-600 
+    admin: 'text-purple-600',
+    executive: 'text-purple-600',
+    manager: 'text-blue-600',
+    staff: 'text-green-600',
+    sales: 'text-green-600'
   }
-  return colorMap[roleName] || 'text-gray-600 
+  return colorMap[roleName] || 'text-gray-600'
 }
 
 const getRoleIconBg = (roleName) => {
   const bgMap = {
-    admin: 'bg-purple-100 
-    executive: 'bg-purple-100 
-    manager: 'bg-blue-100 
-    staff: 'bg-green-100 
-    sales: 'bg-green-100 
+    admin: 'bg-purple-100',
+    executive: 'bg-purple-100',
+    manager: 'bg-blue-100',
+    staff: 'bg-green-100',
+    sales: 'bg-green-100'
   }
-  return bgMap[roleName] || 'bg-gray-100 
+  return bgMap[roleName] || 'bg-gray-100'
 }
 
 const getCategoryDisplayName = (category) => {

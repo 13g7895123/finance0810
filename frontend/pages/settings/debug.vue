@@ -410,7 +410,7 @@
                 <span class="text-xs px-2 py-1 rounded font-medium"
                       :class="step.status === 'passed' ? 'bg-green-100 text-green-800' : 
                               step.status === 'failed' ? 'bg-red-100 text-red-800' :
-                              'bg-yellow-100 text-yellow-800 ">
+                              'bg-yellow-100 text-yellow-800'">
                   {{ step.status === 'passed' ? '✓ 成功' : step.status === 'failed' ? '✗ 失敗' : '⧖ 進行中' }}
                 </span>
               </div>

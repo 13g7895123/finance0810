@@ -167,13 +167,13 @@ const getIcon = (iconName) => {
 // 圖示背景顏色類別
 const iconBgClass = computed(() => {
   const colorMap = {
-    blue: 'bg-blue-100 
-    green: 'bg-green-100 
-    yellow: 'bg-yellow-100 
-    red: 'bg-red-100 
-    purple: 'bg-purple-100 
-    indigo: 'bg-indigo-100 
-    pink: 'bg-pink-100 
+    blue: 'bg-blue-100',
+    green: 'bg-green-100',
+    yellow: 'bg-yellow-100',
+    red: 'bg-red-100',
+    purple: 'bg-purple-100',
+    indigo: 'bg-indigo-100',
+    pink: 'bg-pink-100'
   }
   return colorMap[props.iconColor]
 })
@@ -181,13 +181,13 @@ const iconBgClass = computed(() => {
 // 圖示顏色類別
 const iconClass = computed(() => {
   const colorMap = {
-    blue: 'text-blue-600 
-    green: 'text-green-600 
-    yellow: 'text-yellow-600 
-    red: 'text-red-600 
-    purple: 'text-purple-600 
-    indigo: 'text-indigo-600 
-    pink: 'text-pink-600 
+    blue: 'text-blue-600',
+    green: 'text-green-600',
+    yellow: 'text-yellow-600',
+    red: 'text-red-600',
+    purple: 'text-purple-600',
+    indigo: 'text-indigo-600',
+    pink: 'text-pink-600'
   }
   return colorMap[props.iconColor]
 })
@@ -230,10 +230,10 @@ const getTrendIcon = () => {
 
 // 獲取趨勢顏色類別
 const getTrendClass = () => {
-  if (!props.trend) return 'text-gray-500 
-  if (props.trend > 0) return 'text-green-600 
-  if (props.trend < 0) return 'text-red-600 
-  return 'text-gray-500 
+  if (!props.trend) return 'text-gray-500'
+  if (props.trend > 0) return 'text-green-600'
+  if (props.trend < 0) return 'text-red-600'
+  return 'text-gray-500'
 }
 
 // 獲取進度條顏色類別
