@@ -383,8 +383,8 @@
           
           <div class="space-y-3">
             <!-- 整體狀態 -->
-            <div class="flex justify-between items-center p-3 rounded-lg" :class="lastFirebaseTestResult.overall_success ? 'bg-green-50 : 'bg-red-50 ">
-              <span class="text-sm font-medium" :class="lastFirebaseTestResult.overall_success ? 'text-green-800 : 'text-red-800 ">
+            <div class="flex justify-between items-center p-3 rounded-lg" :class="lastFirebaseTestResult.overall_success ? 'bg-green-50' : 'bg-red-50'">
+              <span class="text-sm font-medium" :class="lastFirebaseTestResult.overall_success ? 'text-green-800' : 'text-red-800'">
                 測試結果
               </span>
               <span class="text-sm font-medium px-2 py-1 rounded" :class="lastFirebaseTestResult.overall_success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
