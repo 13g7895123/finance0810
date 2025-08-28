@@ -176,7 +176,7 @@
               <span class="text-sm text-gray-600 ">連接狀態</span>
               <span :class="[
                 'text-sm font-medium px-2 py-1 rounded',
-                systemHealth?.firebase_connection ? 'bg-green-100 text-green-800 : 'bg-red-100 text-red-800 
+                systemHealth?.firebase_connection ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
               ]">
                 {{ systemHealth?.firebase_connection ? '已連接' : '未連接' }}
               </span>
@@ -187,7 +187,7 @@
                 <span class="text-sm text-gray-600 ">專案ID</span>
                 <span :class="[
                   'text-xs px-2 py-1 rounded',
-                  systemHealth.configuration.project_id ? 'bg-green-100 text-green-800 : 'bg-red-100 text-red-800 
+                  systemHealth.configuration.project_id ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                 ]">
                   {{ systemHealth.configuration.project_id ? '已配置' : '未配置' }}
                 </span>
@@ -197,7 +197,7 @@
                 <span class="text-sm text-gray-600 ">資料庫URL</span>
                 <span :class="[
                   'text-xs px-2 py-1 rounded',
-                  systemHealth.configuration.database_url ? 'bg-green-100 text-green-800 : 'bg-red-100 text-red-800 
+                  systemHealth.configuration.database_url ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                 ]">
                   {{ systemHealth.configuration.database_url ? '已配置' : '未配置' }}
                 </span>
@@ -207,7 +207,7 @@
                 <span class="text-sm text-gray-600 ">憑證檔案</span>
                 <span :class="[
                   'text-xs px-2 py-1 rounded',
-                  systemHealth.configuration.credentials_file_exists ? 'bg-green-100 text-green-800 : 'bg-red-100 text-red-800 
+                  systemHealth.configuration.credentials_file_exists ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                 ]">
                   {{ systemHealth.configuration.credentials_file_exists ? '存在' : '缺失' }}
                 </span>
@@ -260,7 +260,7 @@
               <span class="text-sm text-gray-600 ">連接狀態</span>
               <span :class="[
                 'text-sm font-medium px-2 py-1 rounded',
-                systemHealth?.mysql?.connection ? 'bg-green-100 text-green-800 : 'bg-red-100 text-red-800 
+                systemHealth?.mysql?.connection ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
               ]">
                 {{ systemHealth?.mysql?.connection ? '已連接' : '未連接' }}
               </span>
@@ -363,7 +363,7 @@
               <span class="text-sm text-gray-600 ">資料一致性</span>
               <span :class="[
                 'text-sm font-medium px-2 py-1 rounded',
-                lastValidationResult.is_consistent ? 'bg-green-100 text-green-800 : 'bg-red-100 text-red-800 
+                lastValidationResult.is_consistent ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
               ]">
                 {{ lastValidationResult.is_consistent ? '一致' : '不一致' }}
               </span>
@@ -387,7 +387,7 @@
               <span class="text-sm font-medium" :class="lastFirebaseTestResult.overall_success ? 'text-green-800 : 'text-red-800 ">
                 測試結果
               </span>
-              <span class="text-sm font-medium px-2 py-1 rounded" :class="lastFirebaseTestResult.overall_success ? 'bg-green-100 text-green-800 : 'bg-red-100 text-red-800 ">
+              <span class="text-sm font-medium px-2 py-1 rounded" :class="lastFirebaseTestResult.overall_success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
                 {{ lastFirebaseTestResult.overall_success ? '成功' : '失敗' }}
               </span>
             </div>
@@ -408,8 +408,8 @@
                   <span class="text-gray-700 ">{{ step.name }}</span>
                 </div>
                 <span class="text-xs px-2 py-1 rounded font-medium"
-                      :class="step.status === 'passed' ? 'bg-green-100 text-green-800 : 
-                              step.status === 'failed' ? 'bg-red-100 text-red-800 :
+                      :class="step.status === 'passed' ? 'bg-green-100 text-green-800' : 
+                              step.status === 'failed' ? 'bg-red-100 text-red-800' :
                               'bg-yellow-100 text-yellow-800 ">
                   {{ step.status === 'passed' ? '✓ 成功' : step.status === 'failed' ? '✗ 失敗' : '⧖ 進行中' }}
                 </span>
