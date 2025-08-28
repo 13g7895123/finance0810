@@ -535,6 +535,32 @@ class DebugController extends Controller
     }
 
     /**
+     * 快速Firebase狀態檢查 (公開API，不需認證)
+     */
+    public function quickFirebaseStatus(): JsonResponse
+    {
+        try {
+            return response()->json([
+                'success' => true,
+                'status' => 'checking',
+                'firebase' => [
+                    'project_id' => config('services.firebase.project_id') ?: 'not_configured',
+                    'database_url' => config('services.firebase.database_url') ? 'configured' : 'not_configured',
+                    'credentials_exist' => file_exists(config('services.firebase.credentials') ?: '') ? 'yes' : 'no',
+                    'debug_mode' => config('services.firebase.debug_mode', false),
+                ],
+                'timestamp' => now()->toISOString(),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'timestamp' => now()->toISOString(),
+            ], 500);
+        }
+    }
+
+    /**
      * 簡單的Firebase連接診斷 (不需要認證，僅用於除錯)
      */
     public function diagnosticFirebaseConnection(): JsonResponse

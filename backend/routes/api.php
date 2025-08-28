@@ -55,6 +55,11 @@ Route::get('/test/debug-auth', [TestController::class, 'detailedAuthDebug']);
 Route::get('/test/customers-basic', [TestController::class, 'testCustomersBasic']);
 Route::get('/test/webhook-firebase', [ChatController::class, 'testWebhookFirebase']);
 
+// Firebase Diagnostic Routes (public - for troubleshooting connection issues)
+Route::get('/firebase/diagnostic', [DebugController::class, 'diagnosticFirebaseConnection']);
+Route::get('/debug/firebase/diagnostic', [DebugController::class, 'diagnosticFirebaseConnection']);
+Route::get('/firebase/status', [DebugController::class, 'quickFirebaseStatus']);
+
 // Public routes
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/register', [AuthController::class, 'register']);
@@ -136,7 +141,6 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/firebase/batch-sync', [DebugController::class, 'batchSyncToFirebase']);
         Route::post('/firebase/reset', [DebugController::class, 'resetFirebaseData'])->middleware('role:admin');
         Route::post('/firebase/test-connection', [DebugController::class, 'testFirebaseConnection']);
-        Route::get('/firebase/diagnostic', [DebugController::class, 'diagnosticFirebaseConnection']);
         
         // Chat Debug Operations
         Route::post('/chat/batch-sync', [ChatController::class, 'batchSyncToFirebaseDebug']);
