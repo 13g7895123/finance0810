@@ -60,6 +60,14 @@ Route::get('/firebase/diagnostic', [DebugController::class, 'diagnosticFirebaseC
 Route::get('/debug/firebase/diagnostic', [DebugController::class, 'diagnosticFirebaseConnection']);
 Route::get('/firebase/status', [DebugController::class, 'quickFirebaseStatus']);
 Route::get('/test/webhook-firebase-sync', [DebugController::class, 'testWebhookFirebaseSync']);
+Route::get('/test/complete-webhook-flow', [DebugController::class, 'testCompleteWebhookFlow']);
+Route::get('/debug/recent-chats', [DebugController::class, 'checkRecentChats']);
+Route::get('/debug/simple-health', [DebugController::class, 'simpleHealthCheck']);
+
+// Diagnostic routes for Point 85
+Route::get('/diagnostic/basic-health', [\App\Http\Controllers\Api\DiagnosticController::class, 'basicHealth']);
+Route::get('/diagnostic/database-check', [\App\Http\Controllers\Api\DiagnosticController::class, 'databaseCheck']);
+Route::get('/diagnostic/test-data-creation', [\App\Http\Controllers\Api\DiagnosticController::class, 'testDataCreation']);
 
 // Public routes
 Route::post('/auth/login', [AuthController::class, 'login']);
@@ -68,6 +76,7 @@ Route::post('/auth/refresh', [AuthController::class, 'refresh']);
 
 // Webhooks
 Route::post('/line/webhook', [ChatController::class, 'webhook']);
+Route::post('/line/webhook-test', [ChatController::class, 'webhookTest']);
 Route::post('/webhook/wp', [WebhookController::class, 'wp']);
 
 // Broadcasting authentication route (needs to be here to use API auth)

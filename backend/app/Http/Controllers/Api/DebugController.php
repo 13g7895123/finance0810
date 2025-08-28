@@ -933,6 +933,185 @@ class DebugController extends Controller
     }
     
     /**
+     * 測試模擬 LINE webhook 並檢查完整的資料流
+     */
+    public function testCompleteWebhookFlow(): JsonResponse
+    {
+        try {
+            $testResults = [
+                'timestamp' => now()->toISOString(),
+                'test_line_user_id' => null,
+                'webhook_called' => false,
+                'mysql_write_success' => false,
+                'firebase_sync_success' => false,
+                'logs_created' => false,
+                'errors' => [],
+                'detailed_results' => []
+            ];
+            
+            // 生成測試用的 LINE User ID
+            $testLineUserId = 'test_complete_' . Str::random(8);
+            $testResults['test_line_user_id'] = $testLineUserId;
+            
+            // 模擬 LINE Webhook 請求
+            $webhookData = [
+                'events' => [
+                    [
+                        'type' => 'message',
+                        'message' => [
+                            'type' => 'text',
+                            'id' => 'test_msg_' . time(),
+                            'text' => '完整資料流測試訊息 - ' . now()->format('H:i:s')
+                        ],
+                        'source' => [
+                            'type' => 'user',
+                            'userId' => $testLineUserId
+                        ],
+                        'timestamp' => time() * 1000
+                    ]
+                ]
+            ];
+            
+            // 測試 1: 檢查 logs 目錄權限
+            try {
+                $logDir = storage_path('logs');
+                if (!is_dir($logDir)) {
+                    mkdir($logDir, 0755, true);
+                }
+                
+                $testLogFile = $logDir . '/test-' . time() . '.log';
+                file_put_contents($testLogFile, 'Test log entry\n');
+                $testResults['logs_created'] = file_exists($testLogFile);
+                
+                if (file_exists($testLogFile)) {
+                    unlink($testLogFile);
+                }
+            } catch (\Exception $e) {
+                $testResults['errors'][] = 'Log directory test failed: ' . $e->getMessage();
+            }
+            
+            // 測試 2: 模擬完整 webhook 處理流程
+            try {
+                // 直接調用 ChatController 的處理邏輯
+                $event = $webhookData['events'][0];
+                
+                // Step 1: 客戶創建/查找
+                $customer = Customer::where('line_user_id', $testLineUserId)->first();
+                if (!$customer) {
+                    $customer = Customer::create([
+                        'name' => 'Webhook 測試客戶',
+                        'phone' => '0900000000',
+                        'line_user_id' => $testLineUserId,
+                        'channel' => 'line',
+                        'status' => 'new',
+                        'tracking_status' => 'pending',
+                        'version' => 1,
+                        'version_updated_at' => now()
+                    ]);
+                }
+                
+                $testResults['detailed_results']['customer_created'] = [
+                    'success' => true,
+                    'customer_id' => $customer->id
+                ];
+                
+                // Step 2: 對話記錄創建
+                $conversation = ChatConversation::create([
+                    'customer_id' => $customer->id,
+                    'user_id' => $customer->assigned_to,
+                    'line_user_id' => $testLineUserId,
+                    'platform' => 'line',
+                    'message_type' => 'text',
+                    'message_content' => $event['message']['text'],
+                    'message_timestamp' => now(),
+                    'is_from_customer' => true,
+                    'status' => 'unread',
+                    'metadata' => [
+                        'test' => true,
+                        'webhook_test' => true
+                    ]
+                ]);
+                
+                $testResults['mysql_write_success'] = true;
+                $testResults['detailed_results']['conversation_created'] = [
+                    'success' => true,
+                    'conversation_id' => $conversation->id
+                ];
+                
+                // Step 3: Firebase 同步測試
+                try {
+                    $firebaseSync = $this->firebaseChatService->syncConversationToFirebase($conversation);
+                    $testResults['firebase_sync_success'] = $firebaseSync;
+                    
+                    $testResults['detailed_results']['firebase_sync'] = [
+                        'success' => $firebaseSync,
+                        'database_available' => app('firebase.database') !== null,
+                        'database_class' => app('firebase.database') ? get_class(app('firebase.database')) : 'null'
+                    ];
+                } catch (\Exception $e) {
+                    $testResults['detailed_results']['firebase_sync'] = [
+                        'success' => false,
+                        'error' => $e->getMessage()
+                    ];
+                }
+                
+                // Step 4: 清理測試資料
+                $conversation->delete();
+                if ($customer->name === 'Webhook 測試客戶') {
+                    $customer->delete();
+                }
+                
+            } catch (\Exception $e) {
+                $testResults['errors'][] = 'Webhook processing failed: ' . $e->getMessage();
+            }
+            
+            // 測試 3: 實際調用 webhook endpoint
+            try {
+                $response = $this->callWebhookEndpoint($webhookData);
+                $testResults['webhook_called'] = $response !== null;
+                $testResults['detailed_results']['webhook_response'] = $response;
+            } catch (\Exception $e) {
+                $testResults['errors'][] = 'Webhook endpoint test failed: ' . $e->getMessage();
+            }
+            
+            return response()->json($testResults);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Complete webhook test failed',
+                'message' => $e->getMessage(),
+                'trace' => config('app.debug') ? $e->getTraceAsString() : null
+            ], 500);
+        }
+    }
+    
+    /**
+     * 內部調用 webhook endpoint
+     */
+    private function callWebhookEndpoint($data)
+    {
+        try {
+            $request = new \Illuminate\Http\Request();
+            $request->merge($data);
+            $request->headers->set('Content-Type', 'application/json');
+            $request->headers->set('X-Line-Signature', 'test_signature');
+            
+            $chatController = app(\App\Http\Controllers\Api\ChatController::class);
+            $response = $chatController->webhookStatus($request);
+            
+            return [
+                'status_code' => $response->getStatusCode(),
+                'content' => json_decode($response->getContent(), true)
+            ];
+        } catch (\Exception $e) {
+            return [
+                'error' => $e->getMessage(),
+                'status_code' => 500
+            ];
+        }
+    }
+    
+    /**
      * 測試模擬 LINE webhook 並檢查 Firebase 同步
      */
     public function testWebhookFirebaseSync(): JsonResponse
@@ -1043,6 +1222,113 @@ class DebugController extends Controller
                 'error' => 'Webhook Firebase sync test failed',
                 'message' => $e->getMessage(),
                 'trace' => config('app.debug') ? $e->getTraceAsString() : null
+            ], 500);
+        }
+    }
+    
+    /**
+     * 檢查最近的聊天記錄
+     */
+    public function checkRecentChats(): JsonResponse
+    {
+        try {
+            // 先檢查資料表是否存在
+            if (!\Schema::hasTable('chat_conversations')) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'chat_conversations table does not exist',
+                    'database_available' => true,
+                    'timestamp' => now()->toISOString()
+                ]);
+            }
+            
+            $stats = [
+                'total_conversations' => DB::table('chat_conversations')->count(),
+                'recent_24h' => DB::table('chat_conversations')
+                    ->where('created_at', '>=', now()->subDay())->count(),
+                'from_customers' => DB::table('chat_conversations')
+                    ->where('is_from_customer', true)->count(),
+                'unread' => DB::table('chat_conversations')
+                    ->where('status', 'unread')
+                    ->where('is_from_customer', true)->count()
+            ];
+            
+            $recentChats = DB::table('chat_conversations')
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->select('id', 'customer_id', 'line_user_id', 'message_content', 
+                        'is_from_customer', 'status', 'created_at')
+                ->get();
+            
+            return response()->json([
+                'success' => true,
+                'stats' => $stats,
+                'recent_chats' => $recentChats,
+                'timestamp' => now()->toISOString()
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'timestamp' => now()->toISOString()
+            ], 500);
+        }
+    }
+    
+    /**
+     * 簡單的健康檢查
+     */
+    public function simpleHealthCheck(): JsonResponse
+    {
+        try {
+            $health = [
+                'timestamp' => now()->toISOString(),
+                'database_connected' => false,
+                'firebase_available' => false,
+                'tables_exist' => [],
+                'basic_stats' => []
+            ];
+            
+            // 檢查資料庫連接
+            try {
+                DB::connection()->getPdo();
+                $health['database_connected'] = true;
+            } catch (\Exception $e) {
+                $health['database_error'] = $e->getMessage();
+            }
+            
+            // 檢查資料表存在
+            $tables = ['customers', 'chat_conversations', 'users'];
+            foreach ($tables as $table) {
+                $health['tables_exist'][$table] = \Schema::hasTable($table);
+                if ($health['tables_exist'][$table]) {
+                    try {
+                        $health['basic_stats'][$table . '_count'] = DB::table($table)->count();
+                    } catch (\Exception $e) {
+                        $health['basic_stats'][$table . '_error'] = $e->getMessage();
+                    }
+                }
+            }
+            
+            // 檢查 Firebase
+            try {
+                $database = app('firebase.database');
+                $health['firebase_available'] = $database !== null;
+                $health['firebase_class'] = $database ? get_class($database) : 'null';
+            } catch (\Exception $e) {
+                $health['firebase_error'] = $e->getMessage();
+            }
+            
+            return response()->json($health);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'timestamp' => now()->toISOString()
             ], 500);
         }
     }

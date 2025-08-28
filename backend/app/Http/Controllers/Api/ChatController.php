@@ -4272,4 +4272,132 @@ class ChatController extends BaseApiController
             ], 500);
         }
     }
+    
+    /**
+     * 測試用的 webhook 端點，無需簽名驗證
+     */
+    public function webhookTest(Request $request)
+    {
+        $logger = new WebhookLoggerService();
+        
+        try {
+            // Start comprehensive logging
+            $logger->startExecution($request, 'line_test');
+            
+            // Create logs directory if it doesn't exist
+            $logDir = storage_path('logs');
+            if (!is_dir($logDir)) {
+                mkdir($logDir, 0755, true);
+            }
+            
+            // Keep original file logging for backward compatibility
+            file_put_contents(storage_path('logs/webhook-test-debug.log'), 
+                date('Y-m-d H:i:s') . " - Test webhook called from IP: " . $request->ip() . 
+                " [ExecutionID: " . $logger->getExecutionId() . "]\n", 
+                FILE_APPEND | LOCK_EX);
+            
+            // Log request data
+            $requestData = [
+                'method' => $request->method(),
+                'url' => $request->fullUrl(),
+                'headers' => $request->headers->all(),
+                'body' => $request->getContent(),
+                'parsed_body' => $request->all(),
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent()
+            ];
+            
+            $logger->logStep('request_parsed', $requestData);
+            Log::info('LINE Test Webhook received', array_merge($requestData, ['execution_id' => $logger->getExecutionId()]));
+            
+            // Skip signature verification for testing
+            file_put_contents(storage_path('logs/webhook-test-debug.log'), 
+                date('Y-m-d H:i:s') . " - Skipping signature verification (test mode)\n", 
+                FILE_APPEND | LOCK_EX);
+
+            // Parse and log events
+            $events = $request->input('events', []);
+            $eventCount = count($events);
+            $logger->setEvents($events);
+            
+            file_put_contents(storage_path('logs/webhook-test-debug.log'), 
+                date('Y-m-d H:i:s') . " - Processing $eventCount events\n", 
+                FILE_APPEND | LOCK_EX);
+                
+            Log::info('LINE Test Webhook received events', [
+                'events_count' => $eventCount, 
+                'events' => $events,
+                'execution_id' => $logger->getExecutionId()
+            ]);
+
+            // Process each event with detailed logging
+            $processedEvents = [];
+            foreach ($events as $index => $event) {
+                try {
+                    file_put_contents(storage_path('logs/webhook-test-debug.log'), 
+                        date('Y-m-d H:i:s') . " - Processing event $index: " . json_encode($event) . "\n", 
+                        FILE_APPEND | LOCK_EX);
+                    
+                    $result = $this->processEventWithLogging($event, $logger, $index);
+                    $logger->logEventProcessing($index, $event, $result);
+                    $processedEvents[] = $result;
+                    
+                } catch (\Exception $e) {
+                    $errorMsg = "Event $index processing failed: " . $e->getMessage();
+                    file_put_contents(storage_path('logs/webhook-test-debug.log'), 
+                        date('Y-m-d H:i:s') . " - ERROR: $errorMsg\n", 
+                        FILE_APPEND | LOCK_EX);
+                    
+                    $logger->logStep("event_{$index}_failed", [
+                        'event' => $event,
+                        'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine()
+                    ], 'failed');
+                    
+                    // Continue processing other events even if one fails
+                    $processedEvents[] = ['status' => 'failed', 'error' => $e->getMessage()];
+                }
+            }
+
+            file_put_contents(storage_path('logs/webhook-test-debug.log'), 
+                date('Y-m-d H:i:s') . " - Test webhook processing completed successfully\n", 
+                FILE_APPEND | LOCK_EX);
+
+            $results = [
+                'status' => 'ok',
+                'execution_id' => $logger->getExecutionId(),
+                'events_processed' => $eventCount,
+                'events_results' => $processedEvents,
+                'test_mode' => true
+            ];
+            
+            $logger->completeExecution($results);
+            
+            return response()->json($results);
+            
+        } catch (\Exception $e) {
+            $error = [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ];
+            
+            file_put_contents(storage_path('logs/webhook-test-debug.log'), 
+                date('Y-m-d H:i:s') . " - EXCEPTION: " . json_encode($error) . "\n", 
+                FILE_APPEND | LOCK_EX);
+                
+            Log::error('LINE Test Webhook error', array_merge($error, ['execution_id' => $logger->getExecutionId()]));
+            
+            $logger->failExecution($e->getMessage(), $error);
+            
+            return response()->json([
+                'error' => 'Webhook processing failed',
+                'message' => $e->getMessage(),
+                'execution_id' => $logger->getExecutionId(),
+                'test_mode' => true
+            ], 500);
+        }
+    }
 }
