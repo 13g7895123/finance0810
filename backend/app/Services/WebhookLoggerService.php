@@ -16,43 +16,61 @@ class WebhookLoggerService
     {
         $this->executionId = Str::uuid()->toString();
         
-        $this->executionLog = WebhookExecutionLog::create([
-            'execution_id' => $this->executionId,
-            'webhook_type' => $webhookType,
-            'request_method' => $request->method(),
-            'request_url' => $request->fullUrl(),
-            'request_headers' => $request->headers->all(),
-            'request_body' => $request->getContent(),
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'status' => 'started',
-            'started_at' => now()
-        ]);
+        try {
+            $this->executionLog = WebhookExecutionLog::create([
+                'execution_id' => $this->executionId,
+                'webhook_type' => $webhookType,
+                'request_method' => $request->method(),
+                'request_url' => $request->fullUrl(),
+                'request_headers' => $request->headers->all(),
+                'request_body' => $request->getContent(),
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'status' => 'started',
+                'started_at' => now()
+            ]);
 
-        $this->logStep('webhook_started', [
-            'execution_id' => $this->executionId,
-            'webhook_type' => $webhookType,
-            'ip' => $request->ip()
-        ]);
+            $this->logStep('webhook_started', [
+                'execution_id' => $this->executionId,
+                'webhook_type' => $webhookType,
+                'ip' => $request->ip()
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to create webhook execution log (table may not exist)', [
+                'execution_id' => $this->executionId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'suggestion' => 'Run the migration: php artisan migrate or execute webhook_execution_logs_table.sql'
+            ]);
+        }
 
         return $this;
     }
 
     public function logStep(string $stepName, $details = null, string $status = 'completed'): self
     {
-        if (!isset($this->executionLog)) {
-            Log::warning('Attempted to log step without starting execution', [
+        try {
+            if (!isset($this->executionLog)) {
+                Log::warning('Attempted to log step without starting execution or executionLog not available', [
+                    'step' => $stepName,
+                    'details' => $details,
+                    'execution_id' => $this->executionId ?? 'unknown'
+                ]);
+                return $this;
+            }
+
+            $this->executionLog->addExecutionStep($stepName, $details, $status);
+        } catch (\Exception $e) {
+            Log::warning('Failed to add execution step to database', [
                 'step' => $stepName,
-                'details' => $details
+                'execution_id' => $this->executionId ?? 'unknown',
+                'error' => $e->getMessage()
             ]);
-            return $this;
         }
 
-        $this->executionLog->addExecutionStep($stepName, $details, $status);
-
-        // Also log to Laravel log for backup
+        // Always log to Laravel log for backup
         Log::info("Webhook Step: {$stepName}", [
-            'execution_id' => $this->executionId,
+            'execution_id' => $this->executionId ?? 'unknown',
             'status' => $status,
             'details' => $details
         ]);
@@ -149,11 +167,18 @@ class WebhookLoggerService
             return new WebhookExecutionLog();
         }
 
-        $this->executionLog->markCompleted($results);
+        try {
+            $this->executionLog->markCompleted($results);
+        } catch (\Exception $e) {
+            Log::error('Failed to mark execution as completed in database', [
+                'execution_id' => $this->executionId,
+                'error' => $e->getMessage()
+            ]);
+        }
 
         $this->logStep('webhook_completed', [
             'results' => $results,
-            'duration_ms' => $this->executionLog->duration_ms
+            'duration_ms' => $this->executionLog->duration_ms ?? null
         ]);
 
         return $this->executionLog;
@@ -168,7 +193,15 @@ class WebhookLoggerService
             return new WebhookExecutionLog();
         }
 
-        $this->executionLog->markFailed($errorMessage, $errorDetails);
+        try {
+            $this->executionLog->markFailed($errorMessage, $errorDetails);
+        } catch (\Exception $e) {
+            Log::error('Failed to mark execution as failed in database', [
+                'execution_id' => $this->executionId,
+                'original_error' => $errorMessage,
+                'database_error' => $e->getMessage()
+            ]);
+        }
 
         $this->logStep('webhook_failed', [
             'error_message' => $errorMessage,

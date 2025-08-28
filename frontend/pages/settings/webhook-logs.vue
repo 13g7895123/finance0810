@@ -429,6 +429,7 @@ const selectedLog = ref(null)
 const autoRefresh = ref(false)
 const refreshInterval = ref(30)
 const refreshTimer = ref(null)
+const error = ref(null)
 
 // 篩選條件
 const filters = ref({
@@ -460,6 +461,7 @@ const fetchLogs = async () => {
   if (!canAccessLogs.value) return
   
   loading.value = true
+  error.value = null
   try {
     const params = new URLSearchParams()
     Object.entries(filters.value).forEach(([key, value]) => {
@@ -473,9 +475,25 @@ const fetchLogs = async () => {
     if (response.success) {
       logs.value = response.data
       pagination.value = response.pagination
+    } else if (response.setup_required) {
+      // Show setup required message
+      logs.value = []
+      pagination.value = null
+      error.value = response.message || 'Database setup required for webhook logs'
     }
   } catch (error) {
     console.error('載入 webhook 日誌失敗:', error)
+    // Check if it's a 404 response indicating table doesn't exist
+    if (error.response && error.response.status === 404) {
+      const errorData = error.response.data
+      if (errorData && errorData.setup_required) {
+        error.value = errorData.message || 'Database setup required for webhook logs'
+      } else {
+        error.value = '日誌資料表尚未建立，請聯絡系統管理員'
+      }
+    } else {
+      error.value = '載入日誌失敗'
+    }
   } finally {
     loading.value = false
   }

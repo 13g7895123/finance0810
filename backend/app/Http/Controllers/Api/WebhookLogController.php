@@ -15,6 +15,23 @@ class WebhookLogController extends BaseApiController
     public function index(Request $request)
     {
         try {
+            // Check if table exists before querying
+            if (!$this->tableExists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Webhook logs table not found. Please run database migrations.',
+                    'data' => [],
+                    'pagination' => [
+                        'current_page' => 1,
+                        'per_page' => 20,
+                        'total' => 0,
+                        'last_page' => 1,
+                        'has_more_pages' => false
+                    ],
+                    'setup_required' => true
+                ], 404);
+            }
+
             $query = WebhookExecutionLog::query()
                 ->orderBy('started_at', 'desc');
 
@@ -300,6 +317,18 @@ class WebhookLogController extends BaseApiController
                 'message' => 'Failed to export webhook logs',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Check if webhook execution logs table exists
+     */
+    private function tableExists(): bool
+    {
+        try {
+            return DB::getSchemaBuilder()->hasTable('webhook_execution_logs');
+        } catch (\Exception $e) {
+            return false;
         }
     }
 }

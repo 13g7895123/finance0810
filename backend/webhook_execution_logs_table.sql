@@ -1,0 +1,28 @@
+-- Create webhook_execution_logs table for tracking webhook execution
+CREATE TABLE IF NOT EXISTS webhook_execution_logs (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    execution_id VARCHAR(255) NOT NULL UNIQUE,
+    webhook_type VARCHAR(255) NOT NULL DEFAULT 'line',
+    request_method VARCHAR(10),
+    request_url TEXT,
+    request_headers JSON,
+    request_body LONGTEXT,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    status ENUM('started', 'processing', 'completed', 'failed') NOT NULL DEFAULT 'started',
+    events_count INT NOT NULL DEFAULT 0,
+    events_data JSON,
+    execution_steps JSON,
+    error_message TEXT,
+    error_details JSON,
+    started_at TIMESTAMP NOT NULL,
+    completed_at TIMESTAMP NULL,
+    duration_ms INT,
+    results JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_webhook_type (webhook_type),
+    INDEX idx_status (status),
+    INDEX idx_started_at (started_at),
+    INDEX idx_ip_address (ip_address)
+);
