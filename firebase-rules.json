@@ -1,0 +1,28 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": true,
+    "chats": {
+      ".read": true,
+      ".write": true,
+      ".indexOn": ["line_user_id", "customer_id", "created_at"]
+    },
+    "users": {
+      ".read": true,
+      ".write": true,
+      ".indexOn": ["line_user_id", "assigned_to"]
+    },
+    "system": {
+      ".read": true,
+      ".write": true
+    },
+    "diagnostic": {
+      ".read": true,
+      ".write": true
+    },
+    "connection_test": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}

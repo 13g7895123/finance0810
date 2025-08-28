@@ -5,13 +5,13 @@ export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig()
   
   const firebaseConfig = {
-    apiKey: config.public.firebaseApiKey || "AIzaSyAdMi6mBkOW8apD7kyaAObkuZNHBwNkwK8",
-    authDomain: "finance0810new.firebaseapp.com",
-    databaseURL: config.public.firebaseDatabaseUrl || "https://finance0810new-default-rtdb.asia-southeast1.firebasedatabase.app/",
-    projectId: config.public.firebaseProjectId || "finance0810new", 
-    storageBucket: "finance0810new.firebasestorage.app",
-    messagingSenderId: config.public.firebaseMessagingSenderId || "1037882716873",
-    appId: config.public.firebaseAppId || "1:1037882716873:web:d572d3adcc0b4e7c479318"
+    apiKey: config.public.firebaseApiKey || "AIzaSyBYourActualApiKeyHere", // Update with finance0810-692ec API key
+    authDomain: "finance0810-692ec.firebaseapp.com",
+    databaseURL: config.public.firebaseDatabaseUrl || "https://finance0810-692ec-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    projectId: config.public.firebaseProjectId || "finance0810-692ec", 
+    storageBucket: "finance0810-692ec.firebasestorage.app",
+    messagingSenderId: config.public.firebaseMessagingSenderId || "YourMessagingSenderIdHere", // Update with finance0810-692ec ID
+    appId: config.public.firebaseAppId || "YourAppIdHere" // Update with finance0810-692ec App ID
   }
 
   try {
