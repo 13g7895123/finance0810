@@ -18,8 +18,8 @@
             class="p-4 border rounded-lg transition-all duration-200"
             :class="[
               colorMode.preference === mode.value
-                ? 'border-primary-500 bg-primary-50 
-                : 'border-gray-200 hover:border-gray-300 
+                ? 'border-primary-500 bg-primary-50'
+                : 'border-gray-200 hover:border-gray-300'
             ]"
           >
             <component :is="mode.icon" class="w-6 h-6 mx-auto mb-2" />
