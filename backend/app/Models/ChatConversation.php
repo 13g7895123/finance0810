@@ -65,7 +65,7 @@ class ChatConversation extends Model
                     date('Y-m-d H:i:s') . " - ChatVersionService failed, using timestamp: " . $e->getMessage() . "\n", 
                     FILE_APPEND | LOCK_EX);
                     
-                \Log::channel('firebase')::warning('ChatVersionService failed during conversation creation', [
+                \Log::channel('firebase')->warning('ChatVersionService failed during conversation creation', [
                     'error' => $e->getMessage(),
                     'conversation_data' => $conversation->toArray()
                 ]);
@@ -84,7 +84,7 @@ class ChatConversation extends Model
                     date('Y-m-d H:i:s') . " - Firebase sync job dispatch failed: " . $e->getMessage() . "\n", 
                     FILE_APPEND | LOCK_EX);
                     
-                \Log::channel('firebase')::warning('Firebase sync job dispatch failed during conversation creation', [
+                \Log::channel('firebase')->warning('Firebase sync job dispatch failed during conversation creation', [
                     'error' => $e->getMessage(),
                     'conversation_data' => $conversation->toArray()
                 ]);
@@ -103,7 +103,7 @@ class ChatConversation extends Model
                     // 版本服務失敗時使用時間戳作為版本
                     $conversation->version = time();
                     
-                    \Log::channel('firebase')::warning('ChatVersionService failed during conversation update', [
+                    \Log::channel('firebase')->warning('ChatVersionService failed during conversation update', [
                         'error' => $e->getMessage(),
                         'conversation_id' => $conversation->id
                     ]);
@@ -114,7 +114,7 @@ class ChatConversation extends Model
             try {
                 static::syncToFirebaseAsync($conversation, 'sync');
             } catch (\Exception $e) {
-                \Log::channel('firebase')::warning('Firebase sync job dispatch failed during conversation update', [
+                \Log::channel('firebase')->warning('Firebase sync job dispatch failed during conversation update', [
                     'error' => $e->getMessage(),
                     'conversation_id' => $conversation->id
                 ]);
@@ -135,7 +135,7 @@ class ChatConversation extends Model
                     date('Y-m-d H:i:s') . " - Staff stats update failed for conversation {$conversation->id}: " . $e->getMessage() . "\n", 
                     FILE_APPEND | LOCK_EX);
                     
-                \Log::channel('firebase')::warning('Staff stats update failed during conversation created event', [
+                \Log::channel('firebase')->warning('Staff stats update failed during conversation created event', [
                     'error' => $e->getMessage(),
                     'conversation_id' => $conversation->id
                 ]);
@@ -151,7 +151,7 @@ class ChatConversation extends Model
                     static::updateStaffStatsAsync($conversation);
                 }
             } catch (\Exception $e) {
-                \Log::channel('firebase')::warning('Staff stats update failed during conversation updated event', [
+                \Log::channel('firebase')->warning('Staff stats update failed during conversation updated event', [
                     'error' => $e->getMessage(),
                     'conversation_id' => $conversation->id
                 ]);
@@ -165,7 +165,7 @@ class ChatConversation extends Model
                     static::syncToFirebaseAsync($conversation, 'delete');
                 }
             } catch (\Exception $e) {
-                \Log::channel('firebase')::warning('Firebase delete sync failed during conversation deleted event', [
+                \Log::channel('firebase')->warning('Firebase delete sync failed during conversation deleted event', [
                     'error' => $e->getMessage(),
                     'conversation_id' => $conversation->id
                 ]);
@@ -226,7 +226,7 @@ class ChatConversation extends Model
             $firebaseChatService = app(\App\Services\FirebaseChatService::class);
             return $firebaseChatService->syncConversationToFirebase($this);
         } catch (\Exception $e) {
-            \Log::channel('firebase')::error('Failed to sync conversation to Firebase', [
+            \Log::channel('firebase')->error('Failed to sync conversation to Firebase', [
                 'conversation_id' => $this->id,
                 'error' => $e->getMessage()
             ]);
@@ -244,14 +244,14 @@ class ChatConversation extends Model
             // 目前混合架構主要是單向同步（MySQL -> Firebase）
             // 如果需要雙向同步，在這裡實現
             
-            \Log::channel('firebase')::info('Update from Firebase not implemented yet', [
+            \Log::channel('firebase')->info('Update from Firebase not implemented yet', [
                 'conversation_id' => $this->id,
                 'firebase_data_keys' => array_keys($firebaseData ?? [])
             ]);
             
             return true;
         } catch (\Exception $e) {
-            \Log::channel('firebase')::error('Failed to update from Firebase', [
+            \Log::channel('firebase')->error('Failed to update from Firebase', [
                 'conversation_id' => $this->id,
                 'error' => $e->getMessage()
             ]);
@@ -281,7 +281,7 @@ class ChatConversation extends Model
             
             return false;
         } catch (\Exception $e) {
-            \Log::channel('firebase')::error('Failed to check Firebase sync status', [
+            \Log::channel('firebase')->error('Failed to check Firebase sync status', [
                 'conversation_id' => $this->id,
                 'error' => $e->getMessage()
             ]);
@@ -314,7 +314,7 @@ class ChatConversation extends Model
             )->delay(now()->addSeconds(5)); // 延遲 5 秒執行，避免資料庫事務問題
 
         } catch (\Exception $e) {
-            \Log::channel('firebase')::error('Failed to dispatch Firebase sync job', [
+            \Log::channel('firebase')->error('Failed to dispatch Firebase sync job', [
                 'conversation_id' => $conversation->id,
                 'operation' => $operation,
                 'error' => $e->getMessage()
@@ -381,14 +381,14 @@ class ChatConversation extends Model
                 \App\Jobs\UpdateStaffUnreadStatsJob::dispatch($staffId)
                     ->delay(now()->addSeconds(10)); // 延遲 10 秒執行，確保資料庫變更完成
                 
-                \Log::channel('firebase')::info('Staff stats update job dispatched', [
+                \Log::channel('firebase')->info('Staff stats update job dispatched', [
                     'staff_id' => $staffId,
                     'conversation_id' => $conversation->id,
                     'trigger' => 'conversation_change'
                 ]);
             }
         } catch (\Exception $e) {
-            \Log::channel('firebase')::error('Failed to dispatch staff stats update job', [
+            \Log::channel('firebase')->error('Failed to dispatch staff stats update job', [
                 'conversation_id' => $conversation->id,
                 'error' => $e->getMessage()
             ]);

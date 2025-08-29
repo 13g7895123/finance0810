@@ -28,6 +28,8 @@ class ChatConversationSeeder extends Seeder
                 'line_user_id' => 'U100',
                 'line_display_name' => '劉柏毅',
                 'assigned_to' => 1, // 假設有 ID 1 的用戶
+                'version' => 1,
+                'version_updated_at' => now(),
             ],
             [
                 'name' => 'CSL',
@@ -40,6 +42,8 @@ class ChatConversationSeeder extends Seeder
                 'line_user_id' => 'U101',
                 'line_display_name' => 'CSL',
                 'assigned_to' => 1,
+                'version' => 1,
+                'version_updated_at' => now(),
             ],
             [
                 'name' => 'Daniel',
@@ -52,6 +56,8 @@ class ChatConversationSeeder extends Seeder
                 'line_user_id' => 'U102',
                 'line_display_name' => 'Daniel',
                 'assigned_to' => 2,
+                'version' => 1,
+                'version_updated_at' => now(),
             ],
             [
                 'name' => '暴色水母',
@@ -64,6 +70,8 @@ class ChatConversationSeeder extends Seeder
                 'line_user_id' => 'U103',
                 'line_display_name' => '暴色水母',
                 'assigned_to' => 2,
+                'version' => 1,
+                'version_updated_at' => now(),
             ],
             [
                 'name' => '晞晞',
@@ -76,6 +84,8 @@ class ChatConversationSeeder extends Seeder
                 'line_user_id' => 'U105',
                 'line_display_name' => '晞晞',
                 'assigned_to' => 1,
+                'version' => 1,
+                'version_updated_at' => now(),
             ],
         ];
 

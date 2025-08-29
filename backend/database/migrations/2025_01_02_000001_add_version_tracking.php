@@ -20,8 +20,8 @@ return new class extends Migration
         // 為 customers 表添加版本字段 (檢查是否已存在)
         if (!Schema::hasColumn('customers', 'version')) {
             Schema::table('customers', function (Blueprint $table) {
-                $table->unsignedBigInteger('version')->after('updated_at')->index();
-                $table->timestamp('version_updated_at')->after('version')->index();
+                $table->unsignedBigInteger('version')->default(1)->after('updated_at')->index();
+                $table->timestamp('version_updated_at')->nullable()->after('version')->index();
             });
         }
         
