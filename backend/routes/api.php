@@ -70,7 +70,7 @@ Route::get('/diagnostic/database-check', [\App\Http\Controllers\Api\DiagnosticCo
 Route::get('/diagnostic/test-data-creation', [\App\Http\Controllers\Api\DiagnosticController::class, 'testDataCreation']);
 
 // Public routes
-Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/login', [AuthController::class, 'login'])->name('login');
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/refresh', [AuthController::class, 'refresh']);
 
