@@ -20,11 +20,9 @@ return new class extends Migration
                 ->orWhere('version', 0)
                 ->update(['version' => 1, 'version_updated_at' => now()]);
             
-            // 修改欄位定義，添加預設值
-            Schema::table('customers', function (Blueprint $table) {
-                $table->unsignedBigInteger('version')->default(1)->change();
-                $table->timestamp('version_updated_at')->nullable()->change();
-            });
+            // 使用 DB::statement 直接執行 SQL，避免 Doctrine DBAL 問題
+            DB::statement('ALTER TABLE customers MODIFY COLUMN version BIGINT UNSIGNED NOT NULL DEFAULT 1');
+            DB::statement('ALTER TABLE customers MODIFY COLUMN version_updated_at TIMESTAMP NULL');
         }
     }
 
@@ -34,11 +32,9 @@ return new class extends Migration
     public function down(): void
     {
         if (Schema::hasColumn('customers', 'version')) {
-            Schema::table('customers', function (Blueprint $table) {
-                // 移除預設值
-                $table->unsignedBigInteger('version')->change();
-                $table->timestamp('version_updated_at')->change();
-            });
+            // 使用 DB::statement 移除預設值，避免 Doctrine DBAL 問題
+            DB::statement('ALTER TABLE customers MODIFY COLUMN version BIGINT UNSIGNED NOT NULL');
+            DB::statement('ALTER TABLE customers MODIFY COLUMN version_updated_at TIMESTAMP NOT NULL');
         }
     }
 };
