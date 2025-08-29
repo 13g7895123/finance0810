@@ -317,145 +317,215 @@ class ChatController extends BaseApiController
      */
     public function webhook(Request $request)
     {
-        $logger = new WebhookLoggerService();
+        $logger = null;
+        $executionId = 'webhook_' . time() . '_' . rand(1000, 9999);
+        
+        // 健壯的日誌記錄函數
+        $logSafe = function($message) use ($executionId) {
+            try {
+                @file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - $message [ExecutionID: $executionId]\n", 
+                    FILE_APPEND | LOCK_EX);
+            } catch (\Exception $e) {
+                // 忽略日誌寫入失敗
+            }
+        };
+        
+        $logSafe("Webhook called from IP: " . $request->ip());
         
         try {
-            // Start comprehensive logging
-            $logger->startExecution($request, 'line');
+            // 嘗試初始化 logger，但不讓其失敗阻礙流程
+            try {
+                $logger = new \App\Services\WebhookLoggerService();
+                $logger->startExecution($request, 'line');
+                $logSafe("WebhookLoggerService initialized successfully");
+            } catch (\Exception $e) {
+                $logSafe("WebhookLoggerService failed to initialize: " . $e->getMessage());
+                // 繼續執行，不依賴 logger
+            }
             
-            // Keep original file logging for backward compatibility
-            file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - Webhook called from IP: " . $request->ip() . 
-                " [ExecutionID: " . $logger->getExecutionId() . "]\n", 
-                FILE_APPEND | LOCK_EX);
+            // 安全地獲取請求數據
+            $requestData = [];
+            try {
+                $requestData = [
+                    'method' => $request->method(),
+                    'ip' => $request->ip(),
+                    'body_length' => strlen($request->getContent()),
+                    'has_line_signature' => !empty($request->header('X-Line-Signature'))
+                ];
+                $logSafe("Request data parsed successfully");
+            } catch (\Exception $e) {
+                $logSafe("Failed to parse request data: " . $e->getMessage());
+                $requestData = ['error' => 'failed_to_parse'];
+            }
             
-            // Log request data
-            $requestData = [
-                'method' => $request->method(),
-                'url' => $request->fullUrl(),
-                'headers' => $request->headers->all(),
-                'body' => $request->getContent(),
-                'parsed_body' => $request->all(),
-                'ip' => $request->ip(),
-                'user_agent' => $request->userAgent()
-            ];
+            // 安全地獲取 LINE 設定
+            $lineSettings = [];
+            try {
+                $lineSettings = $this->getLineSettings();
+                $settingsStatus = "channel_secret=" . 
+                    (!empty($lineSettings['channel_secret']) ? 'configured' : 'MISSING') . 
+                    ", channel_access_token=" . (!empty($lineSettings['channel_access_token']) ? 'configured' : 'MISSING');
+                $logSafe("LINE Settings Status: " . $settingsStatus);
+            } catch (\Exception $e) {
+                $logSafe("Failed to get LINE settings: " . $e->getMessage());
+                $lineSettings = [];
+            }
             
-            $logger->logStep('request_parsed', $requestData);
-            Log::info('LINE Webhook received', array_merge($requestData, ['execution_id' => $logger->getExecutionId()]));
-            
-            // Log LINE settings status before signature verification
-            $lineSettings = $this->getLineSettings();
-            file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - LINE Settings Status: channel_secret=" . 
-                (!empty($lineSettings['channel_secret']) ? 'configured' : 'MISSING') . 
-                ", channel_access_token=" . (!empty($lineSettings['channel_access_token']) ? 'configured' : 'MISSING') . 
-                " [ExecutionID: " . $logger->getExecutionId() . "]\n", 
-                FILE_APPEND | LOCK_EX);
-            
-            // Verify LINE webhook signature
-            $signatureValid = $this->verifySignature($request);
-            $logger->logSignatureVerification($signatureValid);
+            // 安全地驗證簽名
+            $signatureValid = false;
+            try {
+                $signatureValid = $this->verifySignature($request);
+                $logSafe("Signature verification: " . ($signatureValid ? 'PASSED' : 'FAILED'));
+                
+                if ($logger) {
+                    $logger->logSignatureVerification($signatureValid);
+                }
+            } catch (\Exception $e) {
+                $logSafe("Signature verification threw exception: " . $e->getMessage());
+                // 在開發/測試環境可能允許跳過簽名驗證
+                if (app()->environment('local', 'testing')) {
+                    $signatureValid = true;
+                    $logSafe("Signature verification skipped in development environment");
+                }
+            }
             
             if (!$signatureValid) {
-                $error = 'Invalid signature verification failed';
-                file_put_contents(storage_path('logs/webhook-debug.log'), 
-                    date('Y-m-d H:i:s') . " - ERROR: $error [ExecutionID: " . $logger->getExecutionId() . "]\n", 
-                    FILE_APPEND | LOCK_EX);
+                $error = 'Webhook signature verification failed';
+                $logSafe("ERROR: $error");
                 
-                $logger->failExecution($error, ['signature_check_failed' => true]);
-                return response()->json(['error' => $error], 400);
+                if ($logger) {
+                    $logger->failExecution($error, ['signature_check_failed' => true]);
+                }
+                
+                return response()->json([
+                    'error' => $error,
+                    'execution_id' => $executionId,
+                    'timestamp' => now()->format('Y-m-d H:i:s')
+                ], 400);
             }
 
-            // Parse and log events
-            $events = $request->input('events', []);
-            $eventCount = count($events);
-            $logger->setEvents($events);
-            
-            file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - Processing $eventCount events [ExecutionID: " . $logger->getExecutionId() . "]\n", 
-                FILE_APPEND | LOCK_EX);
+            // 安全地解析事件
+            $events = [];
+            $eventCount = 0;
+            try {
+                $events = $request->input('events', []);
+                $eventCount = count($events);
+                $logSafe("Processing $eventCount events");
                 
-            Log::info('LINE Webhook received events', [
-                'events_count' => $eventCount, 
-                'events' => $events,
-                'execution_id' => $logger->getExecutionId()
-            ]);
+                if ($logger) {
+                    $logger->setEvents($events);
+                }
+            } catch (\Exception $e) {
+                $logSafe("Failed to parse events: " . $e->getMessage());
+                $events = [];
+                $eventCount = 0;
+            }
 
-            // Process each event with detailed logging
+            // 安全地處理每個事件
             $processedEvents = [];
             foreach ($events as $index => $event) {
                 try {
-                    file_put_contents(storage_path('logs/webhook-debug.log'), 
-                        date('Y-m-d H:i:s') . " - Processing event $index: " . json_encode($event) . 
-                        " [ExecutionID: " . $logger->getExecutionId() . "]\n", 
-                        FILE_APPEND | LOCK_EX);
+                    $logSafe("Processing event $index: " . json_encode($event));
                     
                     $result = $this->processEventWithLogging($event, $logger, $index);
-                    $logger->logEventProcessing($index, $event, $result);
+                    
+                    if ($logger) {
+                        $logger->logEventProcessing($index, $event, $result);
+                    }
+                    
                     $processedEvents[] = $result;
+                    $logSafe("Event $index processed successfully");
                     
                 } catch (\Exception $e) {
-                    $logger->logStep("event_{$index}_failed", [
-                        'event' => $event,
-                        'error' => $e->getMessage(),
-                        'file' => $e->getFile(),
-                        'line' => $e->getLine()
-                    ], 'failed');
+                    $errorMsg = "Event $index processing failed: " . $e->getMessage();
+                    $logSafe("ERROR: $errorMsg");
+                    
+                    if ($logger) {
+                        try {
+                            $logger->logStep("event_{$index}_failed", [
+                                'event' => $event,
+                                'error' => $e->getMessage(),
+                                'file' => $e->getFile(),
+                                'line' => $e->getLine()
+                            ], 'failed');
+                        } catch (\Exception $loggerError) {
+                            $logSafe("Logger failed during error recording: " . $loggerError->getMessage());
+                        }
+                    }
                     
                     // Continue processing other events even if one fails
                     $processedEvents[] = ['status' => 'failed', 'error' => $e->getMessage()];
                 }
             }
 
-            file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - Webhook processing completed successfully [ExecutionID: " . $logger->getExecutionId() . "]\n", 
-                FILE_APPEND | LOCK_EX);
+            $logSafe("Webhook processing completed successfully");
 
             $results = [
                 'status' => 'ok',
-                'execution_id' => $logger->getExecutionId(),
+                'execution_id' => $executionId,
                 'events_processed' => $eventCount,
-                'events_results' => $processedEvents
+                'events_results' => $processedEvents,
+                'timestamp' => now()->format('Y-m-d H:i:s')
             ];
             
-            $logger->completeExecution($results);
+            if ($logger) {
+                try {
+                    $logger->completeExecution($results);
+                } catch (\Exception $e) {
+                    $logSafe("Logger completeExecution failed: " . $e->getMessage());
+                }
+            }
             
             return response()->json($results);
             
         } catch (\Exception $e) {
-            $error = [
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
-            ];
+            $errorMsg = "CRITICAL ERROR in webhook: " . $e->getMessage();
+            $logSafe($errorMsg);
+            $logSafe("Error details: File=" . $e->getFile() . ", Line=" . $e->getLine());
             
-            file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - EXCEPTION: " . json_encode($error) . 
-                " [ExecutionID: " . $logger->getExecutionId() . "]\n", 
-                FILE_APPEND | LOCK_EX);
-                
-            Log::error('LINE Webhook error', array_merge($error, ['execution_id' => $logger->getExecutionId()]));
+            // 嘗試記錄完整錯誤但不讓它阻止響應
+            try {
+                if ($logger) {
+                    $logger->failExecution($e->getMessage(), [
+                        'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine()
+                    ]);
+                }
+            } catch (\Exception $loggerError) {
+                $logSafe("Logger failExecution failed: " . $loggerError->getMessage());
+            }
             
-            $logger->failExecution($e->getMessage(), $error);
-            
+            // 返回簡化的錯誤響應
             return response()->json([
-                'error' => 'Internal server error',
-                'execution_id' => $logger->getExecutionId()
-            ], 500);
+                'error' => 'Webhook processing failed',
+                'message' => $e->getMessage(),
+                'execution_id' => $executionId,
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+                'suggestion' => 'Check webhook-debug.log for detailed error information'
+            ], 200); // 返回 200 避免 LINE 不斷重試
         }
     }
 
     /**
-     * Process event with comprehensive logging wrapper
+     * Process event with comprehensive logging wrapper - 安全版本
      */
-    protected function processEventWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    protected function processEventWithLogging($event, $logger, $eventIndex)
     {
         $eventType = $event['type'] ?? 'unknown';
-        $logger->logStep("event_{$eventIndex}_started", [
-            'event_type' => $eventType,
-            'event_details' => $event
-        ]);
+        
+        // 安全地記錄日誌
+        if ($logger) {
+            try {
+                $logger->logStep("event_{$eventIndex}_started", [
+                    'event_type' => $eventType,
+                    'event_details' => $event
+                ]);
+            } catch (\Exception $e) {
+                // Logger 失敗不應該阻止事件處理
+            }
+        }
 
         try {
             switch ($eventType) {
@@ -469,31 +539,50 @@ class ChatController extends BaseApiController
                     $result = $this->handleUnfollowWithLogging($event, $logger, $eventIndex);
                     break;
                 default:
-                    $logger->logStep("event_{$eventIndex}_unhandled", [
+                    if ($logger) {
+                        try {
+                            $logger->logStep("event_{$eventIndex}_unhandled", [
+                                'event_type' => $eventType,
+                                'message' => 'Unhandled LINE event type'
+                            ]);
+                        } catch (\Exception $e) {
+                            // 忽略 logger 錯誤
+                        }
+                    }
+                    
+                    $result = [
+                        'status' => 'skipped',
                         'event_type' => $eventType,
-                        'message' => 'Unhandled LINE event type'
-                    ]);
-                    Log::info('Unhandled LINE event type', [
-                        'type' => $eventType,
-                        'execution_id' => $logger->getExecutionId()
-                    ]);
-                    $result = ['status' => 'unhandled', 'type' => $eventType];
+                        'reason' => 'unhandled_event_type'
+                    ];
             }
 
-            $logger->logStep("event_{$eventIndex}_completed", [
-                'event_type' => $eventType,
-                'result' => $result
-            ]);
+            if ($logger) {
+                try {
+                    $logger->logStep("event_{$eventIndex}_completed", [
+                        'event_type' => $eventType,
+                        'result' => $result
+                    ]);
+                } catch (\Exception $e) {
+                    // 忽略 logger 錯誤
+                }
+            }
 
             return $result;
 
         } catch (\Exception $e) {
-            $logger->logStep("event_{$eventIndex}_exception", [
-                'event_type' => $eventType,
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ], 'failed');
+            if ($logger) {
+                try {
+                    $logger->logStep("event_{$eventIndex}_exception", [
+                        'event_type' => $eventType,
+                        'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine()
+                    ], 'failed');
+                } catch (\Exception $loggerError) {
+                    // 忽略 logger 錯誤
+                }
+            }
 
             throw $e;
         }
@@ -502,13 +591,19 @@ class ChatController extends BaseApiController
     /**
      * Handle message events with logging
      */
-    protected function handleMessageWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    protected function handleMessageWithLogging($event, $logger, $eventIndex)
     {
         $messageType = $event['message']['type'] ?? 'unknown';
-        $logger->logStep("message_{$eventIndex}_handling", [
-            'message_type' => $messageType,
-            'message_content' => $event['message'] ?? null
-        ]);
+        if ($logger) {
+            try {
+                $logger->logStep("message_{$eventIndex}_handling", [
+                    'message_type' => $messageType,
+                    'message_content' => $event['message'] ?? null
+                ]);
+            } catch (\Exception $e) {
+                // 忽略 logger 錯誤
+            }
+        }
 
         switch ($messageType) {
             case 'text':
@@ -523,14 +618,22 @@ class ChatController extends BaseApiController
             case 'location':
                 return $this->handleLocationMessageWithLogging($event, $logger, $eventIndex);
             default:
-                $logger->logStep("message_{$eventIndex}_unhandled", [
-                    'message_type' => $messageType,
-                    'message' => 'Unhandled LINE message type'
-                ]);
-                Log::info('Unhandled LINE message type', [
-                    'type' => $messageType,
-                    'execution_id' => $logger->getExecutionId()
-                ]);
+                if ($logger) {
+                    try {
+                        $logger->logStep("message_{$eventIndex}_unhandled", [
+                            'message_type' => $messageType,
+                            'message' => 'Unhandled LINE message type'
+                        ]);
+                        Log::info('Unhandled LINE message type', [
+                            'type' => $messageType,
+                            'execution_id' => $logger->getExecutionId()
+                        ]);
+                    } catch (\Exception $e) {
+                        Log::info('Unhandled LINE message type', ['type' => $messageType]);
+                    }
+                } else {
+                    Log::info('Unhandled LINE message type', ['type' => $messageType]);
+                }
                 return ['status' => 'unhandled', 'message_type' => $messageType];
         }
     }
@@ -538,7 +641,7 @@ class ChatController extends BaseApiController
     /**
      * Handle text messages with comprehensive logging
      */
-    protected function handleTextMessageWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    protected function handleTextMessageWithLogging($event, $logger, $eventIndex)
     {
         $lineUserId = $event['source']['userId'] ?? null;
         $messageText = $event['message']['text'] ?? null;
@@ -661,7 +764,7 @@ class ChatController extends BaseApiController
     /**
      * Handle follow events with logging
      */
-    protected function handleFollowWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    protected function handleFollowWithLogging($event, $logger, $eventIndex)
     {
         $logger->logStep("follow_{$eventIndex}_processing", $event);
         $this->handleFollow($event);
@@ -671,7 +774,7 @@ class ChatController extends BaseApiController
     /**
      * Handle unfollow events with logging
      */
-    protected function handleUnfollowWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    protected function handleUnfollowWithLogging($event, $logger, $eventIndex)
     {
         $logger->logStep("unfollow_{$eventIndex}_processing", $event);
         $this->handleUnfollow($event);
@@ -681,7 +784,7 @@ class ChatController extends BaseApiController
     /**
      * Handle media messages with logging
      */
-    protected function handleMediaMessageWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    protected function handleMediaMessageWithLogging($event, $logger, $eventIndex)
     {
         $messageType = $event['message']['type'] ?? 'unknown';
         $logger->logStep("media_{$eventIndex}_processing", [
@@ -695,7 +798,7 @@ class ChatController extends BaseApiController
     /**
      * Handle sticker messages with logging
      */
-    protected function handleStickerMessageWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    protected function handleStickerMessageWithLogging($event, $logger, $eventIndex)
     {
         $logger->logStep("sticker_{$eventIndex}_processing", $event);
         $this->handleStickerMessage($event);
@@ -705,7 +808,7 @@ class ChatController extends BaseApiController
     /**
      * Handle location messages with logging
      */
-    protected function handleLocationMessageWithLogging($event, WebhookLoggerService $logger, $eventIndex)
+    protected function handleLocationMessageWithLogging($event, $logger, $eventIndex)
     {
         $logger->logStep("location_{$eventIndex}_processing", $event);
         $this->handleLocationMessage($event);
