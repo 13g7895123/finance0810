@@ -1192,11 +1192,11 @@ class ChatController extends BaseApiController
             ]);
             
             // Also write to webhook debug log for visibility
-            file_put_contents(storage_path('logs/webhook-debug.log'), 
+            @file_put_contents(storage_path('logs/webhook-debug.log'), 
                 date('Y-m-d H:i:s') . " - ERROR: $errorMsg - Missing channel_secret in line_integration_settings table\n", 
                 FILE_APPEND | LOCK_EX);
                 
-            return false; // Always require channel secret from database
+            return false; // Always require channel secret
         }
 
         $expectedSignature = base64_encode(hash_hmac('sha256', $body, $channelSecret, true));
