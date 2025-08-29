@@ -43,7 +43,8 @@ COPY . .
 RUN set -eux; \
     mkdir -p bootstrap/cache \
              storage/framework/{cache,data,sessions,views} \
-             storage/logs; \
+             storage/logs \
+             storage/framework/views; \
     chown -R www-data:www-data bootstrap storage; \
     chmod -R 775 bootstrap storage
 
