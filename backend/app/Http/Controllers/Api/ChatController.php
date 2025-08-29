@@ -383,10 +383,13 @@ class ChatController extends BaseApiController
                 }
             } catch (\Exception $e) {
                 $logSafe("Signature verification threw exception: " . $e->getMessage());
-                // 在開發/測試環境可能允許跳過簽名驗證
-                if (app()->environment('local', 'testing', 'production')) {
+                // 僅在開發/測試環境允許跳過簽名驗證
+                if (app()->environment('local', 'testing')) {
                     $signatureValid = true;
-                    $logSafe("Signature verification skipped for testing purposes");
+                    $logSafe("Signature verification skipped for development/testing environment");
+                } else {
+                    $signatureValid = false;
+                    $logSafe("Signature verification failed in production environment");
                 }
             }
             
@@ -1168,9 +1171,9 @@ class ChatController extends BaseApiController
                 'signature' => $signature,
                 'body_empty' => empty($body)
             ]);
-            // 測試環境暫時跳過簽名驗證
-            if (app()->environment('production')) {
-                Log::info('Skipping signature verification for testing');
+            // 非生產環境暫時跳過簽名驗證用於測試
+            if (app()->environment('local', 'testing')) {
+                Log::info('Skipping signature verification for testing environment');
                 return true;
             }
             return false;

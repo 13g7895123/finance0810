@@ -64,6 +64,8 @@ Route::get('/debug/firebase/diagnostic', [DebugController::class, 'diagnosticFir
 Route::get('/firebase/status', [DebugController::class, 'quickFirebaseStatus']);
 Route::get('/test/webhook-firebase-sync', [DebugController::class, 'testWebhookFirebaseSync']);
 Route::get('/test/complete-webhook-flow', [DebugController::class, 'testCompleteWebhookFlow']);
+Route::get('/debug/webhook-diagnosis', [DebugController::class, 'webhookDiagnosis']);
+Route::post('/debug/simulate-webhook', [DebugController::class, 'simulateWebhookEvent']);
 Route::get('/debug/recent-chats', [DebugController::class, 'checkRecentChats']);
 Route::get('/debug/simple-health', [DebugController::class, 'simpleHealthCheck']);
 

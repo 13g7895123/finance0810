@@ -1649,4 +1649,332 @@ class DebugController extends Controller
             ];
         }
     }
+
+    /**
+     * 診斷 LINE webhook 完整狀態 - Point 10-11 問題排查
+     */
+    public function webhookDiagnosis(): JsonResponse
+    {
+        try {
+            $timestamp = now()->format('Y-m-d H:i:s');
+            Log::info('Webhook diagnosis initiated', ['timestamp' => $timestamp]);
+            
+            // 1. 檢查 LINE 設定
+            $lineSettings = $this->getLineSettingsInfo();
+            
+            // 2. 檢查資料庫連接
+            $databaseStatus = $this->checkDatabaseConnectivity();
+            
+            // 3. 檢查 Firebase 連接
+            $firebaseStatus = $this->checkFirebaseHealth();
+            
+            // 4. 檢查最近的聊天記錄
+            $recentChats = [];
+            $chatCount = 0;
+            try {
+                $recentChats = ChatConversation::orderBy('created_at', 'desc')
+                    ->limit(5)
+                    ->get(['id', 'customer_id', 'line_user_id', 'message_content', 'created_at'])
+                    ->toArray();
+                $chatCount = ChatConversation::count();
+            } catch (\Exception $e) {
+                Log::error('Failed to query recent chats', ['error' => $e->getMessage()]);
+            }
+            
+            // 5. 檢查 webhook 日誌
+            $webhookLogs = [];
+            try {
+                $webhookLogPath = storage_path('logs/webhook-debug.log');
+                if (file_exists($webhookLogPath)) {
+                    $logContent = file_get_contents($webhookLogPath);
+                    $logLines = array_slice(explode("\n", $logContent), -10);
+                    $webhookLogs = array_filter($logLines);
+                }
+            } catch (\Exception $e) {
+                Log::error('Failed to read webhook logs', ['error' => $e->getMessage()]);
+            }
+            
+            // 6. 檢查環境設定
+            $environmentInfo = [
+                'app_env' => app()->environment(),
+                'app_debug' => config('app.debug'),
+                'app_url' => config('app.url'),
+                'is_production' => app()->environment('production'),
+                'php_version' => PHP_VERSION,
+                'laravel_version' => app()->version(),
+            ];
+            
+            // 7. 檢查權限和存取
+            $permissionChecks = [
+                'logs_writable' => is_writable(storage_path('logs')),
+                'storage_writable' => is_writable(storage_path()),
+                'cache_writable' => is_writable(storage_path('framework/cache')),
+            ];
+            
+            // 8. 問題診斷總結
+            $issues = [];
+            $recommendations = [];
+            
+            if (!$lineSettings['channel_secret']['configured']) {
+                $issues[] = 'LINE Channel Secret 未配置';
+                $recommendations[] = '在 line_integration_settings 表中設置 channel_secret';
+            }
+            
+            if (!$lineSettings['channel_access_token']['configured']) {
+                $issues[] = 'LINE Channel Access Token 未配置';
+                $recommendations[] = '在 line_integration_settings 表中設置 channel_access_token';
+            }
+            
+            if (!$databaseStatus['healthy']) {
+                $issues[] = '資料庫連接異常';
+                $recommendations[] = '檢查資料庫配置和連接狀態';
+            }
+            
+            if (!$firebaseStatus['healthy']) {
+                $issues[] = 'Firebase 連接異常';
+                $recommendations[] = '檢查 Firebase 配置和服務帳戶金鑰';
+            }
+            
+            if ($chatCount === 0) {
+                $issues[] = '沒有聊天記錄，webhook 可能未正常工作';
+                $recommendations[] = '檢查 LINE webhook 設定和簽名驗證';
+            }
+            
+            $diagnosis = [
+                'timestamp' => $timestamp,
+                'overall_status' => empty($issues) ? 'healthy' : 'issues_found',
+                'line_settings' => $lineSettings,
+                'database_status' => $databaseStatus,
+                'firebase_status' => $firebaseStatus,
+                'environment_info' => $environmentInfo,
+                'permission_checks' => $permissionChecks,
+                'chat_statistics' => [
+                    'total_conversations' => $chatCount,
+                    'recent_conversations' => count($recentChats),
+                    'recent_chat_data' => $recentChats,
+                ],
+                'webhook_logs' => [
+                    'recent_entries' => $webhookLogs,
+                    'log_file_exists' => file_exists(storage_path('logs/webhook-debug.log')),
+                ],
+                'issues_found' => $issues,
+                'recommendations' => $recommendations,
+                'next_steps' => [
+                    '1. 確保 LINE Channel Secret 和 Access Token 正確配置',
+                    '2. 測試 webhook 端點回應是否正常',
+                    '3. 檢查簽名驗證是否通過',
+                    '4. 驗證資料庫和 Firebase 儲存是否正常',
+                    '5. 監控 webhook 執行日誌'
+                ]
+            ];
+            
+            Log::info('Webhook diagnosis completed', [
+                'issues_count' => count($issues),
+                'recommendations_count' => count($recommendations)
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Webhook diagnosis completed',
+                'diagnosis' => $diagnosis
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Webhook diagnosis failed', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Webhook diagnosis failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 模擬 LINE webhook 事件測試 - Point 10-11 資料存儲測試
+     */
+    public function simulateWebhookEvent(Request $request): JsonResponse
+    {
+        try {
+            $timestamp = now()->format('Y-m-d H:i:s');
+            Log::info('Webhook event simulation initiated', ['timestamp' => $timestamp]);
+            
+            // 預設測試事件資料
+            $defaultEvent = [
+                'events' => [
+                    [
+                        'type' => 'message',
+                        'message' => [
+                            'type' => 'text',
+                            'text' => $request->input('message', 'Test message for webhook - ' . $timestamp)
+                        ],
+                        'source' => [
+                            'userId' => $request->input('user_id', 'test-user-' . time())
+                        ],
+                        'timestamp' => $request->input('timestamp', time() * 1000)
+                    ]
+                ]
+            ];
+            
+            // 允許自訂事件資料
+            $eventData = $request->input('event_data', $defaultEvent);
+            
+            // 使用 ChatController 的 webhook 方法進行測試
+            $chatController = app(\App\Http\Controllers\Api\ChatController::class);
+            
+            // 創建模擬請求
+            $mockRequest = new \Illuminate\Http\Request();
+            $mockRequest->merge($eventData);
+            $mockRequest->headers->set('Content-Type', 'application/json');
+            $mockRequest->headers->set('X-Line-Signature', 'test-signature'); // 測試環境會跳過驗證
+            
+            // 模擬請求內容
+            $jsonData = json_encode($eventData);
+            $mockRequest->initialize(
+                $mockRequest->query->all(),
+                $mockRequest->request->all(),
+                $mockRequest->attributes->all(),
+                $mockRequest->cookies->all(),
+                $mockRequest->files->all(),
+                array_merge($mockRequest->server->all(), [
+                    'REQUEST_METHOD' => 'POST',
+                    'HTTP_CONTENT_TYPE' => 'application/json',
+                    'CONTENT_LENGTH' => strlen($jsonData)
+                ]),
+                $jsonData
+            );
+            
+            // 記錄測試前狀態
+            $beforeChatCount = ChatConversation::count();
+            $beforeCustomerCount = Customer::count();
+            
+            // 執行 webhook 測試
+            Log::info('Executing webhook test', [
+                'before_chat_count' => $beforeChatCount,
+                'before_customer_count' => $beforeCustomerCount,
+                'event_data' => $eventData
+            ]);
+            
+            $webhookResponse = $chatController->webhook($mockRequest);
+            $webhookResult = $webhookResponse->getData(true);
+            
+            // 記錄測試後狀態
+            $afterChatCount = ChatConversation::count();
+            $afterCustomerCount = Customer::count();
+            
+            // 檢查是否有新記錄生成
+            $chatCreated = $afterChatCount > $beforeChatCount;
+            $customerCreated = $afterCustomerCount > $beforeCustomerCount;
+            
+            // 獲取最新的記錄
+            $latestChat = null;
+            $latestCustomer = null;
+            if ($chatCreated) {
+                $latestChat = ChatConversation::latest()->first();
+            }
+            if ($customerCreated) {
+                $latestCustomer = Customer::latest()->first();
+            }
+            
+            $testResult = [
+                'timestamp' => $timestamp,
+                'simulation_status' => 'completed',
+                'webhook_response' => $webhookResult,
+                'database_changes' => [
+                    'before' => [
+                        'chat_count' => $beforeChatCount,
+                        'customer_count' => $beforeCustomerCount,
+                    ],
+                    'after' => [
+                        'chat_count' => $afterChatCount,
+                        'customer_count' => $afterCustomerCount,
+                    ],
+                    'changes' => [
+                        'chat_created' => $chatCreated,
+                        'customer_created' => $customerCreated,
+                        'chat_count_increased' => $afterChatCount - $beforeChatCount,
+                        'customer_count_increased' => $afterCustomerCount - $beforeCustomerCount,
+                    ]
+                ],
+                'created_records' => [
+                    'chat' => $latestChat ? [
+                        'id' => $latestChat->id,
+                        'customer_id' => $latestChat->customer_id,
+                        'line_user_id' => $latestChat->line_user_id,
+                        'message_content' => $latestChat->message_content,
+                        'created_at' => $latestChat->created_at->format('Y-m-d H:i:s')
+                    ] : null,
+                    'customer' => $latestCustomer ? [
+                        'id' => $latestCustomer->id,
+                        'name' => $latestCustomer->name,
+                        'channel' => $latestCustomer->channel,
+                        'created_at' => $latestCustomer->created_at->format('Y-m-d H:i:s')
+                    ] : null
+                ],
+                'test_data' => [
+                    'input_event' => $eventData,
+                    'simulation_method' => 'direct_controller_call',
+                    'environment' => app()->environment()
+                ]
+            ];
+            
+            // 評估測試結果
+            $success = $chatCreated || $customerCreated || (isset($webhookResult['status']) && $webhookResult['status'] === 'ok');
+            $issues = [];
+            $recommendations = [];
+            
+            if (!$success) {
+                $issues[] = 'Webhook 處理失敗，未創建任何記錄';
+                $recommendations[] = '檢查 webhook 處理邏輯和錯誤日誌';
+            }
+            
+            if (!$chatCreated && $success) {
+                $issues[] = '聊天記錄未創建';
+                $recommendations[] = '檢查聊天記錄存儲邏輯';
+            }
+            
+            if (isset($webhookResult['error'])) {
+                $issues[] = 'Webhook 返回錯誤: ' . $webhookResult['error'];
+                $recommendations[] = '檢查具體錯誤原因並修復';
+            }
+            
+            $testResult['analysis'] = [
+                'success' => $success,
+                'issues' => $issues,
+                'recommendations' => $recommendations,
+                'overall_assessment' => $success ? 'PASS' : 'FAIL'
+            ];
+            
+            Log::info('Webhook simulation completed', [
+                'success' => $success,
+                'issues_count' => count($issues),
+                'chat_created' => $chatCreated,
+                'customer_created' => $customerCreated
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Webhook event simulation completed',
+                'test_result' => $testResult
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Webhook simulation failed', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Webhook simulation failed',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    }
 }
