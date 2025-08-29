@@ -1977,4 +1977,248 @@ class DebugController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * 綜合診斷 webhook 狀態 (Point 10-11)
+     */
+    public function webhookDiagnosis(Request $request)
+    {
+        try {
+            $diagnosis = [
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+                'environment' => app()->environment(),
+                'line_settings' => $this->checkLineSettings(),
+                'database_status' => $this->checkDatabaseConnection(),
+                'firebase_status' => $this->checkFirebaseConnection(),
+                'recent_activity' => $this->checkRecentActivity(),
+                'recommendations' => []
+            ];
+
+            // 添加建議
+            if (!$diagnosis['line_settings']['configured']) {
+                $diagnosis['recommendations'][] = '配置 LINE Channel Secret 和 Access Token';
+            }
+            
+            if ($diagnosis['recent_activity']['total_conversations'] === 0) {
+                $diagnosis['recommendations'][] = '測試 webhook 資料存儲功能';
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'diagnosis' => $diagnosis,
+                'summary' => $this->generateDiagnosisSummary($diagnosis)
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'timestamp' => now()->format('Y-m-d H:i:s')
+            ], 500);
+        }
+    }
+
+    /**
+     * 模擬 webhook 事件測試資料存儲
+     */
+    public function simulateWebhook(Request $request)
+    {
+        try {
+            $testUserId = $request->input('user_id', 'test-' . time());
+            $testMessage = $request->input('message', 'Test message from diagnostic tool');
+
+            // 1. 檢查或創建客戶
+            $customer = \App\Models\Customer::where('line_user_id', $testUserId)->first();
+            $wasNewCustomer = false;
+
+            if (!$customer) {
+                $adminUser = \App\Models\User::whereHas('roles', function($q) {
+                    $q->where('name', 'admin');
+                })->first();
+
+                $customer = \App\Models\Customer::create([
+                    'name' => 'Test用戶 ' . substr($testUserId, -6),
+                    'phone' => '0900000000',
+                    'line_user_id' => $testUserId,
+                    'channel' => 'line',
+                    'status' => 'new',
+                    'tracking_status' => 'pending',
+                    'assigned_to' => $adminUser ? $adminUser->id : 1,
+                    'version' => 1,
+                    'version_updated_at' => now(),
+                    'website_source' => 'line_debug',
+                ]);
+                $wasNewCustomer = true;
+            }
+
+            // 2. 創建聊天記錄
+            $conversation = \App\Models\ChatConversation::create([
+                'line_user_id' => $testUserId,
+                'customer_id' => $customer->id,
+                'message_type' => 'text',
+                'message_content' => $testMessage,
+                'direction' => 'incoming',
+                'status' => 'received',
+                'timestamp' => now(),
+                'version' => 1,
+                'version_updated_at' => now(),
+            ]);
+
+            // 3. 檢查資料是否正確存儲
+            $verifyCustomer = \App\Models\Customer::find($customer->id);
+            $verifyConversation = \App\Models\ChatConversation::find($conversation->id);
+
+            return response()->json([
+                'status' => 'success',
+                'simulation_results' => [
+                    'customer_created' => $wasNewCustomer,
+                    'customer_id' => $customer->id,
+                    'customer_verified' => !is_null($verifyCustomer),
+                    'conversation_id' => $conversation->id,
+                    'conversation_verified' => !is_null($verifyConversation),
+                    'mysql_storage' => 'successful',
+                    'firebase_sync_triggered' => true
+                ],
+                'test_data' => [
+                    'line_user_id' => $testUserId,
+                    'message' => $testMessage,
+                    'customer_name' => $customer->name
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s')
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'timestamp' => now()->format('Y-m-d H:i:s')
+            ], 500);
+        }
+    }
+
+    /**
+     * 檢查 LINE 設定狀態
+     */
+    private function checkLineSettings()
+    {
+        try {
+            $settings = LineIntegrationSetting::pluck('setting_value', 'setting_key');
+            
+            return [
+                'configured' => !empty($settings['channel_secret']) && !empty($settings['channel_access_token']),
+                'channel_secret_exists' => !empty($settings['channel_secret']),
+                'channel_access_token_exists' => !empty($settings['channel_access_token']),
+                'total_settings' => count($settings)
+            ];
+        } catch (\Exception $e) {
+            return [
+                'configured' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * 檢查資料庫連接
+     */
+    private function checkDatabaseConnection()
+    {
+        try {
+            DB::connection()->getPdo();
+            $tableExists = \Schema::hasTable('chat_conversations') && \Schema::hasTable('customers');
+            
+            return [
+                'connected' => true,
+                'tables_exist' => $tableExists,
+                'driver' => DB::connection()->getDriverName()
+            ];
+        } catch (\Exception $e) {
+            return [
+                'connected' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * 檢查 Firebase 連接
+     */
+    private function checkFirebaseConnection()
+    {
+        try {
+            // 簡單檢查 Firebase 服務是否可用
+            $projectId = config('firebase.project_id');
+            
+            return [
+                'configured' => !empty($projectId),
+                'project_id' => $projectId,
+                'service_available' => !is_null($this->firebaseChatService)
+            ];
+        } catch (\Exception $e) {
+            return [
+                'configured' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * 檢查最近活動
+     */
+    private function checkRecentActivity()
+    {
+        try {
+            $totalConversations = ChatConversation::count();
+            $recentConversations = ChatConversation::where('created_at', '>=', now()->subDay())->count();
+            $totalCustomers = Customer::count();
+            
+            return [
+                'total_conversations' => $totalConversations,
+                'recent_conversations_24h' => $recentConversations,
+                'total_customers' => $totalCustomers,
+                'last_activity' => ChatConversation::latest()->value('created_at')
+            ];
+        } catch (\Exception $e) {
+            return [
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * 生成診斷摘要
+     */
+    private function generateDiagnosisSummary($diagnosis)
+    {
+        $issues = [];
+        $status = 'healthy';
+
+        if (!$diagnosis['line_settings']['configured']) {
+            $issues[] = 'LINE 設定未完整配置';
+            $status = 'warning';
+        }
+
+        if (!$diagnosis['database_status']['connected']) {
+            $issues[] = '資料庫連接失敗';
+            $status = 'critical';
+        }
+
+        if (!$diagnosis['firebase_status']['configured']) {
+            $issues[] = 'Firebase 設定不完整';
+            $status = 'warning';
+        }
+
+        if ($diagnosis['recent_activity']['total_conversations'] === 0) {
+            $issues[] = '沒有任何聊天記錄';
+        }
+
+        return [
+            'overall_status' => $status,
+            'issues_found' => count($issues),
+            'issues' => $issues,
+            'ready_for_webhook' => count($issues) <= 1
+        ];
+    }
 }

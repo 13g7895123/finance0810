@@ -57,6 +57,8 @@ Route::get('/test/webhook-firebase', [ChatController::class, 'testWebhookFirebas
 
 // LINE Debug Routes (public - for debugging LINE integration)
 Route::get('/debug/line/settings/test', [DebugController::class, 'testLineSettingsApi']);
+Route::get('/debug/webhook-diagnosis', [DebugController::class, 'webhookDiagnosis']);
+Route::post('/debug/simulate-webhook', [DebugController::class, 'simulateWebhook']);
 
 // Firebase Diagnostic Routes (public - for troubleshooting connection issues)
 Route::get('/firebase/diagnostic', [DebugController::class, 'diagnosticFirebaseConnection']);
