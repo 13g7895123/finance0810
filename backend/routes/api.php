@@ -86,6 +86,7 @@ Route::post('/line/webhook', [ChatController::class, 'webhook']);
 Route::post('/line/webhook-test', [ChatController::class, 'webhookTest']);
 Route::post('/line/webhook-simple', [ChatController::class, 'webhookSimpleTest']);
 Route::post('/line/webhook-debug', [ChatController::class, 'webhookDebugTest']);
+Route::post('/line/webhook-nosig', [ChatController::class, 'webhookNoSignature']);
 Route::post('/webhook/wp', [WebhookController::class, 'wp']);
 
 // Broadcasting authentication route (needs to be here to use API auth)

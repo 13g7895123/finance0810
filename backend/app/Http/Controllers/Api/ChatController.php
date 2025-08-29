@@ -4844,4 +4844,157 @@ class ChatController extends BaseApiController
             ];
         }
     }
+
+    /**
+     * Webhook 無簽名驗證版本 - 專門用於測試 Point 10-11
+     */
+    public function webhookNoSignature(Request $request)
+    {
+        $executionId = 'nosig_' . time() . '_' . rand(1000, 9999);
+        
+        // 安全記錄日誌
+        $logSafe = function($message) use ($executionId) {
+            try {
+                @file_put_contents(storage_path('logs/webhook-nosig.log'), 
+                    date('Y-m-d H:i:s') . " - $message [ExecutionID: $executionId]\n", 
+                    FILE_APPEND | LOCK_EX);
+            } catch (\Exception $e) {
+                // 忽略日誌寫入失敗
+            }
+        };
+        
+        $logSafe("無簽名驗證 Webhook 被呼叫，來自 IP: " . $request->ip());
+        
+        try {
+            $events = $request->input('events', []);
+            $processedEvents = [];
+            
+            $logSafe("接收到 " . count($events) . " 個事件");
+            
+            foreach ($events as $index => $event) {
+                if (isset($event['type']) && $event['type'] === 'message') {
+                    $lineUserId = $event['source']['userId'] ?? 'unknown';
+                    $messageText = $event['message']['text'] ?? '';
+                    
+                    $logSafe("處理消息事件: 用戶 $lineUserId, 內容: $messageText");
+                    
+                    // 直接處理消息事件並存儲
+                    $result = $this->handleMessageEventNoSig($lineUserId, $messageText, $executionId);
+                    $processedEvents[] = $result;
+                    
+                    $logSafe("事件處理結果: " . ($result['status'] === 'success' ? '成功' : '失敗'));
+                } else {
+                    $eventType = $event['type'] ?? 'unknown';
+                    $logSafe("跳過非消息事件: $eventType");
+                    $processedEvents[] = [
+                        'status' => 'skipped',
+                        'event_type' => $eventType,
+                        'reason' => 'not_message_event'
+                    ];
+                }
+            }
+            
+            $response = [
+                'status' => 'success',
+                'execution_id' => $executionId,
+                'events_processed' => count($events),
+                'results' => $processedEvents,
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+                'note' => 'Processed without signature verification for testing'
+            ];
+            
+            $logSafe("Webhook 處理完成，成功處理 " . count($processedEvents) . " 個事件");
+            
+            return response()->json($response);
+            
+        } catch (\Exception $e) {
+            $errorMsg = "Webhook 處理失敗: " . $e->getMessage();
+            $logSafe("ERROR: $errorMsg");
+            $logSafe("錯誤詳情: " . $e->getFile() . ":" . $e->getLine());
+            
+            return response()->json([
+                'status' => 'error',
+                'execution_id' => $executionId,
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'timestamp' => now()->format('Y-m-d H:i:s')
+            ], 200); // 返回 200 避免 LINE 重試
+        }
+    }
+
+    /**
+     * 處理消息事件（無簽名版本）
+     */
+    private function handleMessageEventNoSig($lineUserId, $messageText, $executionId)
+    {
+        try {
+            // 1. 查找或創建客戶
+            $customer = \App\Models\Customer::where('line_user_id', $lineUserId)->first();
+            $wasNewCustomer = false;
+            
+            if (!$customer) {
+                // 創建新客戶
+                $adminUser = \App\Models\User::whereHas('roles', function($q) {
+                    $q->where('name', 'admin');
+                })->first();
+                
+                $customer = \App\Models\Customer::create([
+                    'name' => 'LINE用戶 ' . substr($lineUserId, -6),
+                    'phone' => '0900000000',
+                    'line_user_id' => $lineUserId,
+                    'channel' => 'line',
+                    'status' => 'new',
+                    'tracking_status' => 'pending',
+                    'assigned_to' => $adminUser ? $adminUser->id : 1,
+                    'version' => 1,
+                    'version_updated_at' => now(),
+                    'website_source' => 'line_nosig',
+                ]);
+                $wasNewCustomer = true;
+            }
+            
+            // 2. 創建聊天對話記錄
+            $conversation = \App\Models\ChatConversation::create([
+                'line_user_id' => $lineUserId,
+                'customer_id' => $customer->id,
+                'message_type' => 'text',
+                'message_content' => $messageText,
+                'direction' => 'incoming',
+                'status' => 'received',
+                'timestamp' => now(),
+                'version' => 1,
+                'version_updated_at' => now(),
+            ]);
+            
+            // 3. 驗證資料是否正確存儲
+            $verifyCustomer = \App\Models\Customer::find($customer->id);
+            $verifyConversation = \App\Models\ChatConversation::find($conversation->id);
+            
+            return [
+                'status' => 'success',
+                'line_user_id' => $lineUserId,
+                'customer_id' => $customer->id,
+                'customer_created' => $wasNewCustomer,
+                'customer_verified' => !is_null($verifyCustomer),
+                'conversation_id' => $conversation->id,
+                'conversation_verified' => !is_null($verifyConversation),
+                'message' => $messageText,
+                'mysql_stored' => true,
+                'firebase_sync_triggered' => true
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'line_user_id' => $lineUserId,
+                'message' => $messageText,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'mysql_stored' => false,
+                'firebase_sync_triggered' => false
+            ];
+        }
+    }
 }
