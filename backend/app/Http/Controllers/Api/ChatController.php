@@ -4523,25 +4523,34 @@ class ChatController extends BaseApiController
     }
 
     /**
-     * 簡易 LINE Webhook 測試 - 直接回傳用戶傳送的訊息
+     * 簡易 LINE Webhook 測試 - 無認證、無驗證，直接回傳用戶訊息
      */
     public function webhookSimpleTest(Request $request)
     {
+        // 添加 CORS 頭部確保跨域訪問
+        $headers = [
+            'Access-Control-Allow-Origin' => '*',
+            'Access-Control-Allow-Methods' => 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers' => 'Content-Type, Authorization, X-Line-Signature',
+        ];
+
         try {
             $executionId = 'simple_' . time() . '_' . rand(1000, 9999);
             
-            // 記錄基本請求資訊
-            Log::info('LINE Simple Webhook Test', [
-                'execution_id' => $executionId,
-                'ip' => $request->ip(),
-                'method' => $request->method(),
-                'timestamp' => now()->toISOString()
-            ]);
+            // 基本請求日誌 - 不依賴任何認證
+            @file_put_contents(storage_path('logs/webhook-simple.log'), 
+                date('Y-m-d H:i:s') . " - Simple webhook called from IP: " . $request->ip() . 
+                " [ExecutionID: $executionId]\n", 
+                FILE_APPEND | LOCK_EX);
             
-            // 解析事件
-            $events = $request->input('events', []);
+            // 獲取所有請求數據
+            $requestBody = $request->getContent();
+            $requestData = json_decode($requestBody, true) ?? [];
+            $events = $requestData['events'] ?? [];
+            
             $processedMessages = [];
             
+            // 處理每個事件
             foreach ($events as $index => $event) {
                 $eventType = $event['type'] ?? 'unknown';
                 
@@ -4558,59 +4567,61 @@ class ChatController extends BaseApiController
                             'message_type' => $messageType,
                             'user_message' => $messageText,
                             'echo_response' => "收到您的訊息: " . $messageText,
-                            'timestamp' => now()->toISOString()
+                            'timestamp' => now()->format('Y-m-d H:i:s')
                         ];
+                        
+                        // 記錄到簡單日誌
+                        @file_put_contents(storage_path('logs/webhook-simple.log'), 
+                            date('Y-m-d H:i:s') . " - Message from $lineUserId: $messageText\n", 
+                            FILE_APPEND | LOCK_EX);
                     } else {
                         $processedMessages[] = [
                             'event_index' => $index,
                             'line_user_id' => $lineUserId,
                             'message_type' => $messageType,
-                            'status' => 'non_text_message',
-                            'timestamp' => now()->toISOString()
+                            'status' => 'non_text_message'
                         ];
                     }
                 } else {
                     $processedMessages[] = [
                         'event_index' => $index,
                         'event_type' => $eventType,
-                        'status' => 'non_message_event',
-                        'timestamp' => now()->toISOString()
+                        'status' => 'non_message_event'
                     ];
                 }
             }
             
+            // 簡化的成功響應
             $response = [
-                'status' => 'success',
+                'status' => 'ok',
                 'execution_id' => $executionId,
-                'test_mode' => 'simple_echo',
                 'events_received' => count($events),
                 'messages_processed' => count($processedMessages),
                 'processed_messages' => $processedMessages,
-                'webhook_status' => 'working',
-                'timestamp' => now()->toISOString()
+                'webhook_working' => true,
+                'timestamp' => now()->format('Y-m-d H:i:s')
             ];
             
-            Log::info('LINE Simple Webhook Test Complete', [
-                'execution_id' => $executionId,
-                'events_count' => count($events),
-                'messages_count' => count($processedMessages)
-            ]);
+            @file_put_contents(storage_path('logs/webhook-simple.log'), 
+                date('Y-m-d H:i:s') . " - Processing completed successfully\n", 
+                FILE_APPEND | LOCK_EX);
             
-            return response()->json($response);
+            return response()->json($response, 200, $headers);
             
         } catch (\Exception $e) {
+            // 簡化的錯誤響應
             $error = [
                 'status' => 'error',
-                'test_mode' => 'simple_echo',
                 'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'timestamp' => now()->toISOString()
+                'webhook_working' => false,
+                'timestamp' => now()->format('Y-m-d H:i:s')
             ];
             
-            Log::error('LINE Simple Webhook Test Failed', $error);
+            @file_put_contents(storage_path('logs/webhook-simple.log'), 
+                date('Y-m-d H:i:s') . " - ERROR: " . $e->getMessage() . "\n", 
+                FILE_APPEND | LOCK_EX);
             
-            return response()->json($error, 500);
+            return response()->json($error, 200, $headers); // 返回 200 避免 LINE 重試
         }
     }
 }
