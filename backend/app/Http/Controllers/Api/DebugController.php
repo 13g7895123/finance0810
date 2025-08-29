@@ -1424,12 +1424,7 @@ class DebugController extends Controller
                     'channel_access_token_configured' => !empty($settings['channel_access_token']),
                     'channel_access_token_length' => strlen($settings['channel_access_token'] ?? ''),
                     'from_database' => true,
-                    'from_env' => [
-                        'LINE_BOT_CHANNEL_SECRET' => !empty(env('LINE_BOT_CHANNEL_SECRET')),
-                        'LINE_CHANNEL_SECRET' => !empty(env('LINE_CHANNEL_SECRET')),
-                        'LINE_BOT_CHANNEL_ACCESS_TOKEN' => !empty(env('LINE_BOT_CHANNEL_ACCESS_TOKEN')),
-                        'LINE_CHANNEL_ACCESS_TOKEN' => !empty(env('LINE_CHANNEL_ACCESS_TOKEN')),
-                    ]
+                    'note' => 'Only using database settings, no fallback to env/config'
                 ]
             ]);
 

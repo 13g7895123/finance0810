@@ -497,9 +497,9 @@ class CustomerController extends Controller
         }
 
         try {
-            // Get LINE settings
-            $settings = \Cache::get('line_integration_settings', []);
-            $token = $settings['channel_access_token'] ?? config('services.line.channel_access_token');
+            // Get LINE settings from database only
+            $settings = \App\Models\LineIntegrationSetting::getAllSettings(true);
+            $token = $settings['channel_access_token'] ?? '';
 
             if (!$token) {
                 return response()->json([

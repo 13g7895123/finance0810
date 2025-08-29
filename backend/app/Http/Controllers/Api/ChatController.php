@@ -1014,12 +1014,21 @@ class ChatController extends BaseApiController
      */
     private function getLineSettings()
     {
+        // Only use database settings, no fallback to config or env
         $dbSettings = LineIntegrationSetting::getAllSettings(true);
-        $cachedSettings = Cache::get('line_integration_settings', []);
+        
+        // Log if settings are missing from database
+        if (empty($dbSettings['channel_access_token']) || empty($dbSettings['channel_secret'])) {
+            Log::warning('LINE integration settings missing from database', [
+                'has_access_token' => !empty($dbSettings['channel_access_token']),
+                'has_channel_secret' => !empty($dbSettings['channel_secret']),
+                'available_keys' => array_keys($dbSettings)
+            ]);
+        }
         
         return [
-            'channel_access_token' => $dbSettings['channel_access_token'] ?? $cachedSettings['channel_access_token'] ?? config('services.line.channel_access_token', ''),
-            'channel_secret' => $dbSettings['channel_secret'] ?? $cachedSettings['channel_secret'] ?? config('services.line.channel_secret', ''),
+            'channel_access_token' => $dbSettings['channel_access_token'] ?? '',
+            'channel_secret' => $dbSettings['channel_secret'] ?? '',
         ];
     }
 

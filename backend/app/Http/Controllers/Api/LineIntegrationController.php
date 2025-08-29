@@ -28,26 +28,25 @@ class LineIntegrationController extends Controller
     {
         $user = Auth::user();
         
-        // Get settings from database, fall back to cache, then config
+        // Get settings from database only, no fallback to config
         $dbSettings = LineIntegrationSetting::getAllSettings(true);
-        $cachedSettings = Cache::get('line_integration_settings', []);
         
         // Get raw values (unmasked) for actual use
-        $channelAccessToken = $dbSettings['channel_access_token'] ?? $cachedSettings['channel_access_token'] ?? config('services.line.channel_access_token', '');
-        $channelSecret = $dbSettings['channel_secret'] ?? $cachedSettings['channel_secret'] ?? config('services.line.channel_secret', '');
+        $channelAccessToken = $dbSettings['channel_access_token'] ?? '';
+        $channelSecret = $dbSettings['channel_secret'] ?? '';
         
         $settings = [
             'channel_access_token' => $this->getMaskedToken($channelAccessToken),
             'channel_secret' => $this->getMaskedSecret($channelSecret),
             'webhook_url' => url('/api/line/webhook'),
-            'bot_basic_id' => $dbSettings['bot_basic_id'] ?? $cachedSettings['bot_basic_id'] ?? config('services.line.bot_basic_id', ''),
-            'auto_reply_enabled' => $dbSettings['auto_reply_enabled'] ?? $cachedSettings['auto_reply_enabled'] ?? config('services.line.auto_reply_enabled', true),
-            'default_reply_message' => $dbSettings['default_reply_message'] ?? $cachedSettings['default_reply_message'] ?? config('services.line.default_reply_message', '感謝您的訊息，專員將盡快回覆您。'),
+            'bot_basic_id' => $dbSettings['bot_basic_id'] ?? '',
+            'auto_reply_enabled' => $dbSettings['auto_reply_enabled'] ?? true,
+            'default_reply_message' => $dbSettings['default_reply_message'] ?? '感謝您的訊息，專員將盡快回覆您。',
             'business_hours' => [
-                'enabled' => $dbSettings['business_hours_enabled'] ?? $cachedSettings['business_hours_enabled'] ?? config('services.line.business_hours_enabled', false),
-                'start_time' => $dbSettings['business_hours_start'] ?? $cachedSettings['business_hours_start'] ?? config('services.line.business_hours_start', '09:00'),
-                'end_time' => $dbSettings['business_hours_end'] ?? $cachedSettings['business_hours_end'] ?? config('services.line.business_hours_end', '18:00'),
-                'out_of_hours_message' => $dbSettings['out_of_hours_message'] ?? $cachedSettings['out_of_hours_message'] ?? config('services.line.out_of_hours_message', '目前為非營業時間，我們將在營業時間內盡快回覆您。營業時間：週一至週五 9:00-18:00')
+                'enabled' => $dbSettings['business_hours_enabled'] ?? false,
+                'start_time' => $dbSettings['business_hours_start'] ?? '09:00',
+                'end_time' => $dbSettings['business_hours_end'] ?? '18:00',
+                'out_of_hours_message' => $dbSettings['out_of_hours_message'] ?? '目前為非營業時間，我們將在營業時間內盡快回覆您。營業時間：週一至週五 9:00-18:00'
             ],
             'webhook_status' => $this->getWebhookStatus(),
             'integration_status' => $this->getIntegrationStatus(),
@@ -149,21 +148,19 @@ class LineIntegrationController extends Controller
      */
     private function getUnmaskedSettings()
     {
-        // 優先從資料庫讀取用戶設定的資料
+        // Only use database settings, no fallback to cache or config
         $dbSettings = LineIntegrationSetting::getAllSettings(true);
-        $cachedSettings = Cache::get('line_integration_settings', []);
         
         return [
-            // 優先使用資料庫設定，cache作為備份，config作為最後的預設值
-            'channel_access_token' => $dbSettings['channel_access_token'] ?? $cachedSettings['channel_access_token'] ?? '',
-            'channel_secret' => $dbSettings['channel_secret'] ?? $cachedSettings['channel_secret'] ?? '',
-            'bot_basic_id' => $dbSettings['bot_basic_id'] ?? $cachedSettings['bot_basic_id'] ?? '',
-            'auto_reply_enabled' => $dbSettings['auto_reply_enabled'] ?? $cachedSettings['auto_reply_enabled'] ?? true,
-            'default_reply_message' => $dbSettings['default_reply_message'] ?? $cachedSettings['default_reply_message'] ?? '感謝您的訊息，專員將盡快回覆您。',
-            'business_hours_enabled' => $dbSettings['business_hours_enabled'] ?? $cachedSettings['business_hours_enabled'] ?? false,
-            'business_hours_start' => $dbSettings['business_hours_start'] ?? $cachedSettings['business_hours_start'] ?? '09:00',
-            'business_hours_end' => $dbSettings['business_hours_end'] ?? $cachedSettings['business_hours_end'] ?? '18:00',
-            'out_of_hours_message' => $dbSettings['out_of_hours_message'] ?? $cachedSettings['out_of_hours_message'] ?? '目前為非營業時間',
+            'channel_access_token' => $dbSettings['channel_access_token'] ?? '',
+            'channel_secret' => $dbSettings['channel_secret'] ?? '',
+            'bot_basic_id' => $dbSettings['bot_basic_id'] ?? '',
+            'auto_reply_enabled' => $dbSettings['auto_reply_enabled'] ?? true,
+            'default_reply_message' => $dbSettings['default_reply_message'] ?? '感謝您的訊息，專員將盡快回覆您。',
+            'business_hours_enabled' => $dbSettings['business_hours_enabled'] ?? false,
+            'business_hours_start' => $dbSettings['business_hours_start'] ?? '09:00',
+            'business_hours_end' => $dbSettings['business_hours_end'] ?? '18:00',
+            'out_of_hours_message' => $dbSettings['out_of_hours_message'] ?? '目前為非營業時間，我們將在營業時間內盡快回覆您。營業時間：週一至週五 9:00-18:00',
         ];
     }
 
@@ -176,9 +173,8 @@ class LineIntegrationController extends Controller
         $token = $settings['channel_access_token'];
 
         Log::info('Test connection requested', [
-            'cached_settings_exists' => !empty($settings),
-            'has_cached_token' => !empty($settings['channel_access_token']),
-            'has_config_token' => !empty(config('services.line.channel_access_token')),
+            'db_settings_exists' => !empty($settings),
+            'has_db_token' => !empty($settings['channel_access_token']),
             'final_token_length' => $token ? strlen($token) : 0,
             'token_sample' => $token ? substr($token, 0, 20) . '...' . substr($token, -10) : null,
             'token_contains_invalid_chars' => $token ? (preg_match('/[^a-zA-Z0-9+\/=\-_.]/', $token) ? 'YES' : 'NO') : null
@@ -189,8 +185,8 @@ class LineIntegrationController extends Controller
                 'status' => 'error',
                 'message' => '請先設定 Channel Access Token',
                 'debug_info' => [
-                    'cached_settings' => $settings,
-                    'config_token_exists' => !empty(config('services.line.channel_access_token'))
+                    'db_settings' => $settings,
+                    'db_token_exists' => !empty($settings['channel_access_token'])
                 ]
             ], 400);
         }
@@ -206,13 +202,11 @@ class LineIntegrationController extends Controller
     public function debugConnection()
     {
         $settings = $this->getUnmaskedSettings();
-        $configToken = config('services.line.channel_access_token');
         $token = $settings['channel_access_token'];
 
         $debugInfo = [
-            'cache_settings' => $settings,
-            'config_token_exists' => !empty($configToken),
-            'config_token_length' => $configToken ? strlen($configToken) : 0,
+            'db_settings' => $settings,
+            'db_token_exists' => !empty($token),
             'final_token_exists' => !empty($token),
             'final_token_length' => $token ? strlen($token) : 0,
             'php_version' => PHP_VERSION,
@@ -257,11 +251,8 @@ class LineIntegrationController extends Controller
     {
         // Debug token sources
         $dbSettings = LineIntegrationSetting::getAllSettings(true);
-        $cachedSettings = Cache::get('line_integration_settings', []);
-        $configToken = config('services.line.channel_access_token');
         
         $tokenFromDb = $dbSettings['channel_access_token'] ?? null;
-        $tokenFromCache = $cachedSettings['channel_access_token'] ?? null;
         
         $settings = $this->getUnmaskedSettings();
         $token = $settings['channel_access_token'];
