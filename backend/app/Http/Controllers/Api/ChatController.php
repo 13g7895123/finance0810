@@ -1019,10 +1019,12 @@ class ChatController extends BaseApiController
         
         // Log if settings are missing from database
         if (empty($dbSettings['channel_access_token']) || empty($dbSettings['channel_secret'])) {
-            Log::warning('LINE integration settings missing from database', [
+            Log::error('LINE integration settings missing from database - system configured for database-only settings', [
                 'has_access_token' => !empty($dbSettings['channel_access_token']),
                 'has_channel_secret' => !empty($dbSettings['channel_secret']),
-                'available_keys' => array_keys($dbSettings)
+                'available_keys' => array_keys($dbSettings),
+                'fix_required' => 'Configure LINE settings via /settings/line page or API /api/debug/line/settings',
+                'impact' => 'Webhooks will fail signature verification, chat functionality disabled'
             ]);
         }
         
@@ -1062,13 +1064,11 @@ class ChatController extends BaseApiController
         $channelSecret = $settings['channel_secret'];
         
         if (!$channelSecret) {
-            Log::warning('LINE Channel Secret not configured for webhook verification');
-            // For development/testing, check if we should skip verification
-            if (config('app.env') === 'local' || config('app.debug')) {
-                Log::info('Skipping signature verification in debug mode');
-                return true;
-            }
-            return false; // In production, require channel secret
+            Log::error('LINE Channel Secret not configured in database - webhook verification failed', [
+                'missing_config' => 'channel_secret not found in line_integration_settings table',
+                'action_required' => 'Configure LINE Channel Secret in line_integration_settings table'
+            ]);
+            return false; // Always require channel secret from database
         }
 
         $expectedSignature = base64_encode(hash_hmac('sha256', $body, $channelSecret, true));
