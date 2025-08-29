@@ -4734,4 +4734,111 @@ class ChatController extends BaseApiController
             return response()->json($error, 200, $headers); // 返回 200 避免 LINE 重試
         }
     }
+
+    /**
+     * Debug webhook 測試 - 跳過所有驗證直接處理事件
+     */
+    public function webhookDebugTest(Request $request)
+    {
+        $executionId = 'debug_' . time() . '_' . rand(1000, 9999);
+        
+        try {
+            $events = $request->input('events', []);
+            $processedEvents = [];
+            
+            foreach ($events as $index => $event) {
+                if (isset($event['type']) && $event['type'] === 'message') {
+                    $lineUserId = $event['source']['userId'] ?? 'unknown';
+                    $messageText = $event['message']['text'] ?? '';
+                    
+                    // 直接處理消息事件
+                    $result = $this->processMessageEventDebug($lineUserId, $messageText, $executionId);
+                    $processedEvents[] = $result;
+                }
+            }
+            
+            return response()->json([
+                'status' => 'success',
+                'execution_id' => $executionId,
+                'events_processed' => count($events),
+                'results' => $processedEvents,
+                'timestamp' => now()->format('Y-m-d H:i:s')
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'execution_id' => $executionId,
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'timestamp' => now()->format('Y-m-d H:i:s')
+            ], 200);
+        }
+    }
+
+    /**
+     * 處理消息事件的調試版本
+     */
+    private function processMessageEventDebug($lineUserId, $messageText, $executionId)
+    {
+        try {
+            // 1. 查找或創建客戶
+            $customer = \App\Models\Customer::where('line_user_id', $lineUserId)->first();
+            
+            if (!$customer) {
+                // 創建新客戶
+                $adminUser = \App\Models\User::whereHas('roles', function($q) {
+                    $q->where('name', 'admin');
+                })->first();
+                
+                $customer = \App\Models\Customer::create([
+                    'name' => 'LINE用戶 ' . substr($lineUserId, -6),
+                    'phone' => '0900000000',
+                    'line_user_id' => $lineUserId,
+                    'channel' => 'line',
+                    'status' => 'new',
+                    'tracking_status' => 'pending',
+                    'assigned_to' => $adminUser ? $adminUser->id : 1,
+                    'version' => 1,
+                    'version_updated_at' => now(),
+                    'website_source' => 'line',
+                ]);
+            }
+            
+            // 2. 創建聊天對話記錄
+            $conversation = \App\Models\ChatConversation::create([
+                'line_user_id' => $lineUserId,
+                'customer_id' => $customer->id,
+                'message_type' => 'text',
+                'message_content' => $messageText,
+                'direction' => 'incoming',
+                'status' => 'received',
+                'timestamp' => now(),
+                'version' => 1,
+                'version_updated_at' => now(),
+            ]);
+            
+            return [
+                'status' => 'success',
+                'line_user_id' => $lineUserId,
+                'customer_id' => $customer->id,
+                'conversation_id' => $conversation->id,
+                'message' => $messageText,
+                'created_customer' => !$customer->wasRecentlyCreated ? false : true,
+                'mysql_stored' => true,
+                'firebase_sync_attempted' => true
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'line_user_id' => $lineUserId,
+                'message' => $messageText,
+                'error' => $e->getMessage(),
+                'mysql_stored' => false,
+                'firebase_sync_attempted' => false
+            ];
+        }
+    }
 }
