@@ -1979,15 +1979,15 @@ class DebugController extends Controller
     }
 
     /**
-     * 綜合診斷 webhook 狀態 (Point 10-11)
+     * 簡化 webhook 狀態檢查 (Point 10-11) - 備用簡單版本
      */
-    public function webhookDiagnosis(Request $request)
+    public function simpleWebhookDiagnosis(Request $request)
     {
         try {
             // 簡化的診斷，避免複雜的依賴
             return response()->json([
                 'status' => 'success',
-                'message' => 'Webhook diagnosis endpoint is working',
+                'message' => 'Simple Webhook diagnosis endpoint is working',
                 'timestamp' => now()->format('Y-m-d H:i:s'),
                 'environment' => app()->environment(),
                 'basic_info' => [
