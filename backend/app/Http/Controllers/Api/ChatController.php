@@ -4521,4 +4521,96 @@ class ChatController extends BaseApiController
             return ['status' => 'failed', 'reason' => 'general_error', 'error' => $e->getMessage()];
         }
     }
+
+    /**
+     * 簡易 LINE Webhook 測試 - 直接回傳用戶傳送的訊息
+     */
+    public function webhookSimpleTest(Request $request)
+    {
+        try {
+            $executionId = 'simple_' . time() . '_' . rand(1000, 9999);
+            
+            // 記錄基本請求資訊
+            Log::info('LINE Simple Webhook Test', [
+                'execution_id' => $executionId,
+                'ip' => $request->ip(),
+                'method' => $request->method(),
+                'timestamp' => now()->toISOString()
+            ]);
+            
+            // 解析事件
+            $events = $request->input('events', []);
+            $processedMessages = [];
+            
+            foreach ($events as $index => $event) {
+                $eventType = $event['type'] ?? 'unknown';
+                
+                if ($eventType === 'message') {
+                    $messageType = $event['message']['type'] ?? 'unknown';
+                    $lineUserId = $event['source']['userId'] ?? 'unknown';
+                    
+                    if ($messageType === 'text') {
+                        $messageText = $event['message']['text'] ?? '';
+                        
+                        $processedMessages[] = [
+                            'event_index' => $index,
+                            'line_user_id' => $lineUserId,
+                            'message_type' => $messageType,
+                            'user_message' => $messageText,
+                            'echo_response' => "收到您的訊息: " . $messageText,
+                            'timestamp' => now()->toISOString()
+                        ];
+                    } else {
+                        $processedMessages[] = [
+                            'event_index' => $index,
+                            'line_user_id' => $lineUserId,
+                            'message_type' => $messageType,
+                            'status' => 'non_text_message',
+                            'timestamp' => now()->toISOString()
+                        ];
+                    }
+                } else {
+                    $processedMessages[] = [
+                        'event_index' => $index,
+                        'event_type' => $eventType,
+                        'status' => 'non_message_event',
+                        'timestamp' => now()->toISOString()
+                    ];
+                }
+            }
+            
+            $response = [
+                'status' => 'success',
+                'execution_id' => $executionId,
+                'test_mode' => 'simple_echo',
+                'events_received' => count($events),
+                'messages_processed' => count($processedMessages),
+                'processed_messages' => $processedMessages,
+                'webhook_status' => 'working',
+                'timestamp' => now()->toISOString()
+            ];
+            
+            Log::info('LINE Simple Webhook Test Complete', [
+                'execution_id' => $executionId,
+                'events_count' => count($events),
+                'messages_count' => count($processedMessages)
+            ]);
+            
+            return response()->json($response);
+            
+        } catch (\Exception $e) {
+            $error = [
+                'status' => 'error',
+                'test_mode' => 'simple_echo',
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'timestamp' => now()->toISOString()
+            ];
+            
+            Log::error('LINE Simple Webhook Test Failed', $error);
+            
+            return response()->json($error, 500);
+        }
+    }
 }
