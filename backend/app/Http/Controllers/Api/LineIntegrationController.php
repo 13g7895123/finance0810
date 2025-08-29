@@ -254,6 +254,15 @@ class LineIntegrationController extends Controller
         
         $tokenFromDb = $dbSettings['channel_access_token'] ?? null;
         
+        // Get token from cache (if available)
+        $tokenFromCache = Cache::get('line_channel_access_token', null);
+        
+        // Get token from config
+        $configToken = config('line.channel_access_token', null);
+        
+        // Get cached settings (if available)
+        $cachedSettings = Cache::get('line_integration_settings', []);
+        
         $settings = $this->getUnmaskedSettings();
         $token = $settings['channel_access_token'];
 
