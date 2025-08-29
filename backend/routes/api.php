@@ -155,6 +155,7 @@ Route::middleware(['auth:api'])->group(function () {
         // LINE Settings Management
         Route::get('/line/settings', [DebugController::class, 'getLineSettings']);
         Route::post('/line/settings', [DebugController::class, 'updateLineSettings']);
+        Route::get('/line/settings/test', [DebugController::class, 'testLineSettingsApi']);
         
         // Chat Debug Operations
         Route::post('/chat/batch-sync', [ChatController::class, 'batchSyncToFirebaseDebug']);

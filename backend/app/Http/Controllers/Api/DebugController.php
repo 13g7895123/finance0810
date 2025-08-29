@@ -1340,11 +1340,22 @@ class DebugController extends Controller
     public function updateLineSettings(Request $request): JsonResponse
     {
         try {
+            Log::info('DebugController updateLineSettings called', [
+                'user_id' => auth()->id(),
+                'request_data' => $request->except(['channel_secret', 'channel_access_token'])
+            ]);
+
             // 檢查權限
             if (!$this->isDebugEnabled() || !$this->hasAdminAccess()) {
+                Log::warning('Permission denied for updateLineSettings');
                 return response()->json([
                     'success' => false,
-                    'error' => '需要管理員權限且啟用除錯模式'
+                    'error' => '需要管理員權限且啟用除錯模式',
+                    'debug_info' => [
+                        'debug_enabled' => $this->isDebugEnabled(),
+                        'has_admin_access' => $this->hasAdminAccess(),
+                        'user_authenticated' => auth()->check()
+                    ]
                 ], 403);
             }
 
@@ -1357,6 +1368,7 @@ class DebugController extends Controller
 
             // 更新 Channel Secret
             if ($request->has('channel_secret')) {
+                Log::info('Updating channel_secret');
                 LineIntegrationSetting::setValue(
                     'channel_secret',
                     $request->input('channel_secret'),
@@ -1369,6 +1381,7 @@ class DebugController extends Controller
 
             // 更新 Channel Access Token
             if ($request->has('channel_access_token')) {
+                Log::info('Updating channel_access_token');
                 LineIntegrationSetting::setValue(
                     'channel_access_token',
                     $request->input('channel_access_token'),
@@ -1382,6 +1395,8 @@ class DebugController extends Controller
             // 清除快取
             \Cache::forget('line_integration_settings');
 
+            Log::info('LINE settings updated successfully', ['updated_fields' => $updated]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'LINE 設定已更新',
@@ -1392,10 +1407,33 @@ class DebugController extends Controller
                 ]
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation error in updateLineSettings', [
+                'errors' => $e->errors()
+            ]);
+            
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => 'Validation failed',
+                'validation_errors' => $e->errors()
+            ], 422);
+            
+        } catch (\Exception $e) {
+            Log::error('updateLineSettings error', [
+                'exception' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'error_details' => [
+                    'exception_type' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ]
             ], 500);
         }
     }
@@ -1406,15 +1444,51 @@ class DebugController extends Controller
     public function getLineSettings(): JsonResponse
     {
         try {
+            Log::info('DebugController getLineSettings called', [
+                'user_id' => auth()->id(),
+                'user_authenticated' => auth()->check()
+            ]);
+
+            // Step by step debugging
+            $debugEnabled = $this->isDebugEnabled();
+            $hasAdmin = $this->hasAdminAccess();
+            
+            Log::info('Permission checks', [
+                'debug_enabled' => $debugEnabled,
+                'has_admin_access' => $hasAdmin,
+                'user' => auth()->user() ? [
+                    'id' => auth()->user()->id,
+                    'name' => auth()->user()->name,
+                    'role' => auth()->user()->role ?? 'no_role'
+                ] : null
+            ]);
+
             // 檢查權限
-            if (!$this->isDebugEnabled() || !$this->hasAdminAccess()) {
+            if (!$debugEnabled || !$hasAdmin) {
+                Log::warning('Permission denied for getLineSettings', [
+                    'debug_enabled' => $debugEnabled,
+                    'has_admin_access' => $hasAdmin
+                ]);
+                
                 return response()->json([
                     'success' => false,
-                    'error' => '需要管理員權限且啟用除錯模式'
+                    'error' => '需要管理員權限且啟用除錯模式',
+                    'debug_info' => [
+                        'debug_enabled' => $debugEnabled,
+                        'has_admin_access' => $hasAdmin,
+                        'user_authenticated' => auth()->check()
+                    ]
                 ], 403);
             }
 
+            Log::info('Getting LINE settings from database');
             $settings = LineIntegrationSetting::getAllSettings(true);
+            
+            Log::info('LINE settings retrieved', [
+                'settings_count' => count($settings),
+                'has_channel_secret' => !empty($settings['channel_secret']),
+                'has_channel_access_token' => !empty($settings['channel_access_token'])
+            ]);
             
             return response()->json([
                 'success' => true,
@@ -1424,14 +1498,70 @@ class DebugController extends Controller
                     'channel_access_token_configured' => !empty($settings['channel_access_token']),
                     'channel_access_token_length' => strlen($settings['channel_access_token'] ?? ''),
                     'from_database' => true,
-                    'note' => 'Only using database settings, no fallback to env/config'
+                    'note' => 'Only using database settings, no fallback to env/config',
+                    'all_settings_keys' => array_keys($settings)
                 ]
             ]);
 
         } catch (\Exception $e) {
+            Log::error('getLineSettings error', [
+                'exception' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'error_details' => [
+                    'exception_type' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * 測試 LINE 設定 API 基本功能
+     */
+    public function testLineSettingsApi(): JsonResponse
+    {
+        try {
+            Log::info('testLineSettingsApi called', [
+                'user_id' => auth()->id(),
+                'timestamp' => now()->toISOString()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'LINE Settings API is working',
+                'timestamp' => now()->toISOString(),
+                'test_results' => [
+                    'authenticated' => auth()->check(),
+                    'user_id' => auth()->id(),
+                    'debug_enabled' => $this->isDebugEnabled(),
+                    'admin_access' => $this->hasAdminAccess(),
+                    'line_integration_setting_exists' => class_exists(LineIntegrationSetting::class)
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('testLineSettingsApi error', [
+                'exception' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'error_details' => [
+                    'exception_type' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ]
             ], 500);
         }
     }
