@@ -1973,7 +1973,9 @@ class ChatController extends BaseApiController
             }
 
             // Get admin user for assignment
-            $adminUser = \App\Models\User::where('role', 'admin')->first();
+            $adminUser = \App\Models\User::whereHas('roles', function($q) {
+                $q->where('name', 'admin');
+            })->first();
             $assignedTo = $adminUser ? $adminUser->id : 1; // fallback to ID 1
 
             $customer = \App\Models\Customer::create([
