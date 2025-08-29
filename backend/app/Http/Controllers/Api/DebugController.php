@@ -2198,21 +2198,11 @@ class DebugController extends Controller
                 'test_timestamp' => now()->format('Y-m-d H:i:s')
             ];
 
-            // 模擬簽名驗證過程
-            $mockRequest = new \Illuminate\Http\Request();
-            $mockRequest->headers->set('X-Line-Signature', $correctSignature);
-            $mockRequest->setMethod('POST');
-            $mockRequest->merge(['test_mode' => true]);
+            // 簡化簽名驗證測試 - 直接測試簽名生成邏輯
+            $testSignature = base64_encode(hash_hmac('sha256', $testPayload, $channelSecret, true));
             
-            // 設定 request body
-            $mockRequest->instance()->initialize(
-                [], [], [], [], [],
-                ['REQUEST_METHOD' => 'POST', 'CONTENT_TYPE' => 'application/json'],
-                $testPayload
-            );
-
-            // 驗證簽名
-            $verificationPassed = hash_equals($correctSignature, $correctSignature); // 基本測試
+            // 驗證簽名生成是否一致
+            $verificationPassed = hash_equals($correctSignature, $testSignature);
             
             $testResults['test_passed'] = $verificationPassed;
             $testResults['test_details']['verification_result'] = $verificationPassed ? 'PASSED' : 'FAILED';
