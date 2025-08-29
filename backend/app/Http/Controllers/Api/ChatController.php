@@ -343,6 +343,15 @@ class ChatController extends BaseApiController
             $logger->logStep('request_parsed', $requestData);
             Log::info('LINE Webhook received', array_merge($requestData, ['execution_id' => $logger->getExecutionId()]));
             
+            // Log LINE settings status before signature verification
+            $lineSettings = $this->getLineSettings();
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - LINE Settings Status: channel_secret=" . 
+                (!empty($lineSettings['channel_secret']) ? 'configured' : 'MISSING') . 
+                ", channel_access_token=" . (!empty($lineSettings['channel_access_token']) ? 'configured' : 'MISSING') . 
+                " [ExecutionID: " . $logger->getExecutionId() . "]\n", 
+                FILE_APPEND | LOCK_EX);
+            
             // Verify LINE webhook signature
             $signatureValid = $this->verifySignature($request);
             $logger->logSignatureVerification($signatureValid);
@@ -1064,10 +1073,18 @@ class ChatController extends BaseApiController
         $channelSecret = $settings['channel_secret'];
         
         if (!$channelSecret) {
-            Log::error('LINE Channel Secret not configured in database - webhook verification failed', [
+            $errorMsg = 'LINE Channel Secret not configured in database - webhook verification failed';
+            Log::error($errorMsg, [
                 'missing_config' => 'channel_secret not found in line_integration_settings table',
-                'action_required' => 'Configure LINE Channel Secret in line_integration_settings table'
+                'action_required' => 'Configure LINE Channel Secret in line_integration_settings table',
+                'settings_available' => array_keys($settings)
             ]);
+            
+            // Also write to webhook debug log for visibility
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - ERROR: $errorMsg - Missing channel_secret in line_integration_settings table\n", 
+                FILE_APPEND | LOCK_EX);
+                
             return false; // Always require channel secret from database
         }
 
