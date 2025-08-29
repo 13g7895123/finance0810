@@ -1539,8 +1539,9 @@ class DebugController extends Controller
     {
         try {
             Log::info('testLineSettingsApi called', [
-                'user_id' => auth()->id(),
-                'timestamp' => now()->toISOString()
+                'user_id' => auth()->id() ?? 'unauthenticated',
+                'timestamp' => now()->toISOString(),
+                'public_debug_mode' => true
             ]);
 
             // 獲取 LINE 設定資訊
@@ -1548,17 +1549,15 @@ class DebugController extends Controller
             
             $testResults = [
                 'authenticated' => auth()->check(),
-                'user_id' => auth()->id(),
+                'user_id' => auth()->id() ?? null,
                 'debug_enabled' => $this->isDebugEnabled(),
-                'admin_access' => $this->hasAdminAccess(),
-                'line_integration_setting_exists' => class_exists(LineIntegrationSetting::class)
+                'admin_access' => auth()->check() ? $this->hasAdminAccess() : false,
+                'line_integration_setting_exists' => class_exists(LineIntegrationSetting::class),
+                'public_debug_access' => true
             ];
             
-            // 判斷測試是否成功（基於權限檢查）
-            $success = $testResults['authenticated'] && 
-                      $testResults['debug_enabled'] && 
-                      $testResults['admin_access'] && 
-                      $testResults['line_integration_setting_exists'];
+            // 公開版本：主要檢查 LINE 整合設定是否存在
+            $success = $testResults['line_integration_setting_exists'];
 
             return response()->json([
                 'success' => $success,

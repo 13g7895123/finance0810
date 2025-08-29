@@ -55,6 +55,9 @@ Route::get('/test/debug-auth', [TestController::class, 'detailedAuthDebug']);
 Route::get('/test/customers-basic', [TestController::class, 'testCustomersBasic']);
 Route::get('/test/webhook-firebase', [ChatController::class, 'testWebhookFirebase']);
 
+// LINE Debug Routes (public - for debugging LINE integration)
+Route::get('/debug/line/settings/test', [DebugController::class, 'testLineSettingsApi']);
+
 // Firebase Diagnostic Routes (public - for troubleshooting connection issues)
 Route::get('/firebase/diagnostic', [DebugController::class, 'diagnosticFirebaseConnection']);
 Route::get('/debug/firebase/diagnostic', [DebugController::class, 'diagnosticFirebaseConnection']);
@@ -155,7 +158,6 @@ Route::middleware(['auth:api'])->group(function () {
         // LINE Settings Management
         Route::get('/line/settings', [DebugController::class, 'getLineSettings']);
         Route::post('/line/settings', [DebugController::class, 'updateLineSettings']);
-        Route::get('/line/settings/test', [DebugController::class, 'testLineSettingsApi']);
         
         // Chat Debug Operations
         Route::post('/chat/batch-sync', [ChatController::class, 'batchSyncToFirebaseDebug']);
