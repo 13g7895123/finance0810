@@ -4743,25 +4743,19 @@ class ChatController extends BaseApiController
         $executionId = 'debug_' . time() . '_' . rand(1000, 9999);
         
         try {
+            // 先返回基本信息確保端點可以工作
             $events = $request->input('events', []);
-            $processedEvents = [];
-            
-            foreach ($events as $index => $event) {
-                if (isset($event['type']) && $event['type'] === 'message') {
-                    $lineUserId = $event['source']['userId'] ?? 'unknown';
-                    $messageText = $event['message']['text'] ?? '';
-                    
-                    // 直接處理消息事件
-                    $result = $this->processMessageEventDebug($lineUserId, $messageText, $executionId);
-                    $processedEvents[] = $result;
-                }
-            }
             
             return response()->json([
                 'status' => 'success',
                 'execution_id' => $executionId,
-                'events_processed' => count($events),
-                'results' => $processedEvents,
+                'events_received' => count($events),
+                'message' => 'Debug webhook endpoint is working',
+                'request_data' => [
+                    'events_count' => count($events),
+                    'has_events' => !empty($events),
+                    'first_event_type' => isset($events[0]['type']) ? $events[0]['type'] : 'none'
+                ],
                 'timestamp' => now()->format('Y-m-d H:i:s')
             ]);
             
