@@ -2571,4 +2571,47 @@ class DebugController extends Controller
             ], 200);
         }
     }
+
+    /**
+     * Point 20: 使用原生SQL測試ChatConversation創建，避免模型事件
+     */
+    public function point20ConversationRawTest(Request $request)
+    {
+        try {
+            // 先創建一個簡單的customer（如果需要的話）
+            $userId = \DB::table('users')->value('id');
+            if (!$userId) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '沒有可用用戶'
+                ]);
+            }
+
+            // 使用原生SQL插入conversation，避免模型事件
+            $conversationId = \DB::table('chat_conversations')->insertGetId([
+                'line_user_id' => 'U_point20_raw_' . time(),
+                'status' => 'unread',
+                'last_message' => 'Point20原生SQL測試',
+                'last_message_at' => now(),
+                'version' => time(),
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Point 20原生SQL對話創建成功',
+                'conversation_id' => $conversationId,
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+                'point_20_status' => 'RAW_SQL_CONVERSATION_OK'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'point_20_status' => 'RAW_SQL_CONVERSATION_FAILED'
+            ], 200);
+        }
+    }
 }
