@@ -71,6 +71,7 @@ Route::get('/debug/webhook-diagnosis', [DebugController::class, 'webhookDiagnosi
 Route::post('/debug/simulate-webhook', [DebugController::class, 'simulateWebhookEvent']);
 Route::get('/debug/recent-chats', [DebugController::class, 'checkRecentChats']);
 Route::get('/debug/simple-health', [DebugController::class, 'simpleHealthCheck']);
+Route::post('/debug/test-mysql-creation', [DebugController::class, 'testMysqlConversationCreation']);
 
 // Diagnostic routes for Point 85
 Route::get('/diagnostic/basic-health', [\App\Http\Controllers\Api\DiagnosticController::class, 'basicHealth']);
