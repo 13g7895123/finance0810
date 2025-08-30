@@ -4930,6 +4930,9 @@ class ChatController extends BaseApiController
             $logSafe("接收到 " . count($events) . " 個事件");
             
             foreach ($events as $index => $event) {
+                $eventType = $event['type'] ?? 'unknown';
+                $logSafe("檢查事件 $index: type=$eventType");
+                
                 if (isset($event['type']) && $event['type'] === 'message') {
                     $lineUserId = $event['source']['userId'] ?? 'unknown';
                     $messageText = $event['message']['text'] ?? '';
@@ -4942,8 +4945,7 @@ class ChatController extends BaseApiController
                     
                     $logSafe("事件處理結果: " . ($result['status'] === 'success' ? '成功' : '失敗'));
                 } else {
-                    $eventType = $event['type'] ?? 'unknown';
-                    $logSafe("跳過非消息事件: $eventType");
+                    $logSafe("跳過非消息事件: type=$eventType, 原因=不是消息類型");
                     $processedEvents[] = [
                         'status' => 'skipped',
                         'event_type' => $eventType,
@@ -4952,10 +4954,15 @@ class ChatController extends BaseApiController
                 }
             }
             
+            $successfulEvents = array_filter($processedEvents, function($result) {
+                return isset($result['status']) && $result['status'] === 'success';
+            });
+            
             $response = [
                 'status' => 'success',
                 'execution_id' => $executionId,
-                'events_processed' => count($events),
+                'events_received' => count($events),
+                'events_processed' => count($successfulEvents),
                 'results' => $processedEvents,
                 'timestamp' => now()->format('Y-m-d H:i:s'),
                 'note' => 'Processed without signature verification for testing'
