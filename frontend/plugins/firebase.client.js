@@ -4,15 +4,35 @@ import { getDatabase } from 'firebase/database'
 export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig()
   
+  console.log('Firebase plugin loading...')
+  console.log('Runtime config available:', !!config.public)
+  console.log('Firebase config from env:', {
+    apiKey: config.public.firebaseApiKey ? 'configured' : 'missing',
+    databaseUrl: config.public.firebaseDatabaseUrl ? 'configured' : 'missing', 
+    projectId: config.public.firebaseProjectId ? 'configured' : 'missing',
+    messagingSenderId: config.public.firebaseMessagingSenderId ? 'configured' : 'missing',
+    appId: config.public.firebaseAppId ? 'configured' : 'missing'
+  })
+  
   const firebaseConfig = {
-    apiKey: config.public.firebaseApiKey || "AIzaSyAdMi6mBkOW8apD7kyaAObkuZNHBwNkwK8", // Update with finance0810new API key from Firebase Console
-    authDomain: "finance0810new.firebaseapp.com",
+    apiKey: config.public.firebaseApiKey || "AIzaSyAdMi6mBkOW8apD7kyaAObkuZNHBwNkwK8",
+    authDomain: "finance0810new.firebaseapp.com", 
     databaseURL: config.public.firebaseDatabaseUrl || "https://finance0810new-default-rtdb.asia-southeast1.firebasedatabase.app/",
     projectId: config.public.firebaseProjectId || "finance0810new", 
     storageBucket: "finance0810new.firebasestorage.app",
-    messagingSenderId: config.public.firebaseMessagingSenderId || "1037882716873", // Update with finance0810new Sender ID
-    appId: config.public.firebaseAppId || "1:1037882716873:web:d572d3adcc0b4e7c479318" // Update with finance0810new App ID
+    messagingSenderId: config.public.firebaseMessagingSenderId || "1037882716873",
+    appId: config.public.firebaseAppId || "1:1037882716873:web:d572d3adcc0b4e7c479318"
   }
+  
+  console.log('Final Firebase config:', {
+    apiKey: firebaseConfig.apiKey.substring(0, 10) + '...',
+    authDomain: firebaseConfig.authDomain,
+    databaseURL: firebaseConfig.databaseURL,
+    projectId: firebaseConfig.projectId,
+    storageBucket: firebaseConfig.storageBucket,
+    messagingSenderId: firebaseConfig.messagingSenderId,
+    appId: firebaseConfig.appId.substring(0, 15) + '...'
+  })
 
   try {
     // 檢查必要的配置是否存在

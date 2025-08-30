@@ -19,21 +19,38 @@ export const useRealtimeChat = () => {
   const initialize = async () => {
     console.log('初始化Firebase即時聊天系統...')
     
-    // 初始化Firebase
-    const firebaseAvailable = firebaseChat.initializeFirebase()
-    
-    if (!firebaseAvailable || !firebaseChat.isAvailable()) {
-      console.error('Firebase不可用，聊天室無法正常運作')
+    try {
+      // 初始化Firebase
+      const firebaseAvailable = firebaseChat.initializeFirebase()
+      
+      console.log('Firebase初始化結果:', firebaseAvailable)
+      console.log('Firebase可用性檢查:', firebaseChat.isAvailable())
+      
+      if (!firebaseAvailable || !firebaseChat.isAvailable()) {
+        console.error('Firebase不可用，聊天室無法正常運作')
+        console.error('Firebase檢查詳細資訊:', {
+          firebaseAvailable,
+          isAvailable: firebaseChat.isAvailable(),
+          hasNuxtApp: !!useNuxtApp(),
+          hasFirebaseDB: !!useNuxtApp().$firebaseDB
+        })
+        connectionStatus.value = 'error'
+        error.value = 'Firebase連接失敗，請檢查配置'
+        return
+      }
+      
+      console.log('Firebase即時聊天已啟用')
+      connectionStatus.value = 'connected'
+      
+      // 開始監聽Firebase變化
+      await startFirebaseListeners()
+      console.log('Firebase監聽器啟動完成')
+      
+    } catch (error) {
+      console.error('初始化Firebase即時聊天系統失敗:', error)
       connectionStatus.value = 'error'
-      error.value = 'Firebase連接失敗，請檢查配置'
-      return
+      error.value = `初始化失敗: ${error.message}`
     }
-    
-    console.log('Firebase即時聊天已啟用')
-    connectionStatus.value = 'connected'
-    
-    // 開始監聽Firebase變化
-    await startFirebaseListeners()
   }
 
   /**
