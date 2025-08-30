@@ -2491,4 +2491,50 @@ class DebugController extends Controller
             'point_20_status' => 'CONTROLLER_WORKING'
         ]);
     }
+
+    /**
+     * Point 20: 只測試Customer創建
+     */
+    public function point20CustomerTest(Request $request)
+    {
+        try {
+            $user = \App\Models\User::first();
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '沒有可用用戶'
+                ]);
+            }
+            
+            $customerData = [
+                'name' => 'Point20客戶測試_' . time(),
+                'phone' => '0900' . rand(100000, 999999),
+                'line_user_id' => 'U_point20_customer_' . time(),
+                'region' => '台北市',
+                'website_source' => 'Point20客戶測試',
+                'status' => 'new',
+                'assigned_to' => $user->id
+            ];
+            
+            $customer = \App\Models\Customer::create($customerData);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Point 20客戶創建測試成功',
+                'customer_id' => $customer->id,
+                'customer_name' => $customer->name,
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+                'point_20_status' => 'CUSTOMER_CREATION_OK'
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'point_20_status' => 'CUSTOMER_CREATION_FAILED'
+            ], 200);
+        }
+    }
 }

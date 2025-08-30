@@ -76,6 +76,7 @@ Route::post('/debug/test-mysql-creation', [DebugController::class, 'testMysqlCon
 // Point 20: 直接測試MySQL創建功能 - 使用controller方法避免closure問題
 Route::get('/debug/point20-mysql-test', [DebugController::class, 'point20MysqlDirectTest']);
 Route::get('/debug/point20-simple-test', [DebugController::class, 'point20SimpleTest']);
+Route::get('/debug/point20-customer-test', [DebugController::class, 'point20CustomerTest']);
 
 // Diagnostic routes for Point 85
 Route::get('/diagnostic/basic-health', [\App\Http\Controllers\Api\DiagnosticController::class, 'basicHealth']);
