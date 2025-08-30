@@ -41,9 +41,14 @@ class FirebaseChatService
      */
     public function syncConversationToFirebase(ChatConversation $conversation)
     {
-        // Debug logging
+        // Point 19: 改進日誌記錄，處理臨時conversation物件
+        $conversationId = $conversation->id ?? 'temp_' . $conversation->line_user_id;
+        $isTemporary = !$conversation->exists;
+        
         file_put_contents(storage_path('logs/webhook-debug.log'), 
-            date('Y-m-d H:i:s') . " - FirebaseChatService::syncConversationToFirebase called for {$conversation->id}\n", 
+            date('Y-m-d H:i:s') . " - Point19 - FirebaseChatService::syncConversationToFirebase called for {$conversationId}" . 
+            ($isTemporary ? " (temporary object)" : " (saved object)") . 
+            ", LINE ID: {$conversation->line_user_id}\n", 
             FILE_APPEND | LOCK_EX);
             
         // 檢查 Realtime Database 是否可用
@@ -65,14 +70,38 @@ class FirebaseChatService
         }
 
         try {
+            // Point 19: 改進customer檢查，處理臨時物件
             $customer = $conversation->customer;
+            
+            // 如果是臨時物件且沒有loaded customer，嘗試從customer_id載入
+            if (!$customer && $conversation->customer_id) {
+                $customer = \App\Models\Customer::find($conversation->customer_id);
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Point19 - Loaded customer {$customer->id} for temporary conversation\n", 
+                    FILE_APPEND | LOCK_EX);
+            }
+            
             if (!$customer || !$conversation->line_user_id) {
-                Log::channel('firebase')->warning('Cannot sync conversation without customer or LINE user ID', [
-                    'conversation_id' => $conversation->id
+                $errorMsg = "Cannot sync conversation without customer or LINE user ID: customer=" . 
+                    ($customer ? $customer->id : 'null') . ", line_user_id=" . ($conversation->line_user_id ?? 'null');
+                
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Point19 - SYNC FAILED: $errorMsg\n", 
+                    FILE_APPEND | LOCK_EX);
+                    
+                Log::channel('firebase')->warning($errorMsg, [
+                    'conversation_id' => $conversationId,
+                    'is_temporary' => $isTemporary
                 ]);
                 return false;
             }
 
+            // Point 19: 處理臨時物件的時間戳問題
+            $now = \Carbon\Carbon::now();
+            $messageTimestamp = $conversation->message_timestamp ?? $now;
+            $createdAt = $conversation->created_at ?? $now;
+            $updatedAt = $conversation->updated_at ?? $now;
+            
             $conversationData = [
                 'id' => $conversation->line_user_id,
                 'mysqlCustomerId' => $customer->id,
@@ -83,7 +112,7 @@ class FirebaseChatService
                 'customerSource' => $customer->website_source ?: '',
                 'lastMessage' => [
                     'content' => $conversation->message_content,
-                    'timestamp' => $conversation->message_timestamp->toISOString(),
+                    'timestamp' => $messageTimestamp->toISOString(),
                     'senderId' => $conversation->is_from_customer ? 'customer' : 'staff'
                 ],
                 'unreadCount' => [
@@ -91,13 +120,14 @@ class FirebaseChatService
                     'customer' => $this->getUnreadCount($conversation->line_user_id, true)
                 ],
                 'status' => 'active',
-                'created' => $conversation->created_at->toISOString(),
-                'updated' => $conversation->updated_at->toISOString()
+                'created' => $createdAt->toISOString(),
+                'updated' => $updatedAt->toISOString(),
+                'isTemporary' => $isTemporary
             ];
 
             // Debug log conversation data
             file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - About to update Firebase with data: " . json_encode($conversationData) . "\n", 
+                date('Y-m-d H:i:s') . " - Point19 - About to update Firebase with data: " . json_encode($conversationData) . "\n", 
                 FILE_APPEND | LOCK_EX);
 
             // 更新或建立對話節點
@@ -105,30 +135,38 @@ class FirebaseChatService
                 ->update($conversationData);
                 
             file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - Firebase conversation node updated successfully\n", 
+                date('Y-m-d H:i:s') . " - Point19 - Firebase conversation node updated successfully for LINE ID: {$conversation->line_user_id}\n", 
                 FILE_APPEND | LOCK_EX);
 
-            // 同步訊息到子節點
-            $this->syncMessageToFirebase($conversation);
-            
-            file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - Firebase message sync completed\n", 
-                FILE_APPEND | LOCK_EX);
+            // 只有非臨時物件才同步訊息到子節點（因為臨時物件沒有真實ID）
+            if (!$isTemporary) {
+                $this->syncMessageToFirebase($conversation);
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Point19 - Firebase message sync completed\n", 
+                    FILE_APPEND | LOCK_EX);
+            } else {
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Point19 - Skipped message sync for temporary object\n", 
+                    FILE_APPEND | LOCK_EX);
+            }
 
             Log::channel('firebase')->info('Synced conversation to Firebase', [
-                'conversation_id' => $conversation->id,
-                'line_user_id' => $conversation->line_user_id
+                'conversation_id' => $conversationId,
+                'line_user_id' => $conversation->line_user_id,
+                'is_temporary' => $isTemporary
             ]);
 
             return true;
         } catch (\Exception $e) {
-            $errorMsg = "Failed to sync conversation {$conversation->id} to Firebase: " . $e->getMessage();
+            $errorMsg = "Failed to sync conversation {$conversationId} to Firebase: " . $e->getMessage();
             file_put_contents(storage_path('logs/webhook-debug.log'), 
-                date('Y-m-d H:i:s') . " - FIREBASE SYNC ERROR: $errorMsg\n", 
+                date('Y-m-d H:i:s') . " - Point19 - FIREBASE SYNC ERROR: $errorMsg\n", 
                 FILE_APPEND | LOCK_EX);
                 
             Log::channel('firebase')->error('Failed to sync conversation to Firebase', [
-                'conversation_id' => $conversation->id,
+                'conversation_id' => $conversationId,
+                'line_user_id' => $conversation->line_user_id,
+                'is_temporary' => $isTemporary,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'file' => $e->getFile(),
