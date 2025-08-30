@@ -45,49 +45,49 @@ class ChatConversation extends Model
      */
     protected static function booted()
     {
-        // 當創建新訊息時
+        // 當創建新訊息時 - Point 20: 強化錯誤處理，防止阻擋創建流程
         static::creating(function ($conversation) {
+            // Point 20: 安全的版本設定，絕不中斷創建
             try {
-                $versionService = app(\App\Services\ChatVersionService::class);
-                $newVersion = $versionService->incrementVersion();
-                $conversation->version = $newVersion;
-                
-                // 記錄版本設定成功
-                file_put_contents(storage_path('logs/webhook-debug.log'), 
-                    date('Y-m-d H:i:s') . " - Version set to {$newVersion} for conversation\n", 
-                    FILE_APPEND | LOCK_EX);
+                try {
+                    $versionService = app(\App\Services\ChatVersionService::class);
+                    $newVersion = $versionService->incrementVersion();
+                    $conversation->version = $newVersion;
                     
+                    // 記錄版本設定成功
+                    @file_put_contents(storage_path('logs/webhook-debug.log'), 
+                        date('Y-m-d H:i:s') . " - Point20 - Version set to {$newVersion} for conversation\n", 
+                        FILE_APPEND | LOCK_EX);
+                        
+                } catch (\Exception $e) {
+                    // 版本服務失敗時使用時間戳作為版本
+                    $conversation->version = time();
+                    
+                    @file_put_contents(storage_path('logs/webhook-debug.log'), 
+                        date('Y-m-d H:i:s') . " - Point20 - ChatVersionService failed, using timestamp: " . $e->getMessage() . "\n", 
+                        FILE_APPEND | LOCK_EX);
+                }
+                
             } catch (\Exception $e) {
-                // 版本服務失敗時使用時間戳作為版本
+                // 如果連時間戳都設定失敗，使用當前時間戳
                 $conversation->version = time();
-                
-                file_put_contents(storage_path('logs/webhook-debug.log'), 
-                    date('Y-m-d H:i:s') . " - ChatVersionService failed, using timestamp: " . $e->getMessage() . "\n", 
+                @file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Point20 - Critical: Version setting completely failed, using time(): " . $e->getMessage() . "\n", 
                     FILE_APPEND | LOCK_EX);
-                    
-                \Log::channel('firebase')->warning('ChatVersionService failed during conversation creation', [
-                    'error' => $e->getMessage(),
-                    'conversation_data' => $conversation->toArray()
-                ]);
             }
             
-            // Firebase 同步 - 背景處理（不能阻擋創建過程）
+            // Point 20: Firebase 同步 - 完全隔離，絕不影響創建
             try {
                 static::syncToFirebaseAsync($conversation, 'sync');
                 
-                file_put_contents(storage_path('logs/webhook-debug.log'), 
-                    date('Y-m-d H:i:s') . " - Firebase sync job dispatched for conversation\n", 
+                @file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Point20 - Firebase sync job dispatched for conversation\n", 
                     FILE_APPEND | LOCK_EX);
                     
             } catch (\Exception $e) {
-                file_put_contents(storage_path('logs/webhook-debug.log'), 
-                    date('Y-m-d H:i:s') . " - Firebase sync job dispatch failed: " . $e->getMessage() . "\n", 
+                @file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Point20 - Firebase sync job dispatch failed (non-critical): " . $e->getMessage() . "\n", 
                     FILE_APPEND | LOCK_EX);
-                    
-                \Log::channel('firebase')->warning('Firebase sync job dispatch failed during conversation creation', [
-                    'error' => $e->getMessage(),
-                    'conversation_data' => $conversation->toArray()
-                ]);
             }
         });
         
@@ -121,24 +121,21 @@ class ChatConversation extends Model
             }
         });
 
-        // 當訊息創建完成後，更新員工統計
+        // 當訊息創建完成後，更新員工統計 - Point 20: 非關鍵性功能，隔離錯誤
         static::created(function ($conversation) {
             try {
                 static::updateStaffStatsAsync($conversation);
                 
-                file_put_contents(storage_path('logs/webhook-debug.log'), 
-                    date('Y-m-d H:i:s') . " - Staff stats update job dispatched for conversation {$conversation->id}\n", 
+                @file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Point20 - Staff stats update job dispatched for conversation {$conversation->id}\n", 
                     FILE_APPEND | LOCK_EX);
                     
             } catch (\Exception $e) {
-                file_put_contents(storage_path('logs/webhook-debug.log'), 
-                    date('Y-m-d H:i:s') . " - Staff stats update failed for conversation {$conversation->id}: " . $e->getMessage() . "\n", 
+                @file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Point20 - Staff stats update failed (non-critical) for conversation {$conversation->id}: " . $e->getMessage() . "\n", 
                     FILE_APPEND | LOCK_EX);
                     
-                \Log::channel('firebase')->warning('Staff stats update failed during conversation created event', [
-                    'error' => $e->getMessage(),
-                    'conversation_id' => $conversation->id
-                ]);
+                // Point 20: 不拋出異常，確保不影響主要流程
             }
         });
 
