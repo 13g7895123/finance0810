@@ -2385,4 +2385,110 @@ class DebugController extends Controller
             ]);
         }
     }
+
+    /**
+     * Point 20: 直接測試MySQL創建功能
+     * 不使用closure避免部署問題
+     */
+    public function point20MysqlDirectTest(Request $request)
+    {
+        try {
+            // 檢查用戶
+            $user = \App\Models\User::first();
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'error' => '沒有可用用戶',
+                    'point_20_status' => 'NO_USERS'
+                ]);
+            }
+            
+            // 創建測試客戶
+            $customerData = [
+                'name' => 'Point20直接測試_' . time(),
+                'phone' => '0900' . rand(100000, 999999),
+                'line_user_id' => 'U_point20_direct_' . time(),
+                'region' => '台北市',
+                'website_source' => 'Point20直接測試',
+                'status' => 'new',
+                'assigned_to' => $user->id
+            ];
+            
+            $customer = \App\Models\Customer::create($customerData);
+            
+            // 記錄Point 20測試開始
+            file_put_contents(
+                storage_path('logs/webhook-debug.log'),
+                date('Y-m-d H:i:s') . " - Point20直接測試 - 客戶創建成功，準備測試ChatConversation\n",
+                FILE_APPEND | LOCK_EX
+            );
+            
+            // 測試ChatConversation創建 - 這裡是Point 20的核心問題
+            $conversationData = [
+                'customer_id' => $customer->id,
+                'line_user_id' => $customer->line_user_id,
+                'status' => 'unread',
+                'last_message' => 'Point20直接測試: ' . now()->format('H:i:s'),
+                'last_message_at' => now(),
+            ];
+            
+            file_put_contents(
+                storage_path('logs/webhook-debug.log'),
+                date('Y-m-d H:i:s') . " - Point20直接測試 - 準備創建ChatConversation，資料: " . json_encode($conversationData) . "\n",
+                FILE_APPEND | LOCK_EX
+            );
+            
+            $conversation = \App\Models\ChatConversation::create($conversationData);
+            
+            file_put_contents(
+                storage_path('logs/webhook-debug.log'),
+                date('Y-m-d H:i:s') . " - Point20直接測試 - ChatConversation創建成功，ID: {$conversation->id}, version: {$conversation->version}\n",
+                FILE_APPEND | LOCK_EX
+            );
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Point 20直接測試成功 - MySQL創建正常',
+                'customer_id' => $customer->id,
+                'conversation_id' => $conversation->id,
+                'version' => $conversation->version,
+                'point_20_status' => 'MYSQL_WORKING',
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+                'debug_info' => [
+                    'customer_created' => true,
+                    'conversation_created' => true,
+                    'model_events_triggered' => 'Point20修復的events已執行'
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            file_put_contents(
+                storage_path('logs/webhook-debug.log'),
+                date('Y-m-d H:i:s') . " - Point20直接測試失敗: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine() . "\n",
+                FILE_APPEND | LOCK_EX
+            );
+            
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'point_20_status' => 'MYSQL_FAILED'
+            ], 200);
+        }
+    }
+
+    /**
+     * Point 20: 簡單測試方法
+     */
+    public function point20SimpleTest(Request $request)
+    {
+        return response()->json([
+            'success' => true,
+            'message' => 'Point 20 簡單測試成功',
+            'timestamp' => now()->format('Y-m-d H:i:s'),
+            'environment' => app()->environment(),
+            'point_20_status' => 'CONTROLLER_WORKING'
+        ]);
+    }
 }
