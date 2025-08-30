@@ -650,13 +650,31 @@ class ChatController extends BaseApiController
         $messageText = $event['message']['text'] ?? null;
         $timestamp = $event['timestamp'] ?? null;
         
+        // Point 17: 強化接收訊息的日誌記錄
         $logger->logStep("text_message_{$eventIndex}_processing", [
             'line_user_id' => $lineUserId,
+            'message_text' => $messageText, // 完整訊息內容
             'message_length' => strlen($messageText ?? ''),
-            'timestamp' => $timestamp
+            'timestamp' => $timestamp,
+            'raw_timestamp' => $timestamp,
+            'formatted_timestamp' => $timestamp ? \Carbon\Carbon::createFromTimestamp($timestamp / 1000)->toDateTimeString() : null
         ]);
 
+        // 額外記錄到webhook-debug.log用於追蹤
+        $logSafe = function($message) {
+            try {
+                @file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Point17 - $message\n", 
+                    FILE_APPEND | LOCK_EX);
+            } catch (\Exception $e) {
+                // 忽略日誌寫入失敗
+            }
+        };
+        
+        $logSafe("接收到LINE訊息: 用戶ID={$lineUserId}, 訊息內容='{$messageText}', 訊息長度=" . strlen($messageText ?? ''));
+
         if (!$lineUserId || !$messageText) {
+            $logSafe("訊息驗證失敗: 缺少用戶ID或訊息內容");
             $logger->logStep("text_message_{$eventIndex}_invalid", [
                 'missing_user_id' => !$lineUserId,
                 'missing_text' => !$messageText,
@@ -691,6 +709,8 @@ class ChatController extends BaseApiController
                 'assigned_to' => $customer->assigned_to
             ]);
 
+            $logSafe("準備建立對話記錄: 客戶ID={$customer->id}, 承辦人={$customer->assigned_to}");
+            
             DB::beginTransaction();
             $logger->logDatabaseTransaction('begin', true, ['operation' => 'conversation_creation']);
 
@@ -713,28 +733,37 @@ class ChatController extends BaseApiController
             DB::commit();
             $logger->logDatabaseTransaction('commit', true, ['conversation_id' => $conversation->id]);
             
+            $logSafe("MySQL對話記錄創建成功: ID={$conversation->id}, 客戶ID={$customer->id}, 訊息='{$messageText}'");
+            
             $logger->logConversationOperation('created', $conversation->id, [
                 'message_type' => 'text',
                 'message_length' => strlen($messageText),
                 'customer_id' => $customer->id
             ]);
 
-            // Firebase sync
+            // Firebase sync - Point 17: 確保資料傳送到realtime database
+            $firebaseSync = false;
             try {
+                $logSafe("準備同步到Firebase: 對話ID={$conversation->id}");
                 $logger->logStep("firebase_sync_{$eventIndex}_start", ['conversation_id' => $conversation->id]);
+                
                 $firebaseSync = $this->firebaseChatService->syncConversationToFirebase($conversation);
                 
                 $logger->logFirebaseSync($firebaseSync, $conversation->id);
                 
                 if ($firebaseSync) {
+                    $logSafe("Firebase同步成功: 對話ID={$conversation->id}, 用戶ID={$lineUserId}");
                     Log::info('Firebase sync successful', [
                         'conversation_id' => $conversation->id,
                         'line_user_id' => $lineUserId,
                         'execution_id' => $logger->getExecutionId()
                     ]);
+                } else {
+                    $logSafe("Firebase同步失敗: 對話ID={$conversation->id}, 返回值=false");
                 }
                 
             } catch (\Exception $e) {
+                $logSafe("Firebase同步異常: 對話ID={$conversation->id}, 錯誤={$e->getMessage()}");
                 $logger->logFirebaseSync(false, $conversation->id, $e->getMessage());
                 Log::error('Firebase sync failed', [
                     'conversation_id' => $conversation->id,
@@ -1980,11 +2009,33 @@ class ChatController extends BaseApiController
                 return $existingCustomer;
             }
 
-            // Get admin user for assignment
-            $adminUser = \App\Models\User::whereHas('roles', function($q) {
-                $q->where('name', 'admin');
-            })->first();
-            $assignedTo = $adminUser ? $adminUser->id : 1; // fallback to ID 1
+            // Get admin user for assignment - 改進的錯誤處理
+            $assignedTo = 1; // 預設備用值
+            try {
+                $adminUser = \App\Models\User::whereHas('roles', function($q) {
+                    $q->where('name', 'admin');
+                })->first();
+                
+                if ($adminUser) {
+                    $assignedTo = $adminUser->id;
+                    file_put_contents(storage_path('logs/webhook-debug.log'), 
+                        date('Y-m-d H:i:s') . " - Point17 - 找到admin用戶: ID={$adminUser->id}, Name={$adminUser->name}\n", 
+                        FILE_APPEND | LOCK_EX);
+                } else {
+                    // 如果沒有admin角色用戶，嘗試找第一個可用用戶
+                    $firstUser = \App\Models\User::first();
+                    if ($firstUser) {
+                        $assignedTo = $firstUser->id;
+                        file_put_contents(storage_path('logs/webhook-debug.log'), 
+                            date('Y-m-d H:i:s') . " - Point17 - 沒有admin用戶，使用第一個用戶: ID={$firstUser->id}\n", 
+                            FILE_APPEND | LOCK_EX);
+                    }
+                }
+            } catch (\Exception $roleError) {
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Point17 - 角色查詢失敗: " . $roleError->getMessage() . "，使用預設ID=1\n", 
+                    FILE_APPEND | LOCK_EX);
+            }
 
             $customer = \App\Models\Customer::create([
                 'name' => 'LINE用戶 ' . substr($lineUserId, -6),
@@ -4790,10 +4841,17 @@ class ChatController extends BaseApiController
             $customer = \App\Models\Customer::where('line_user_id', $lineUserId)->first();
             
             if (!$customer) {
-                // 創建新客戶
-                $adminUser = \App\Models\User::whereHas('roles', function($q) {
-                    $q->where('name', 'admin');
-                })->first();
+                // 創建新客戶 - 改進角色查詢
+                $adminUser = null;
+                try {
+                    $adminUser = \App\Models\User::whereHas('roles', function($q) {
+                        $q->where('name', 'admin');
+                    })->first();
+                } catch (\Exception $e) {
+                    file_put_contents(storage_path('logs/webhook-debug.log'), 
+                        date('Y-m-d H:i:s') . " - Point17 - 角色查詢失敗: " . $e->getMessage() . "\n", 
+                        FILE_APPEND | LOCK_EX);
+                }
                 
                 $customer = \App\Models\Customer::create([
                     'name' => 'LINE用戶 ' . substr($lineUserId, -6),
@@ -4934,10 +4992,17 @@ class ChatController extends BaseApiController
             $wasNewCustomer = false;
             
             if (!$customer) {
-                // 創建新客戶
-                $adminUser = \App\Models\User::whereHas('roles', function($q) {
-                    $q->where('name', 'admin');
-                })->first();
+                // 創建新客戶 - 改進角色查詢
+                $adminUser = null;
+                try {
+                    $adminUser = \App\Models\User::whereHas('roles', function($q) {
+                        $q->where('name', 'admin');
+                    })->first();
+                } catch (\Exception $e) {
+                    file_put_contents(storage_path('logs/webhook-debug.log'), 
+                        date('Y-m-d H:i:s') . " - Point17 - 角色查詢失敗: " . $e->getMessage() . "\n", 
+                        FILE_APPEND | LOCK_EX);
+                }
                 
                 $customer = \App\Models\Customer::create([
                     'name' => 'LINE用戶 ' . substr($lineUserId, -6),
