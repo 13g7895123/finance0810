@@ -161,6 +161,16 @@ Route::get('/debug/point20-mysql-test', function() {
     }
 });
 
+// Point 20: 最簡單的測試路由
+Route::get('/debug/point20-simple-test', function() {
+    return response()->json([
+        'success' => true,
+        'message' => 'Point 20 簡單測試成功',
+        'timestamp' => now()->format('Y-m-d H:i:s'),
+        'environment' => app()->environment()
+    ]);
+});
+
 // Diagnostic routes for Point 85
 Route::get('/diagnostic/basic-health', [\App\Http\Controllers\Api\DiagnosticController::class, 'basicHealth']);
 Route::get('/diagnostic/database-check', [\App\Http\Controllers\Api\DiagnosticController::class, 'databaseCheck']);
