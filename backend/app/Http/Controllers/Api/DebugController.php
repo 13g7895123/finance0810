@@ -2300,6 +2300,14 @@ class DebugController extends Controller
         $logSafe("開始MySQL conversation創建測試");
         
         try {
+            // 先檢查是否有可用的用戶
+            $availableUser = \App\Models\User::first();
+            if (!$availableUser) {
+                throw new \Exception('No users found in database for assignment');
+            }
+            
+            $logSafe("找到可用用戶: ID={$availableUser->id}, Name={$availableUser->name}");
+            
             // Step 1: 創建測試customer
             $customerData = [
                 'name' => 'MySQL測試客戶_' . time(),
@@ -2308,7 +2316,7 @@ class DebugController extends Controller
                 'region' => '台北市',
                 'website_source' => 'MySQL測試',
                 'status' => 'new', // 使用正確的ENUM值
-                'assigned_to' => 1 // 假設用戶ID 1存在
+                'assigned_to' => $availableUser->id // 使用實際存在的用戶ID
             ];
             
             $logSafe("嘗試創建客戶: " . json_encode($customerData));
@@ -2400,13 +2408,23 @@ class DebugController extends Controller
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-                'point20_status' => 'MySQL創建仍然有問題，需要進一步診斷'
+                'point20_status' => 'MySQL創建仍然有問題，需要進一步診斷',
+                'previous_exception' => $e->getPrevious() ? [
+                    'message' => $e->getPrevious()->getMessage(),
+                    'file' => $e->getPrevious()->getFile(),
+                    'line' => $e->getPrevious()->getLine()
+                ] : null,
+                'context' => [
+                    'php_version' => PHP_VERSION,
+                    'laravel_version' => app()->version(),
+                    'test_environment' => app()->environment()
+                ]
             ];
             
             $logSafe("測試失敗: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine());
+            $logSafe("完整錯誤堆疊: " . $e->getTraceAsString());
             
-            return response()->json($error);
+            return response()->json($error, 200); // 返回200避免被Laravel錯誤處理器攔截
         }
     }
 
