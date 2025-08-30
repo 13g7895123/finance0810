@@ -2429,8 +2429,8 @@ class DebugController extends Controller
                 'line_user_id' => $customer->line_user_id,
                 'status' => 'unread',
                 'message_content' => 'Point20直接測試訊息內容: ' . now()->format('H:i:s'),
-                'last_message' => 'Point20直接測試: ' . now()->format('H:i:s'),
-                'last_message_at' => now(),
+                'message_timestamp' => now(),
+                'is_from_customer' => true,
             ];
             
             file_put_contents(
@@ -2593,8 +2593,8 @@ class DebugController extends Controller
                 'line_user_id' => 'U_point20_raw_' . time(),
                 'status' => 'unread',
                 'message_content' => 'Point20原生SQL測試內容',
-                'last_message' => 'Point20原生SQL測試',
-                'last_message_at' => now(),
+                'message_timestamp' => now(),
+                'is_from_customer' => true,
                 'version' => time(),
                 'created_at' => now(),
                 'updated_at' => now()
