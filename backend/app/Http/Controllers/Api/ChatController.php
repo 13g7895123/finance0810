@@ -4924,9 +4924,11 @@ class ChatController extends BaseApiController
         $logSafe("無簽名驗證 Webhook 被呼叫，來自 IP: " . $request->ip());
         
         try {
+            $requestData = $request->all();
             $events = $request->input('events', []);
             $processedEvents = [];
             
+            $logSafe("原始請求數據: " . json_encode($requestData));
             $logSafe("接收到 " . count($events) . " 個事件");
             
             foreach ($events as $index => $event) {
