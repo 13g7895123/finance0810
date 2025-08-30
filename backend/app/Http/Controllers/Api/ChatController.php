@@ -4997,4 +4997,182 @@ class ChatController extends BaseApiController
             ];
         }
     }
+
+    /**
+     * 模擬 LINE Webhook 請求 - Point 16
+     * 使用真實的LINE設定來模擬webhook觸發，用於測試簽名驗證和完整流程
+     */
+    public function webhookSimulate(Request $request)
+    {
+        $executionId = 'simulate_' . time() . '_' . rand(1000, 9999);
+        
+        try {
+            // 1. 獲取真實的LINE設定
+            $lineSettings = $this->getLineSettings();
+            
+            // 檢查必要設定是否存在
+            if (empty($lineSettings['channel_secret']) || empty($lineSettings['channel_access_token'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'LINE設定不完整，無法進行模擬',
+                    'line_settings' => [
+                        'channel_secret' => !empty($lineSettings['channel_secret']) ? 'configured' : 'MISSING',
+                        'channel_access_token' => !empty($lineSettings['channel_access_token']) ? 'configured' : 'MISSING',
+                        'bot_basic_id' => $lineSettings['bot_basic_id'] ?? 'not_set'
+                    ],
+                    'execution_id' => $executionId
+                ], 400);
+            }
+
+            // 2. 構造標準的LINE webhook事件
+            $testMessage = $request->input('message', '模擬測試訊息 - ' . now()->format('Y-m-d H:i:s'));
+            $testUserId = $request->input('user_id', 'U' . strtolower(substr(md5($executionId), 0, 32)));
+            
+            $webhookPayload = [
+                'destination' => $lineSettings['bot_basic_id'] ?? 'test-destination',
+                'events' => [
+                    [
+                        'type' => 'message',
+                        'mode' => 'active',
+                        'timestamp' => now()->timestamp * 1000,
+                        'source' => [
+                            'type' => 'user',
+                            'userId' => $testUserId
+                        ],
+                        'webhookEventId' => '01' . strtoupper(substr(md5($executionId), 0, 30)),
+                        'deliveryContext' => [
+                            'isRedelivery' => false
+                        ],
+                        'message' => [
+                            'id' => strtolower(substr(md5($testMessage . $executionId), 0, 16)),
+                            'type' => 'text',
+                            'quoteToken' => strtolower(substr(md5($testMessage . time()), 0, 32)),
+                            'text' => $testMessage
+                        ],
+                        'replyToken' => strtolower(substr(md5($testUserId . time()), 0, 32))
+                    ]
+                ]
+            ];
+
+            $bodyJson = json_encode($webhookPayload);
+            
+            // 3. 使用真實channel_secret生成HMAC簽名
+            $channelSecret = $lineSettings['channel_secret'];
+            $signature = base64_encode(hash_hmac('sha256', $bodyJson, $channelSecret, true));
+
+            // 4. 向自己的webhook端點發送模擬請求
+            $webhookUrl = url('/api/line/webhook');
+            
+            $client = new \GuzzleHttp\Client();
+            $response = $client->post($webhookUrl, [
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'X-Line-Signature' => $signature,
+                    'User-Agent' => 'LineBotWebhook/2.0'
+                ],
+                'body' => $bodyJson,
+                'timeout' => 30
+            ]);
+
+            $responseBody = $response->getBody()->getContents();
+            $responseData = json_decode($responseBody, true);
+
+            // 5. 組織回傳結果
+            return response()->json([
+                'success' => true,
+                'execution_id' => $executionId,
+                'line_settings' => [
+                    'channel_secret' => $this->maskSensitiveValue($lineSettings['channel_secret'], 4, 4),
+                    'channel_access_token' => $this->maskSensitiveValue($lineSettings['channel_access_token'], 10, 6),
+                    'bot_basic_id' => $lineSettings['bot_basic_id'] ?? 'not_configured',
+                    'auto_reply_enabled' => $lineSettings['auto_reply_enabled'] ?? false
+                ],
+                'simulated_message' => [
+                    'user_id' => $testUserId,
+                    'message_text' => $testMessage,
+                    'timestamp' => now()->format('Y-m-d H:i:s')
+                ],
+                'webhook_request' => [
+                    'url' => $webhookUrl,
+                    'signature_generated' => true,
+                    'signature_value' => substr($signature, 0, 20) . '...',
+                    'body_size' => strlen($bodyJson)
+                ],
+                'webhook_response' => [
+                    'status_code' => $response->getStatusCode(),
+                    'response_data' => $responseData,
+                    'signature_verified' => $response->getStatusCode() < 400
+                ],
+                'test_details' => [
+                    'webhook_payload_events' => count($webhookPayload['events']),
+                    'signature_algorithm' => 'HMAC-SHA256',
+                    'base64_encoded' => true
+                ]
+            ]);
+
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            $responseBody = '';
+            $statusCode = null;
+            
+            if ($e->hasResponse()) {
+                $responseBody = $e->getResponse()->getBody()->getContents();
+                $statusCode = $e->getResponse()->getStatusCode();
+            }
+            
+            return response()->json([
+                'success' => false,
+                'execution_id' => $executionId,
+                'error_type' => 'webhook_request_failed',
+                'message' => 'Webhook請求失敗: HTTP ' . $statusCode,
+                'line_settings' => [
+                    'channel_secret' => $this->maskSensitiveValue($lineSettings['channel_secret'] ?? '', 4, 4),
+                    'channel_access_token' => $this->maskSensitiveValue($lineSettings['channel_access_token'] ?? '', 10, 6),
+                    'bot_basic_id' => $lineSettings['bot_basic_id'] ?? 'not_configured'
+                ],
+                'error_details' => [
+                    'http_status' => $statusCode,
+                    'response_body' => $responseBody,
+                    'exception_message' => $e->getMessage()
+                ]
+            ], 500);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'execution_id' => $executionId,
+                'error_type' => 'general_error',
+                'message' => '模擬請求過程發生錯誤: ' . $e->getMessage(),
+                'line_settings' => [
+                    'channel_secret' => isset($lineSettings['channel_secret']) ? 
+                        $this->maskSensitiveValue($lineSettings['channel_secret'], 4, 4) : 'not_configured',
+                    'channel_access_token' => isset($lineSettings['channel_access_token']) ? 
+                        $this->maskSensitiveValue($lineSettings['channel_access_token'], 10, 6) : 'not_configured'
+                ],
+                'error_details' => [
+                    'exception_message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * 遮罩敏感資訊的輔助方法
+     */
+    private function maskSensitiveValue($value, $prefixLength = 4, $suffixLength = 4)
+    {
+        if (empty($value)) {
+            return 'not_configured';
+        }
+        
+        $length = strlen($value);
+        if ($length <= $prefixLength + $suffixLength) {
+            return str_repeat('*', $length);
+        }
+        
+        return substr($value, 0, $prefixLength) . 
+               str_repeat('*', max(1, $length - $prefixLength - $suffixLength)) . 
+               substr($value, -$suffixLength);
+    }
 }
