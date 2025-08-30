@@ -2596,6 +2596,7 @@ class DebugController extends Controller
                 'message_timestamp' => now(),
                 'is_from_customer' => true,
                 'version' => time(),
+                'version_updated_at' => now(), // Point 24: 添加缺失的version_updated_at字段
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
