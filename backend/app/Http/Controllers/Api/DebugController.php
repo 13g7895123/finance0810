@@ -2307,7 +2307,7 @@ class DebugController extends Controller
                 'line_user_id' => 'U_mysql_test_' . time(),
                 'region' => '台北市',
                 'website_source' => 'MySQL測試',
-                'status' => '待處理',
+                'status' => 'new', // 使用正確的ENUM值
                 'assigned_to' => 1 // 假設用戶ID 1存在
             ];
             
