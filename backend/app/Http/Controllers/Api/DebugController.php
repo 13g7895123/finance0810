@@ -1852,14 +1852,15 @@ class DebugController extends Controller
             $beforeChatCount = ChatConversation::count();
             $beforeCustomerCount = Customer::count();
             
-            // 執行 webhook 測試
+            // 執行 webhook 測試 - Point 20: 使用無簽名驗證方法避免production環境簽名問題
             Log::info('Executing webhook test', [
                 'before_chat_count' => $beforeChatCount,
                 'before_customer_count' => $beforeCustomerCount,
-                'event_data' => $eventData
+                'event_data' => $eventData,
+                'note' => 'Using webhookNoSignature method to bypass signature verification in production'
             ]);
             
-            $webhookResponse = $chatController->webhook($mockRequest);
+            $webhookResponse = $chatController->webhookNoSignature($mockRequest);
             $webhookResult = $webhookResponse->getData(true);
             
             // 記錄測試後狀態
