@@ -2283,8 +2283,17 @@ class DebugController extends Controller
      * Point 20: 直接測試MySQL conversation創建功能
      * 不涉及webhook或簽名驗證，純粹測試資料庫創建
      */
-    public function testMysqlConversationCreation(Request $request): JsonResponse
+    public function testMysqlConversationCreation(Request $request)
     {
+        // 先返回簡單響應確認路由工作
+        return response()->json([
+            'success' => true,
+            'message' => 'Point 20 MySQL測試API正常工作',
+            'timestamp' => now()->format('Y-m-d H:i:s'),
+            'method' => $request->method(),
+            'route' => 'testMysqlConversationCreation'
+        ]);
+        
         $testId = 'mysql_test_' . time() . '_' . rand(1000, 9999);
         
         $logSafe = function($message) use ($testId) {
