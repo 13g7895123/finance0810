@@ -703,18 +703,16 @@ class ChatController extends BaseApiController
                 'customer_name' => $customer->name
             ]);
 
-            // Conversation creation
-            $logger->logStep("conversation_{$eventIndex}_creation_start", [
+            // Point 18: 調整順序 - 先Firebase後MySQL
+            $logger->logStep("data_preparation_{$eventIndex}_start", [
                 'customer_id' => $customer->id,
                 'assigned_to' => $customer->assigned_to
             ]);
 
-            $logSafe("準備建立對話記錄: 客戶ID={$customer->id}, 承辦人={$customer->assigned_to}");
+            $logSafe("Point 18: 準備資料處理順序 - 先Firebase後MySQL, 客戶ID={$customer->id}");
             
-            DB::beginTransaction();
-            $logger->logDatabaseTransaction('begin', true, ['operation' => 'conversation_creation']);
-
-            $conversation = ChatConversation::create([
+            // 準備對話資料但先不保存到MySQL
+            $conversationData = [
                 'customer_id' => $customer->id,
                 'user_id' => $customer->assigned_to,
                 'line_user_id' => $lineUserId,
@@ -728,55 +726,89 @@ class ChatController extends BaseApiController
                     'event_timestamp' => $timestamp,
                     'execution_id' => $logger->getExecutionId()
                 ],
-            ]);
+            ];
 
-            DB::commit();
-            $logger->logDatabaseTransaction('commit', true, ['conversation_id' => $conversation->id]);
-            
-            $logSafe("MySQL對話記錄創建成功: ID={$conversation->id}, 客戶ID={$customer->id}, 訊息='{$messageText}'");
-            
-            $logger->logConversationOperation('created', $conversation->id, [
-                'message_type' => 'text',
-                'message_length' => strlen($messageText),
-                'customer_id' => $customer->id
-            ]);
-
-            // Firebase sync - Point 17: 確保資料傳送到realtime database
+            // Step 1: Firebase sync 先行 - Point 18
             $firebaseSync = false;
+            $tempConversation = null;
             try {
-                $logSafe("準備同步到Firebase: 對話ID={$conversation->id}");
-                $logger->logStep("firebase_sync_{$eventIndex}_start", ['conversation_id' => $conversation->id]);
+                $logSafe("Point 18: 第1步 - 先同步到Firebase realtime database");
+                $logger->logStep("firebase_sync_{$eventIndex}_start", ['customer_id' => $customer->id]);
                 
-                $firebaseSync = $this->firebaseChatService->syncConversationToFirebase($conversation);
+                // 創建臨時conversation物件用於Firebase同步
+                $tempConversation = new ChatConversation($conversationData);
+                $tempConversation->id = 'temp_' . time() . '_' . rand(1000, 9999); // 臨時ID
                 
-                $logger->logFirebaseSync($firebaseSync, $conversation->id);
+                $firebaseSync = $this->firebaseChatService->syncConversationToFirebase($tempConversation);
+                
+                $logger->logFirebaseSync($firebaseSync, $tempConversation->id);
                 
                 if ($firebaseSync) {
-                    $logSafe("Firebase同步成功: 對話ID={$conversation->id}, 用戶ID={$lineUserId}");
-                    Log::info('Firebase sync successful', [
-                        'conversation_id' => $conversation->id,
+                    $logSafe("Point 18: Firebase同步成功 - 準備進行MySQL寫入");
+                    Log::info('Firebase sync successful (Point 18 - first step)', [
+                        'temp_conversation_id' => $tempConversation->id,
                         'line_user_id' => $lineUserId,
                         'execution_id' => $logger->getExecutionId()
                     ]);
                 } else {
-                    $logSafe("Firebase同步失敗: 對話ID={$conversation->id}, 返回值=false");
+                    $logSafe("Point 18: Firebase同步失敗 - 仍將繼續MySQL寫入");
                 }
                 
             } catch (\Exception $e) {
-                $logSafe("Firebase同步異常: 對話ID={$conversation->id}, 錯誤={$e->getMessage()}");
-                $logger->logFirebaseSync(false, $conversation->id, $e->getMessage());
-                Log::error('Firebase sync failed', [
-                    'conversation_id' => $conversation->id,
+                $logSafe("Point 18: Firebase同步異常: 錯誤={$e->getMessage()} - 仍將繼續MySQL寫入");
+                $logger->logFirebaseSync(false, $tempConversation->id ?? 'unknown', $e->getMessage());
+                Log::error('Firebase sync failed (Point 18 - first step)', [
                     'error' => $e->getMessage(),
                     'execution_id' => $logger->getExecutionId()
                 ]);
             }
 
+            // Step 2: MySQL conversation 創建 後行 - Point 18
+            $conversation = null;
+            try {
+                $logSafe("Point 18: 第2步 - 保存到MySQL資料庫");
+                
+                DB::beginTransaction();
+                $logger->logDatabaseTransaction('begin', true, ['operation' => 'conversation_creation_after_firebase']);
+
+                $conversation = ChatConversation::create($conversationData);
+
+                DB::commit();
+                $logger->logDatabaseTransaction('commit', true, ['conversation_id' => $conversation->id]);
+                
+                $logSafe("Point 18: MySQL對話記錄創建成功: ID={$conversation->id}, 客戶ID={$customer->id}, 訊息='{$messageText}'");
+                
+                $logger->logConversationOperation('created', $conversation->id, [
+                    'message_type' => 'text',
+                    'message_length' => strlen($messageText),
+                    'customer_id' => $customer->id,
+                    'processing_order' => 'firebase_first_mysql_second'
+                ]);
+
+                // 如果之前Firebase同步成功，更新Firebase中的記錄為實際的conversation ID
+                if ($firebaseSync && $conversation && $tempConversation) {
+                    try {
+                        $logSafe("Point 18: 更新Firebase記錄使用真實conversation ID={$conversation->id}");
+                        $this->firebaseChatService->syncConversationToFirebase($conversation);
+                    } catch (\Exception $e) {
+                        $logSafe("Point 18: Firebase ID更新失敗: " . $e->getMessage());
+                    }
+                }
+                
+            } catch (\Exception $e) {
+                DB::rollBack();
+                $logger->logDatabaseTransaction('rollback', true, ['error' => $e->getMessage()]);
+                $logSafe("Point 18: MySQL對話記錄創建失敗: " . $e->getMessage());
+                throw $e;
+            }
+
             return [
                 'status' => 'success',
                 'customer_id' => $customer->id,
-                'conversation_id' => $conversation->id,
-                'firebase_synced' => $firebaseSync ?? false
+                'conversation_id' => $conversation ? $conversation->id : null,
+                'firebase_synced' => $firebaseSync ?? false,
+                'processing_order' => 'firebase_first_mysql_second',
+                'point18_implemented' => true
             ];
 
         } catch (\Exception $e) {
@@ -5028,18 +5060,74 @@ class ChatController extends BaseApiController
                 $wasNewCustomer = true;
             }
             
-            // 2. 創建聊天對話記錄
-            $conversation = \App\Models\ChatConversation::create([
-                'line_user_id' => $lineUserId,
-                'customer_id' => $customer->id,
-                'message_type' => 'text',
-                'message_content' => $messageText,
-                'direction' => 'incoming',
-                'status' => 'received',
-                'timestamp' => now(),
-                'version' => 1,
-                'version_updated_at' => now(),
-            ]);
+            // Point 18: 調整順序 - 先Firebase後MySQL (handleMessageEventNoSig)
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Point18 NoSig - 開始處理訊息，順序：先Firebase後MySQL\n", 
+                FILE_APPEND | LOCK_EX);
+            
+            // 2a. 先同步到Firebase realtime database
+            $firebaseSync = false;
+            $conversation = null;
+            try {
+                // 準備對話資料
+                $conversationData = [
+                    'line_user_id' => $lineUserId,
+                    'customer_id' => $customer->id,
+                    'message_type' => 'text',
+                    'message_content' => $messageText,
+                    'direction' => 'incoming',
+                    'status' => 'received',
+                    'timestamp' => now(),
+                    'version' => 1,
+                    'version_updated_at' => now(),
+                ];
+                
+                // 創建臨時conversation用於Firebase同步
+                $tempConversation = new \App\Models\ChatConversation($conversationData);
+                $tempConversation->id = 'nosig_' . time() . '_' . rand(1000, 9999);
+                
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Point18 NoSig - 先同步到Firebase, 臨時ID={$tempConversation->id}\n", 
+                    FILE_APPEND | LOCK_EX);
+                
+                $firebaseSync = $this->firebaseChatService->syncConversationToFirebase($tempConversation);
+                
+                if ($firebaseSync) {
+                    file_put_contents(storage_path('logs/webhook-debug.log'), 
+                        date('Y-m-d H:i:s') . " - Point18 NoSig - Firebase同步成功，準備MySQL寫入\n", 
+                        FILE_APPEND | LOCK_EX);
+                } else {
+                    file_put_contents(storage_path('logs/webhook-debug.log'), 
+                        date('Y-m-d H:i:s') . " - Point18 NoSig - Firebase同步失敗，仍進行MySQL寫入\n", 
+                        FILE_APPEND | LOCK_EX);
+                }
+                
+            } catch (\Exception $e) {
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Point18 NoSig - Firebase同步異常: " . $e->getMessage() . "\n", 
+                    FILE_APPEND | LOCK_EX);
+            }
+            
+            // 2b. 然後創建MySQL聊天對話記錄
+            $conversation = \App\Models\ChatConversation::create($conversationData);
+            
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Point18 NoSig - MySQL對話記錄創建成功: ID={$conversation->id}\n", 
+                FILE_APPEND | LOCK_EX);
+                
+            // 如果Firebase同步成功，更新為真實ID
+            if ($firebaseSync && $conversation) {
+                try {
+                    $this->firebaseChatService->syncConversationToFirebase($conversation);
+                    file_put_contents(storage_path('logs/webhook-debug.log'), 
+                        date('Y-m-d H:i:s') . " - Point18 NoSig - Firebase記錄更新為真實ID: {$conversation->id}\n", 
+                        FILE_APPEND | LOCK_EX);
+                } catch (\Exception $e) {
+                    file_put_contents(storage_path('logs/webhook-debug.log'), 
+                        date('Y-m-d H:i:s') . " - Point18 NoSig - Firebase記錄更新失敗: " . $e->getMessage() . "\n", 
+                        FILE_APPEND | LOCK_EX);
+                }
+            }
             
             // 3. 驗證資料是否正確存儲
             $verifyCustomer = \App\Models\Customer::find($customer->id);
@@ -5051,11 +5139,14 @@ class ChatController extends BaseApiController
                 'customer_id' => $customer->id,
                 'customer_created' => $wasNewCustomer,
                 'customer_verified' => !is_null($verifyCustomer),
-                'conversation_id' => $conversation->id,
-                'conversation_verified' => !is_null($verifyConversation),
+                'conversation_id' => $conversation ? $conversation->id : null,
+                'conversation_verified' => $conversation ? !is_null($verifyConversation) : false,
                 'message' => $messageText,
-                'mysql_stored' => true,
-                'firebase_sync_triggered' => true
+                'mysql_stored' => $conversation ? true : false,
+                'firebase_sync_triggered' => true,
+                'firebase_synced' => $firebaseSync,
+                'processing_order' => 'firebase_first_mysql_second',
+                'point18_implemented' => true
             ];
             
         } catch (\Exception $e) {
@@ -5067,7 +5158,9 @@ class ChatController extends BaseApiController
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'mysql_stored' => false,
-                'firebase_sync_triggered' => false
+                'firebase_sync_triggered' => false,
+                'processing_order' => 'firebase_first_mysql_second',
+                'point18_implemented' => true
             ];
         }
     }
