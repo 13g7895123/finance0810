@@ -27,6 +27,7 @@ class ChatConversation extends Model
         'status',
         'metadata',
         'version',
+        'version_updated_at', // Point 24: Added required field
     ];
 
     /**
@@ -38,6 +39,7 @@ class ChatConversation extends Model
         'is_from_customer' => 'boolean',
         'metadata' => 'array',
         'version' => 'integer',
+        'version_updated_at' => 'datetime', // Point 24: Added casting for required field
     ];
     
     /**
@@ -53,12 +55,20 @@ class ChatConversation extends Model
             if (!$conversation->version) {
                 $conversation->version = time();
             }
+            // Point 24: 自動設定 version_updated_at 字段
+            if (!$conversation->version_updated_at) {
+                $conversation->version_updated_at = now();
+            }
         });
         
         static::updating(function ($conversation) {
             // Point 22: 更新時也使用簡單的版本設定
             if (!$conversation->isDirty('version')) {
                 $conversation->version = time();
+            }
+            // Point 24: 更新時也設定 version_updated_at
+            if (!$conversation->isDirty('version_updated_at')) {
+                $conversation->version_updated_at = now();
             }
         });
     }

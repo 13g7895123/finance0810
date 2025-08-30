@@ -208,6 +208,7 @@ class ChatController extends BaseApiController
                 'customer_id' => $customer->id,
                 'user_id' => $user->id, // Use current user instead of assigned_to
                 'line_user_id' => $userId,
+                'version_updated_at' => now(), // Point 24: Added required field
                 'platform' => 'line',
                 'message_type' => 'text',
                 'message_content' => $request->message,
@@ -722,6 +723,7 @@ class ChatController extends BaseApiController
                 'message_timestamp' => $timestamp ? \Carbon\Carbon::createFromTimestamp($timestamp / 1000) : now(),
                 'is_from_customer' => true,
                 'status' => 'unread',
+                'version_updated_at' => now(), // Point 24: Added required field
                 'metadata' => [
                     'event_timestamp' => $timestamp,
                     'execution_id' => $logger->getExecutionId()
@@ -914,6 +916,7 @@ class ChatController extends BaseApiController
                     'customer_id' => $testCustomer->id,
                     'user_id' => $testCustomer->assigned_to,
                     'line_user_id' => $testCustomer->line_user_id,
+                    'version_updated_at' => now(), // Point 24: Added required field
                     'platform' => 'line',
                     'message_type' => 'text',
                     'message_content' => 'TEST MESSAGE - ' . date('Y-m-d H:i:s'),
@@ -1414,6 +1417,7 @@ class ChatController extends BaseApiController
                 'customer_id' => $customer->id,
                 'user_id' => $customer->assigned_to,
                 'line_user_id' => $lineUserId,
+                'version_updated_at' => now(), // Point 24: Added required field
                 'platform' => 'line',
                 'message_type' => 'text',
                 'message_content' => $messageText,
