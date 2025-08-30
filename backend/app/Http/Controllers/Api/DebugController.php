@@ -2537,4 +2537,38 @@ class DebugController extends Controller
             ], 200);
         }
     }
+
+    /**
+     * Point 20: 測試數據庫連接和基本查詢
+     */
+    public function point20DatabaseTest(Request $request)
+    {
+        try {
+            // 測試數據庫連接
+            $connection = \DB::connection()->getPdo();
+            
+            // 測試基本查詢
+            $userCount = \DB::table('users')->count();
+            $customerCount = \DB::table('customers')->count();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Point 20數據庫連接測試成功',
+                'database_info' => [
+                    'connection' => 'OK',
+                    'user_count' => $userCount,
+                    'customer_count' => $customerCount
+                ],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+                'point_20_status' => 'DATABASE_CONNECTION_OK'
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'point_20_status' => 'DATABASE_CONNECTION_FAILED'
+            ], 200);
+        }
+    }
 }

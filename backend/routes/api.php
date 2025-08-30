@@ -77,6 +77,7 @@ Route::post('/debug/test-mysql-creation', [DebugController::class, 'testMysqlCon
 Route::get('/debug/point20-mysql-test', [DebugController::class, 'point20MysqlDirectTest']);
 Route::get('/debug/point20-simple-test', [DebugController::class, 'point20SimpleTest']);
 Route::get('/debug/point20-customer-test', [DebugController::class, 'point20CustomerTest']);
+Route::get('/debug/point20-database-test', [DebugController::class, 'point20DatabaseTest']);
 
 // Diagnostic routes for Point 85
 Route::get('/diagnostic/basic-health', [\App\Http\Controllers\Api\DiagnosticController::class, 'basicHealth']);
