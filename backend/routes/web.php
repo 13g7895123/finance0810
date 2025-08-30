@@ -4,6 +4,9 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Log;
 
+// Include Point 20 test routes
+require __DIR__ . '/point20-test.php';
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
