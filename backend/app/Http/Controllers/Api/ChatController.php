@@ -36,7 +36,7 @@ class ChatController extends BaseApiController
         $this->cacheService = $cacheService;
         $this->firebaseChatService = $firebaseChatService;
         $this->firebaseSyncService = $firebaseSyncService;
-        $this->middleware('auth:api', ['except' => ['webhook', 'webhookTest', 'webhookSimpleTest', 'webhookDebugTest', 'webhookNoSignature', 'diagnoseDataFlow', 'verifyWebhookExecution', 'webhookStatus']]);
+        $this->middleware('auth:api', ['except' => ['webhook', 'webhookTest', 'webhookSimpleTest', 'webhookDebugTest', 'webhookNoSignature', 'webhookSimulate', 'diagnoseDataFlow', 'verifyWebhookExecution', 'webhookStatus']]);
     }
 
     /**
