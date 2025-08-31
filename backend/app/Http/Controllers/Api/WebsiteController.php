@@ -21,18 +21,18 @@ class WebsiteController extends Controller
         // Point 49: Use safe relationship loading that handles missing foreign keys
         $query = Website::query();
 
-        // Filter by status
-        if ($request->has('status')) {
+        // Filter by status - only filter if value is not empty
+        if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        // Filter by type
-        if ($request->has('type')) {
+        // Filter by type - only filter if value is not empty
+        if ($request->filled('type')) {
             $query->where('type', $request->type);
         }
 
-        // Search by name or domain
-        if ($request->has('search')) {
+        // Search by name or domain - only search if value is not empty
+        if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
@@ -48,12 +48,13 @@ class WebsiteController extends Controller
         $perPage = $request->get('per_page', 15);
         $websites = $query->paginate($perPage);
 
+        // Point 49: Temporarily remove statistics loading to avoid potential issues
         // Add statistics to each website
-        $websites->getCollection()->transform(function ($website) {
-            $website->statistics = $website->getStatistics();
-            $website->is_healthy = $website->isHealthy();
-            return $website;
-        });
+        // $websites->getCollection()->transform(function ($website) {
+        //     $website->statistics = $website->getStatistics();
+        //     $website->is_healthy = $website->isHealthy();
+        //     return $website;
+        // });
 
         return response()->json($websites);
     }
