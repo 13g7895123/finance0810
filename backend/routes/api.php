@@ -113,6 +113,56 @@ Route::get('/test/line-user/basic', function() {
     }
 });
 
+// Point 49: Debug website data retrieval issue
+Route::get('/debug/websites-check', function() {
+    try {
+        // Check basic database connection and table existence
+        $tableExists = \Schema::hasTable('websites');
+        
+        if (!$tableExists) {
+            return response()->json([
+                'success' => false,
+                'error' => 'websites table does not exist'
+            ]);
+        }
+        
+        // Get basic counts
+        $totalCount = \App\Models\Website::count();
+        $activeCount = \App\Models\Website::where('status', 'active')->count();
+        
+        // Get sample data
+        $sampleData = \App\Models\Website::take(3)->get(['id', 'name', 'domain', 'status', 'created_at']);
+        
+        // Test the exact same query as index method
+        $query = \App\Models\Website::with(['createdBy', 'updatedBy']);
+        $testPagination = $query->paginate(15);
+        
+        return response()->json([
+            'success' => true,
+            'table_exists' => $tableExists,
+            'total_websites' => $totalCount,
+            'active_websites' => $activeCount,
+            'sample_data' => $sampleData,
+            'pagination_test' => [
+                'total' => $testPagination->total(),
+                'per_page' => $testPagination->perPage(),
+                'current_page' => $testPagination->currentPage(),
+                'last_page' => $testPagination->lastPage(),
+                'data_count' => $testPagination->count(),
+                'first_item' => $testPagination->items()[0] ?? null,
+            ],
+            'timestamp' => now()->format('c')
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+    }
+});
+
 // Point 34: Test route for customer deletion debugging
 Route::delete('/test/customers/{customer}/delete', function(\App\Models\Customer $customer) {
     \Log::info('Point 34 - Test delete route called', [
