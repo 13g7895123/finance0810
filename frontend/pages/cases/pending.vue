@@ -504,28 +504,16 @@
           
           <div>
             <label class="block text-sm font-semibold text-gray-900 mb-2">選擇承辦業務 <span class="text-red-500">*</span></label>
-            <!-- Debug info -->
-            <div v-if="users.length === 0" class="text-xs text-red-500 mb-2">
-              用戶列表為空，請檢查 loadUsers() 函數
-            </div>
-            <div v-else class="text-xs text-green-500 mb-2">
-              已載入 {{ users.length }} 位用戶
-            </div>
             <select 
               v-model="assignForm.assigned_to" 
               required
               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">請選擇業務人員</option>
-              <!-- 先顯示所有用戶進行調試 -->
-              <option v-for="user in users" :key="user.id" :value="user.id">
-                {{ user.name || user.email || user.id }} ({{ user.role || '無角色' }})
+              <option v-for="user in users.filter(u => u.role === 'sales')" :key="user.id" :value="user.id">
+                {{ user.name || user.email }} (業務)
               </option>
             </select>
-            <!-- Debug: Show all users data -->
-            <div v-if="users.length > 0" class="text-xs text-gray-400 mt-2 max-h-20 overflow-y-auto">
-              調試資訊: {{ JSON.stringify(users.map(u => ({ id: u.id, name: u.name, role: u.role }))) }}
-            </div>
           </div>
 
           <div class="flex justify-end space-x-3 pt-4">
