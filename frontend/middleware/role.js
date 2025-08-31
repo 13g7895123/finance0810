@@ -53,7 +53,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
     '/settings/users': ['user_management', 'all_access'],
     '/settings/permissions': ['all_access'],
     '/settings/theme': ['settings', 'user_management', 'all_access'],
-    '/settings/ui': ['settings', 'user_management', 'all_access']
+    '/settings/ui': ['settings', 'user_management', 'all_access'],
+    '/settings/websites': ['all_access']
   }
 
   // 檢查當前路由是否需要特定權限
