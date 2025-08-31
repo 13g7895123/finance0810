@@ -340,7 +340,8 @@ const loadWebsites = async (page = 1) => {
       })
       return
     }
-    websites.value = data
+    // 後端返回分頁對象，保持完整的分頁信息
+    websites.value = data || { data: [], current_page: 1, last_page: 1, total: 0, from: 0, to: 0 }
   } catch (error) {
     console.error('載入網站失敗:', error)
     useToast().add({
