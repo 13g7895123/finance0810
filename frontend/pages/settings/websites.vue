@@ -122,17 +122,28 @@
                 </span>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                <!-- 編輯按鈕 -->
                 <button 
                   @click="editWebsite(website)" 
-                  class="text-blue-600 hover:text-blue-900"
+                  class="inline-flex items-center justify-center w-8 h-8 text-blue-600 hover:text-white hover:bg-blue-600 rounded transition-colors duration-200 relative group"
+                  title="編輯網站"
                 >
-                  編輯
+                  <Icon name="heroicons:pencil" class="w-4 h-4" />
+                  <span class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                    編輯網站
+                  </span>
                 </button>
+                
+                <!-- 刪除按鈕 -->
                 <button 
                   @click="deleteWebsite(website)" 
-                  class="text-red-600 hover:text-red-900"
+                  class="inline-flex items-center justify-center w-8 h-8 text-red-600 hover:text-white hover:bg-red-600 rounded transition-colors duration-200 relative group"
+                  title="刪除網站"
                 >
-                  刪除
+                  <Icon name="heroicons:trash" class="w-4 h-4" />
+                  <span class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                    刪除網站
+                  </span>
                 </button>
               </td>
             </tr>

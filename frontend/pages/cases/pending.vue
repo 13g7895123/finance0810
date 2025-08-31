@@ -89,9 +89,12 @@
       <template #cell-website="{ item }">
         <div>
           <div class="text-sm font-medium text-gray-900">
-            {{ extractDomain(item.payload?.['頁面_URL'] || item.source) || '-' }}
+            {{ getWebsiteInfo(item.payload?.['頁面_URL'] || item.source).name }}
           </div>
-          <div class="text-xs text-gray-500 truncate max-w-[240px]">
+          <div class="text-xs text-gray-500 truncate max-w-[240px]" v-if="getWebsiteInfo(item.payload?.['頁面_URL'] || item.source).website">
+            {{ getWebsiteInfo(item.payload?.['頁面_URL'] || item.source).domain }}
+          </div>
+          <div class="text-xs text-gray-400 truncate max-w-[240px]" v-else>
             {{ item.payload?.['頁面_URL'] || item.source }}
           </div>
         </div>
@@ -293,8 +296,20 @@
         <form @submit.prevent="saveEdit" class="space-y-3">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label class="block text-sm font-semibold text-gray-900 mb-1">網站（頁面URL）</label>
-              <input v-model="form.page_url" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              <label class="block text-sm font-semibold text-gray-900 mb-1">網站</label>
+              <select v-model="form.website_domain" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <option value="">請選擇網站</option>
+                <option v-for="option in websiteOptions" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+                <option value="other">其他（手動輸入）</option>
+              </select>
+              <input 
+                v-if="form.website_domain === 'other'" 
+                v-model="form.page_url" 
+                placeholder="請輸入完整的網址"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mt-2"
+              />
             </div>
             <div>
               <label class="block text-sm font-semibold text-gray-900 mb-1">來源管道</label>
@@ -414,7 +429,7 @@
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700">網站</label>
-              <p class="text-gray-900">{{ extractDomain(selectedLead.payload?.['頁面_URL'] || selectedLead.source) || '-' }}</p>
+              <p class="text-gray-900">{{ getWebsiteInfo(selectedLead.payload?.['頁面_URL'] || selectedLead.source).name }}</p>
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700">來源管道</label>
@@ -500,6 +515,9 @@ const { list: listLeads, updateOne: updateLead, removeOne: removeLead, convertTo
 const { getUsers } = useUsers()
 const { list: listCustomFields } = useCustomFields()
 
+// Point 50: Website API integration
+const { get: apiGet } = useApi()
+
 // 搜尋和篩選
 const searchQuery = ref('')
 const selectedAssignee = ref('all')
@@ -517,6 +535,10 @@ const caseStats = ref({
   thisWeek: 0,
   processingRate: 0
 })
+
+// Point 50: Website data
+const websites = ref([])
+const websiteOptions = ref([])
 
 // 模態窗口狀態
 const editOpen = ref(false)
@@ -561,6 +583,7 @@ const STATUS_OPTIONS = [
 // 表單數據
 const form = reactive({
   page_url: '',
+  website_domain: '', // Point 50: Add website_domain for dropdown selection
   channel: 'wp',
   status: 'pending',
   created_at: '',
@@ -746,6 +769,23 @@ const loadCaseFields = async () => {
   if (success) caseFields.value = items
 }
 
+// Point 50: Load websites for dropdown options
+const loadWebsites = async () => {
+  try {
+    const { data, error } = await apiGet('/websites/options')
+    if (!error && Array.isArray(data)) {
+      websites.value = data
+      websiteOptions.value = data.map(website => ({
+        value: website.domain,
+        label: website.name,
+        website: website
+      }))
+    }
+  } catch (e) {
+    console.warn('Load websites failed:', e)
+  }
+}
+
 // DataTable event handlers
 const handleSearch = (query) => {
   searchQuery.value = query
@@ -786,8 +826,13 @@ const closeView = () => {
 
 const onEdit = async (lead) => {
   editingId.value = lead.id
+  
+  const pageUrl = lead.payload?.['頁面_URL'] || lead.source || ''
+  const websiteInfo = getWebsiteInfo(pageUrl)
+  
   Object.assign(form, {
-    page_url: lead.payload?.['頁面_URL'] || lead.source || '',
+    page_url: pageUrl,
+    website_domain: websiteInfo.website ? websiteInfo.domain : (pageUrl ? 'other' : ''),
     channel: lead.channel || 'wp',
     status: lead.status || 'pending',
     created_at: lead.created_at ? new Date(lead.created_at).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
@@ -819,6 +864,15 @@ const saveEdit = async () => {
   
   saving.value = true
   try {
+    // Point 50: Handle website_domain selection
+    let finalPageUrl = form.page_url
+    if (form.website_domain && form.website_domain !== 'other') {
+      const selectedWebsite = websites.value.find(w => w.domain === form.website_domain)
+      if (selectedWebsite) {
+        finalPageUrl = selectedWebsite.url
+      }
+    }
+    
     const payload = {
       channel: form.channel,
       status: form.status,
@@ -828,7 +882,7 @@ const saveEdit = async () => {
       assigned_to: form.assigned_to,
       notes: form.notes,
       payload: {
-        '頁面_URL': form.page_url,
+        '頁面_URL': finalPageUrl,
         'LINE_ID': form.line_id,
         '房屋區域': form.region,
         '房屋地址': form.address,
@@ -971,6 +1025,30 @@ const extractDomain = (url) => {
   try { return new URL(url).hostname } catch { return url || '' }
 }
 
+// Point 50: Get website info from domain or URL
+const getWebsiteInfo = (url) => {
+  if (!url) return { name: '-', domain: '', website: null }
+  
+  const domain = extractDomain(url)
+  const website = websites.value.find(w => 
+    w.domain === domain || w.domain === url || url.includes(w.domain)
+  )
+  
+  if (website) {
+    return {
+      name: website.name,
+      domain: website.domain,
+      website: website
+    }
+  }
+  
+  return {
+    name: domain || url,
+    domain: domain || url,
+    website: null
+  }
+}
+
 const formatDate = (d) => new Date(d).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
 const formatTime = (d) => new Date(d).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
 
@@ -982,7 +1060,7 @@ const formatCustomFieldValue = (val, cf) => {
 
 // 頁面載入
 onMounted(async () => {
-  await Promise.all([loadUsers(), loadLeads(), loadCaseFields()])
+  await Promise.all([loadUsers(), loadLeads(), loadCaseFields(), loadWebsites()])
 })
 
 // 組件銷毀時清理
