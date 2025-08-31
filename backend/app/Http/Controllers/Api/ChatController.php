@@ -430,7 +430,18 @@ class ChatController extends BaseApiController
             $processedEvents = [];
             foreach ($events as $index => $event) {
                 try {
-                    $logSafe("Processing event $index: " . json_encode($event));
+                    // Point 32: Enhanced event identification logging
+                    $eventType = $event['type'] ?? 'unknown';
+                    $lineUserId = $event['source']['userId'] ?? 'unknown';
+                    
+                    if ($eventType === 'follow') {
+                        $logSafe("🎯 Point 32: FOLLOW event detected at webhook level - Event $index, User: $lineUserId, Point 26 will trigger");
+                        file_put_contents(storage_path('logs/webhook-debug.log'), 
+                            date('Y-m-d H:i:s') . " - Point 32: Webhook processing FOLLOW event $index for user $lineUserId - Point 26 case creation will trigger\n", 
+                            FILE_APPEND | LOCK_EX);
+                    }
+                    
+                    $logSafe("Processing event $index ($eventType): " . json_encode($event));
                     
                     $result = $this->processEventWithLogging($event, $logger, $index);
                     
@@ -1284,24 +1295,100 @@ class ChatController extends BaseApiController
 
     /**
      * Process incoming LINE event
+     * Point 32: Enhanced logging with LINE information
      */
     protected function processEvent($event)
     {
         $eventType = $event['type'] ?? null;
+        $lineUserId = $event['source']['userId'] ?? null;
+        $timestamp = $event['timestamp'] ?? null;
+        $replyToken = $event['replyToken'] ?? null;
+        
+        // Point 32: Comprehensive event logging with LINE information
+        Log::info('Point 32 - processEvent: Incoming LINE event', [
+            'event_type' => $eventType,
+            'line_user_id' => $lineUserId,
+            'timestamp' => $timestamp,
+            'reply_token' => $replyToken,
+            'full_event' => $event,
+            'processing_time' => now()->toISOString()
+        ]);
+
+        // Get additional LINE profile information if user ID is available
+        $lineProfile = null;
+        if ($lineUserId) {
+            try {
+                $lineProfile = $this->getLineUserProfile($lineUserId);
+                Log::info('Point 32 - processEvent: LINE profile retrieved', [
+                    'line_user_id' => $lineUserId,
+                    'display_name' => $lineProfile['displayName'] ?? null,
+                    'status_message' => $lineProfile['statusMessage'] ?? null,
+                    'picture_url' => $lineProfile['pictureUrl'] ?? null,
+                    'language' => $lineProfile['language'] ?? null
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Point 32 - processEvent: Failed to get LINE profile', [
+                    'line_user_id' => $lineUserId,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
         
         switch ($eventType) {
             case 'message':
+                Log::info('Point 32 - processEvent: Handling message event', [
+                    'line_user_id' => $lineUserId,
+                    'message_type' => $event['message']['type'] ?? null,
+                    'message_id' => $event['message']['id'] ?? null
+                ]);
                 $this->handleMessage($event);
                 break;
+                
             case 'follow':
+                Log::info('Point 32 - 🎯 processEvent: Handling FOLLOW event (加好友)', [
+                    'line_user_id' => $lineUserId,
+                    'timestamp' => $timestamp,
+                    'reply_token' => $replyToken,
+                    'line_profile' => $lineProfile,
+                    'point_26_will_trigger' => true,
+                    'event_data' => $event
+                ]);
+                
+                // Also log to webhook debug file for easier access
+                file_put_contents(storage_path('logs/webhook-debug.log'), 
+                    date('Y-m-d H:i:s') . " - Point 32: FOLLOW event detected for user $lineUserId - Profile: " . json_encode($lineProfile) . "\n", 
+                    FILE_APPEND | LOCK_EX);
+                    
                 $this->handleFollow($event);
+                
+                Log::info('Point 32 - processEvent: FOLLOW event processing completed', [
+                    'line_user_id' => $lineUserId,
+                    'completion_time' => now()->toISOString()
+                ]);
                 break;
+                
             case 'unfollow':
+                Log::info('Point 32 - processEvent: Handling UNFOLLOW event (取消好友)', [
+                    'line_user_id' => $lineUserId,
+                    'timestamp' => $timestamp,
+                    'line_profile' => $lineProfile
+                ]);
                 $this->handleUnfollow($event);
                 break;
+                
             default:
-                Log::info('Unhandled LINE event type', ['type' => $eventType]);
+                Log::info('Point 32 - processEvent: Unhandled LINE event type', [
+                    'type' => $eventType,
+                    'line_user_id' => $lineUserId,
+                    'full_event' => $event
+                ]);
         }
+        
+        Log::info('Point 32 - processEvent: Event processing completed', [
+            'event_type' => $eventType,
+            'line_user_id' => $lineUserId,
+            'total_processing_time' => now()->toISOString()
+        ]);
     }
 
     /**
