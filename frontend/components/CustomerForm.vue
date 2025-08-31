@@ -34,7 +34,22 @@
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">網站來源 (domain)</label>
-          <input v-model="form.website_source" type="text" class="w-full px-3 py-2 border rounded " />
+          <select v-model="form.website_source" class="w-full px-3 py-2 border rounded ">
+            <option value="">請選擇網站</option>
+            <option v-for="website in availableWebsites" :key="website.id" :value="website.domain">
+              {{ website.name }} ({{ website.domain }})
+            </option>
+            <option value="_custom">手動輸入...</option>
+          </select>
+          <!-- 手動輸入欄位，當選擇 '_custom' 時顯示 -->
+          <input 
+            v-if="form.website_source === '_custom'" 
+            v-model="customWebsiteInput" 
+            type="text" 
+            placeholder="請輸入域名..."
+            class="w-full px-3 py-2 border rounded mt-2" 
+            @blur="handleCustomWebsiteInput"
+          />
         </div>
         <div class="md:col-span-2">
           <label class="block text-sm font-medium mb-1">備註</label>
@@ -54,6 +69,10 @@ const props = defineProps({
   modelValue: { type: Object, default: () => ({}) }
 })
 const emit = defineEmits(['save','cancel'])
+
+// Point 40: Available websites for selection
+const availableWebsites = ref([])
+const customWebsiteInput = ref('')
 
 const form = reactive({
   id: null,
@@ -81,7 +100,31 @@ watch(() => props.modelValue, (v) => {
   })
 }, { immediate: true })
 
+// Point 40: Load available websites from API
+const loadWebsites = async () => {
+  try {
+    const { data } = await $fetch('/api/websites/options')
+    availableWebsites.value = data || []
+  } catch (error) {
+    console.error('載入網站選項失敗:', error)
+    // 如果載入失敗，仍然允許使用者手動輸入
+  }
+}
+
+// Point 40: Handle custom website input
+const handleCustomWebsiteInput = () => {
+  if (customWebsiteInput.value.trim()) {
+    form.website_source = customWebsiteInput.value.trim()
+    customWebsiteInput.value = ''
+  }
+}
+
 const onSubmit = () => {
   emit('save', { ...form })
 }
+
+// Point 40: Load websites when component is mounted
+onMounted(() => {
+  loadWebsites()
+})
 </script>

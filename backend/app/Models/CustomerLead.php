@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Models\User;
-
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -41,5 +40,13 @@ class CustomerLead extends Model
     public function assignee()
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    /**
+     * Point 40: Get the website this lead came from
+     */
+    public function website()
+    {
+        return $this->belongsTo(Website::class, 'source', 'domain');
     }
 }

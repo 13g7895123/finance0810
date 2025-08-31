@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\DebugController;
 use App\Http\Controllers\Api\WebhookLogController;
 use App\Http\Controllers\Api\LineUserTestController;
+use App\Http\Controllers\Api\WebsiteController;
 
 /*
 |--------------------------------------------------------------------------
@@ -324,6 +325,9 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('{entityType}/stats', [SyncController::class, 'getStats']);
     });
     
+    // Point 40: Website Options - Available to all authenticated users
+    Route::get('/websites/options', [WebsiteController::class, 'options']);
+    
     // Webhook Execution Logs - Available to all authenticated users
     Route::prefix('webhook-logs')->group(function () {
         Route::get('/', [WebhookLogController::class, 'index']);
@@ -364,6 +368,11 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/roles/{role}/permissions', [PermissionController::class, 'getRolePermissions']);
         Route::post('/roles/{role}/permissions', [PermissionController::class, 'assignPermissionToRole']);
         Route::delete('/roles/{role}/permissions/{permissionName}', [PermissionController::class, 'removePermissionFromRole']);
+        
+        // Point 40: Website Management (Admin and Manager only)
+        Route::apiResource('websites', WebsiteController::class);
+        Route::put('/websites/{website}/statistics', [WebsiteController::class, 'updateStatistics']);
+        Route::get('/websites-statistics', [WebsiteController::class, 'statistics']);
     });
     
     // Leads (pending cases)

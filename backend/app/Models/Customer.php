@@ -273,4 +273,12 @@ class Customer extends Model
 
         return $totalCustomers > 0 ? ($convertedCustomers / $totalCustomers) * 100 : 0;
     }
+
+    /**
+     * Point 40: Get the website this customer came from
+     */
+    public function website()
+    {
+        return $this->belongsTo(Website::class, 'website_source', 'domain');
+    }
 }
