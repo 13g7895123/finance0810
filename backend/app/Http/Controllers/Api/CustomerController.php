@@ -222,26 +222,74 @@ class CustomerController extends Controller
      */
     public function destroy(Customer $customer)
     {
+        // Point 34: Add debugging logs for delete functionality
+        \Log::info('Point 34 - Customer delete method called', [
+            'customer_id' => $customer->id,
+            'customer_name' => $customer->name,
+            'request_method' => request()->method(),
+            'request_path' => request()->path()
+        ]);
+
         $user = Auth::user();
+
+        \Log::info('Point 34 - User attempting delete', [
+            'user_id' => $user->id,
+            'user_name' => $user->name,
+            'is_manager' => $user->isManager(),
+            'user_roles' => $user->getRoleNames()->toArray()
+        ]);
 
         // Only managers and admins can delete customers
         if (!$user->isManager()) {
+            \Log::warning('Point 34 - Delete rejected: User is not manager', [
+                'user_id' => $user->id,
+                'customer_id' => $customer->id
+            ]);
             return response()->json(['error' => '您沒有權限刪除客戶資料'], 403);
         }
 
         // Log activity before deletion
-        CustomerActivity::create([
-            'customer_id' => $customer->id,
-            'user_id' => $user->id,
-            'activity_type' => 'deleted',
-            'description' => "客戶資料已刪除",
-            'old_data' => $customer->toArray(),
-            'ip_address' => request()->ip(),
-        ]);
+        try {
+            \Log::info('Point 34 - Creating customer activity record', [
+                'customer_id' => $customer->id,
+                'user_id' => $user->id
+            ]);
 
-        $customer->delete();
+            CustomerActivity::create([
+                'customer_id' => $customer->id,
+                'user_id' => $user->id,
+                'activity_type' => 'deleted',
+                'description' => "客戶資料已刪除",
+                'old_data' => $customer->toArray(),
+                'ip_address' => request()->ip(),
+            ]);
 
-        return response()->json(['message' => '客戶資料已刪除']);
+            \Log::info('Point 34 - Deleting customer record', [
+                'customer_id' => $customer->id
+            ]);
+
+            $customer->delete();
+
+            \Log::info('Point 34 - Customer delete completed successfully', [
+                'customer_id' => $customer->id,
+                'user_id' => $user->id
+            ]);
+
+            return response()->json(['message' => '客戶資料已刪除']);
+
+        } catch (\Exception $e) {
+            \Log::error('Point 34 - Customer delete failed', [
+                'customer_id' => $customer->id,
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => '刪除客戶時發生錯誤',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

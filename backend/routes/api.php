@@ -53,6 +53,70 @@ Route::get('/test/cookies', [TestController::class, 'cookieTest']);
 Route::get('/test/simple-debug', [TestController::class, 'simpleDebug']);
 Route::get('/test/debug-auth', [TestController::class, 'detailedAuthDebug']);
 Route::get('/test/customers-basic', [TestController::class, 'testCustomersBasic']);
+
+// Point 34: Test route for customer deletion debugging
+Route::delete('/test/customers/{customer}/delete', function(\App\Models\Customer $customer) {
+    \Log::info('Point 34 - Test delete route called', [
+        'customer_id' => $customer->id,
+        'customer_name' => $customer->name
+    ]);
+    
+    return response()->json([
+        'message' => 'Test delete route works',
+        'customer' => [
+            'id' => $customer->id,
+            'name' => $customer->name
+        ]
+    ]);
+})->middleware('auth:api');
+
+// Point 34: Test actual customer deletion without ownership middleware
+Route::delete('/test/customers/{customer}/force-delete', function(\App\Models\Customer $customer) {
+    $user = \Illuminate\Support\Facades\Auth::user();
+    
+    \Log::info('Point 34 - Force delete test route called', [
+        'customer_id' => $customer->id,
+        'customer_name' => $customer->name,
+        'user_id' => $user->id,
+        'user_name' => $user->name,
+        'is_manager' => $user->isManager()
+    ]);
+    
+    try {
+        // Create activity log
+        \App\Models\CustomerActivity::create([
+            'customer_id' => $customer->id,
+            'user_id' => $user->id,
+            'activity_type' => 'deleted',
+            'description' => "客戶資料已刪除（測試路由）",
+            'old_data' => $customer->toArray(),
+            'ip_address' => request()->ip(),
+        ]);
+        
+        $customer->delete();
+        
+        \Log::info('Point 34 - Force delete completed', [
+            'customer_id' => $customer->id,
+            'user_id' => $user->id
+        ]);
+        
+        return response()->json([
+            'message' => 'Customer deleted successfully via test route',
+            'customer_id' => $customer->id
+        ]);
+        
+    } catch (\Exception $e) {
+        \Log::error('Point 34 - Force delete failed', [
+            'customer_id' => $customer->id,
+            'error' => $e->getMessage()
+        ]);
+        
+        return response()->json([
+            'error' => 'Delete failed',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+})->middleware('auth:api');
 Route::get('/test/webhook-firebase', [ChatController::class, 'testWebhookFirebase']);
 
 // LINE Debug Routes (public - for debugging LINE integration)
