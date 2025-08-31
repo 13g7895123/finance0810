@@ -21,6 +21,11 @@ class LineUser extends Model
         'display_name',
         'display_name_original',
         
+        // Point 39: Business-editable name system
+        'business_display_name',
+        'business_name_updated_by',
+        'business_name_updated_at',
+        
         // Messaging API data
         'picture_url',
         'status_message',
@@ -91,6 +96,8 @@ class LineUser extends Model
         'friend_added_at' => 'datetime',
         'friend_removed_at' => 'datetime',
         'last_message_at' => 'datetime',
+        // Point 39: Business name tracking
+        'business_name_updated_at' => 'datetime',
     ];
 
     // Status constants
@@ -130,6 +137,14 @@ class LineUser extends Model
     public function leads()
     {
         return $this->hasMany(CustomerLead::class, 'line_id', 'line_user_id');
+    }
+    
+    /**
+     * Point 39: Get user who last updated business name
+     */
+    public function businessNameUpdatedBy()
+    {
+        return $this->belongsTo(User::class, 'business_name_updated_by');
     }
 
     /**
@@ -323,11 +338,49 @@ class LineUser extends Model
     }
 
     /**
-     * Get best available name
+     * Point 39: Get display name for business use (prioritizes business-edited name)
+     */
+    public function getDisplayName()
+    {
+        return $this->business_display_name ?: $this->display_name;
+    }
+    
+    /**
+     * Point 39: Get original LINE API display name (read-only for business)
+     */
+    public function getApiDisplayName()
+    {
+        return $this->display_name;
+    }
+    
+    /**
+     * Point 39: Update business display name with tracking
+     */
+    public function updateBusinessDisplayName($newName, $userId = null)
+    {
+        $this->update([
+            'business_display_name' => $newName,
+            'business_name_updated_by' => $userId,
+            'business_name_updated_at' => now(),
+        ]);
+        
+        return $this;
+    }
+    
+    /**
+     * Point 39: Check if business name has been customized
+     */
+    public function hasCustomBusinessName()
+    {
+        return !empty($this->business_display_name);
+    }
+    
+    /**
+     * Get best available name (backwards compatibility)
      */
     public function getBestName()
     {
-        return $this->real_name ?: $this->display_name;
+        return $this->real_name ?: $this->getDisplayName();
     }
 
     /**

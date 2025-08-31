@@ -89,13 +89,18 @@ class LeadController extends Controller
                     if ($lineUser) {
                         $lead->line_user_info = [
                             'id' => $lineUser->id,
-                            'display_name' => $lineUser->display_name,
+                            'display_name' => $lineUser->getDisplayName(), // Point 39: 優先顯示業務名稱
+                            'api_display_name' => $lineUser->getApiDisplayName(), // Point 39: API原始名稱（僅供參考）
                             'display_name_original' => $lineUser->display_name_original,
+                            'business_display_name' => $lineUser->business_display_name,
+                            'has_custom_name' => $lineUser->hasCustomBusinessName(),
                             'picture_url' => $lineUser->picture_url,
                             'status_message' => $lineUser->status_message,
                             'profile_completeness' => $lineUser->getProfileCompletenessScore(),
                             'is_friend' => $lineUser->is_friend,
-                            'editable_name' => $lineUser->display_name // 可編輯的名稱
+                            'editable_name' => $lineUser->getDisplayName(), // Point 39: 業務可編輯的名稱
+                            'business_name_updated_by' => $lineUser->business_name_updated_by,
+                            'business_name_updated_at' => $lineUser->business_name_updated_at
                         ];
                     } else {
                         $lead->line_user_info = null;
@@ -220,11 +225,12 @@ class LeadController extends Controller
     }
     
     /**
-     * Point 37: 更新LINE用戶的可編輯名稱
+     * Point 39: 更新LINE用戶的業務顯示名稱（不影響API原始資料）
      */
     public function updateLineUserName(Request $request, $leadId)
     {
         $lead = CustomerLead::findOrFail($leadId);
+        $user = Auth::user();
         
         $validator = Validator::make($request->all(), [
             'editable_name' => 'required|string|max:100'
@@ -236,24 +242,28 @@ class LeadController extends Controller
         
         $editableName = $request->get('editable_name');
         
-        // 如果是LINE user_id格式，更新LineUser表中的顯示名稱
+        // 如果是LINE user_id格式，更新LineUser表中的業務顯示名稱
         if ($lead->line_id && $this->isLineUserId($lead->line_id)) {
             $lineUser = LineUser::where('line_user_id', $lead->line_id)->first();
             if ($lineUser) {
-                $oldName = $lineUser->display_name;
-                $lineUser->update([
-                    'display_name' => $editableName
-                ]);
+                $oldName = $lineUser->getDisplayName();
+                $oldApiName = $lineUser->getApiDisplayName();
+                
+                // Point 39: 使用業務名稱更新方法，保護API原始資料
+                $lineUser->updateBusinessDisplayName($editableName, $user ? $user->id : null);
                 
                 // 記錄名稱變更
-                \Log::info('Point 37 - LINE用戶名稱變更', [
+                \Log::info('Point 39 - LINE用戶業務名稱變更', [
                     'lead_id' => $leadId,
                     'line_user_id' => $lead->line_id,
                     'line_user_table_id' => $lineUser->id,
-                    'old_name' => $oldName,
-                    'new_name' => $editableName,
-                    'updated_by' => Auth::id(),
-                    'updated_at' => now()
+                    'old_business_name' => $oldName,
+                    'new_business_name' => $editableName,
+                    'api_name_preserved' => $oldApiName,
+                    'updated_by' => $user ? $user->id : null,
+                    'updated_by_name' => $user ? $user->name : 'Unknown',
+                    'updated_at' => now(),
+                    'note' => 'API原始名稱已保護，不受業務修改影響'
                 ]);
                 
                 return response()->json([

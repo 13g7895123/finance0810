@@ -100,40 +100,53 @@
                   <div v-else class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white text-sm">
                     L
                   </div>
-                  <!-- LINE 名稱 (可編輯) -->
+                  <!-- Point 39: LINE 名稱 (雙重管理) -->
                   <div class="flex-1">
                     <div v-if="!editingLineName[lead.id]" class="flex items-center space-x-2">
-                      <span class="text-sm font-medium">{{ lead.line_user_info.display_name || '未設定名稱' }}</span>
+                      <div class="flex flex-col">
+                        <span class="text-sm font-medium">{{ lead.line_user_info.display_name || '未設定名稱' }}</span>
+                        <div v-if="lead.line_user_info.has_custom_name" class="text-xs text-gray-400" title="API原始名稱">
+                          原始: {{ lead.line_user_info.api_display_name }}
+                        </div>
+                        <div v-if="lead.line_user_info.business_name_updated_at" class="text-xs text-blue-500">
+                          已自訂名稱
+                        </div>
+                      </div>
                       <button 
                         @click="startEditLineName(lead)"
                         class="text-blue-500 hover:text-blue-700 text-xs"
-                        title="編輯名稱"
+                        title="編輯業務名稱"
                       >
                         ✏️
                       </button>
                     </div>
-                    <div v-else class="flex items-center space-x-2">
+                    <div v-else class="flex flex-col space-y-1">
                       <input
                         v-model="lineNameEdit[lead.id]"
                         @keyup.enter="saveLineName(lead)"
                         @keyup.escape="cancelEditLineName(lead)"
-                        class="text-sm border rounded px-2 py-1 w-24"
+                        class="text-sm border rounded px-2 py-1 w-32"
                         maxlength="100"
+                        placeholder="輸入業務名稱"
                       />
-                      <button 
-                        @click="saveLineName(lead)"
-                        class="text-green-500 hover:text-green-700 text-xs"
-                        title="儲存"
-                      >
-                        ✓
-                      </button>
-                      <button 
-                        @click="cancelEditLineName(lead)"
-                        class="text-red-500 hover:text-red-700 text-xs"
-                        title="取消"
-                      >
-                        ✗
-                      </button>
+                      <div class="text-xs text-gray-400">
+                        原始名稱: {{ lead.line_user_info.api_display_name }}
+                      </div>
+                        <button 
+                          @click="saveLineName(lead)"
+                          class="text-green-500 hover:text-green-700 text-xs"
+                          title="儲存業務名稱"
+                        >
+                          ✓
+                        </button>
+                        <button 
+                          @click="cancelEditLineName(lead)"
+                          class="text-red-500 hover:text-red-700 text-xs"
+                          title="取消"
+                        >
+                          ✗
+                        </button>
+                      </div>
                     </div>
                     <div v-if="lead.line_user_info.status_message" class="text-xs text-gray-500 truncate max-w-[120px]">
                       {{ lead.line_user_info.status_message }}
