@@ -510,7 +510,7 @@
               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">請選擇業務人員</option>
-              <option v-for="user in users.filter(u => u.role === 'sales')" :key="user.id" :value="user.id">
+              <option v-for="user in users.filter(u => u.roles?.[0]?.name === 'staff')" :key="user.id" :value="user.id">
                 {{ user.name || user.email }} (業務)
               </option>
             </select>
