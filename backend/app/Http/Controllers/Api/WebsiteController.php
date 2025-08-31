@@ -18,7 +18,8 @@ class WebsiteController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Website::with(['createdBy', 'updatedBy']);
+        // Point 49: Temporarily remove relationships to debug data loading issue
+        $query = Website::query();
 
         // Filter by status
         if ($request->has('status')) {
