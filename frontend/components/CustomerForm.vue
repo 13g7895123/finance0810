@@ -100,10 +100,18 @@ watch(() => props.modelValue, (v) => {
   })
 }, { immediate: true })
 
+// Point 40: Initialize API composable
+const { get } = useApi()
+
 // Point 40: Load available websites from API
 const loadWebsites = async () => {
   try {
-    const { data } = await $fetch('/api/websites/options')
+    const { data, error } = await get('/websites/options')
+    if (error) {
+      console.error('載入網站選項失敗:', error)
+      // 如果載入失敗，仍然允許使用者手動輸入
+      return
+    }
     availableWebsites.value = data || []
   } catch (error) {
     console.error('載入網站選項失敗:', error)

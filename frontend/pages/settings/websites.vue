@@ -317,17 +317,29 @@ const form = ref({
   notes: ''
 })
 
+// Initialize API composable
+const { get, post, put, del } = useApi()
+
 // Methods
 const loadWebsites = async (page = 1) => {
   loading.value = true
   try {
-    const params = new URLSearchParams({
+    const params = {
       page: page.toString(),
       per_page: '15',
       ...filters.value
-    })
+    }
     
-    const { data } = await $fetch(`/api/websites?${params}`)
+    const { data, error } = await get('/websites', params)
+    if (error) {
+      console.error('載入網站失敗:', error)
+      useToast().add({
+        title: '載入失敗',
+        description: error.message || '無法載入網站列表',
+        color: 'red'
+      })
+      return
+    }
     websites.value = data
   } catch (error) {
     console.error('載入網站失敗:', error)
@@ -343,10 +355,24 @@ const loadWebsites = async (page = 1) => {
 
 const loadStatistics = async () => {
   try {
-    const { data } = await $fetch('/api/websites-statistics')
+    const { data, error } = await get('/websites-statistics')
+    if (error) {
+      console.error('載入統計失敗:', error)
+      useToast().add({
+        title: '載入統計失敗',
+        description: error.message || '無法載入統計資料',
+        color: 'red'
+      })
+      return
+    }
     statistics.value = data
   } catch (error) {
     console.error('載入統計失敗:', error)
+    useToast().add({
+      title: '載入統計失敗',
+      description: '無法載入統計資料',
+      color: 'red'
+    })
   }
 }
 
@@ -389,29 +415,30 @@ const editWebsite = (website) => {
 const saveWebsite = async () => {
   saving.value = true
   try {
+    let result
     if (editingWebsite.value) {
       // Update existing website
-      await $fetch(`/api/websites/${editingWebsite.value.id}`, {
-        method: 'PUT',
-        body: form.value
-      })
-      useToast().add({
-        title: '更新成功',
-        description: '網站資料已更新',
-        color: 'green'
-      })
+      result = await put(`/websites/${editingWebsite.value.id}`, form.value)
     } else {
       // Create new website
-      await $fetch('/api/websites', {
-        method: 'POST',
-        body: form.value
-      })
-      useToast().add({
-        title: '建立成功',
-        description: '新網站已建立',
-        color: 'green'
-      })
+      result = await post('/websites', form.value)
     }
+    
+    if (result.error) {
+      console.error('儲存失敗:', result.error)
+      useToast().add({
+        title: '儲存失敗',
+        description: result.error.message || '網站儲存失敗',
+        color: 'red'
+      })
+      return
+    }
+    
+    useToast().add({
+      title: editingWebsite.value ? '更新成功' : '建立成功',
+      description: editingWebsite.value ? '網站資料已更新' : '新網站已建立',
+      color: 'green'
+    })
     
     closeModal()
     await loadWebsites()
@@ -421,7 +448,7 @@ const saveWebsite = async () => {
     console.error('儲存失敗:', error)
     useToast().add({
       title: '儲存失敗',
-      description: error.data?.message || '網站儲存失敗',
+      description: '網站儲存失敗',
       color: 'red'
     })
   } finally {
@@ -435,9 +462,17 @@ const deleteWebsite = async (website) => {
   }
   
   try {
-    await $fetch(`/api/websites/${website.id}`, {
-      method: 'DELETE'
-    })
+    const result = await del(`/websites/${website.id}`)
+    
+    if (result.error) {
+      console.error('刪除失敗:', result.error)
+      useToast().add({
+        title: '刪除失敗',
+        description: result.error.message || '網站刪除失敗',
+        color: 'red'
+      })
+      return
+    }
     
     useToast().add({
       title: '刪除成功',
@@ -452,7 +487,7 @@ const deleteWebsite = async (website) => {
     console.error('刪除失敗:', error)
     useToast().add({
       title: '刪除失敗',
-      description: error.data?.message || '網站刪除失敗',
+      description: '網站刪除失敗',
       color: 'red'
     })
   }
