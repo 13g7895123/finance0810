@@ -33,10 +33,23 @@ export const useFirebaseChat = () => {
     if (!$firebaseDB) {
       console.warn('Firebase Realtime Database not available, falling back to API')
       connectionStatus.value = 'error'
+      isFirebaseConnected.value = false
       return false
     }
     
+    // 如果已經連接，先清理
+    if (isFirebaseConnected.value) {
+      console.log('重新初始化Firebase，先清理舊連接')
+      cleanup()
+    }
+    
     connectionStatus.value = 'connecting'
+    
+    // 重置狀態
+    conversations.value = []
+    Object.keys(messages).forEach(key => delete messages[key])
+    error.value = null
+    
     isFirebaseConnected.value = true
     connectionStatus.value = 'connected'
     console.log('Firebase Realtime Database connection initialized')

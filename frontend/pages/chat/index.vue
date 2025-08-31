@@ -24,6 +24,15 @@
               <span class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
                 Firebase
               </span>
+              <!-- 重新連接按鈕 -->
+              <button
+                v-if="connectionStatus === 'error' || connectionStatus === 'disconnected'"
+                @click="reconnectChat"
+                class="text-xs bg-red-100 text-red-600 hover:bg-red-200 px-2 py-1 rounded transition-colors"
+                title="重新連接"
+              >
+                重連
+              </button>
             </div>
           </div>
         </div>
@@ -186,6 +195,18 @@ const selectUser = async (user) => {
   selectedUser.value = user
   activeUserId.value = user.id
   
+  // 檢查連接狀態，如果異常則重新初始化
+  if (connectionStatus.value === 'disconnected' || connectionStatus.value === 'error') {
+    console.log('檢測到連接異常，嘗試重新初始化')
+    try {
+      await realtimeChat.initialize()
+    } catch (error) {
+      console.error('重新初始化失敗:', error)
+      await showError('聊天室連接異常，請重新整理頁面')
+      return
+    }
+  }
+  
   // 載入該用戶的訊息（Firebase會自動監聽，API會從後端載入）
   await realtimeChat.loadMessages(user.lineUserId)
 }
@@ -211,6 +232,21 @@ const handleSendMessage = async (content) => {
   }
 }
 
+/**
+ * 重新連接聊天室
+ */
+const reconnectChat = async () => {
+  console.log('手動重新連接聊天室')
+  
+  try {
+    await realtimeChat.initialize()
+    console.log('手動重新連接成功')
+  } catch (error) {
+    console.error('手動重新連接失敗:', error)
+    await showError('重新連接失敗，請稍後再試或重新整理頁面')
+  }
+}
+
 
 // 頁面初始化
 onMounted(async () => {
@@ -219,6 +255,10 @@ onMounted(async () => {
   try {
     await realtimeChat.initialize()
     console.log('即時聊天室初始化完成')
+    
+    // 添加頁面可見性監聽器
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    console.log('頁面可見性監聽器已設置')
   } catch (error) {
     console.error('即時聊天室初始化失敗:', error)
     await showError('聊天室初始化失敗，請重新整理頁面')
@@ -228,10 +268,17 @@ onMounted(async () => {
 // 頁面清理
 onBeforeUnmount(() => {
   console.log('即時聊天室頁面卸載，清理資源...')
+  
+  // 移除頁面可見性監聽器
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  console.log('頁面可見性監聽器已移除')
+  
   realtimeChat.cleanup()
 })
 
 onUnmounted(() => {
+  // 確保清理工作完成
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
   realtimeChat.cleanup()
 })
 
@@ -240,11 +287,29 @@ const router = useRouter()
 const route = useRoute()
 
 watch(() => route.path, (newPath, oldPath) => {
-  if (oldPath && oldPath.includes('/chat/realtime') && !newPath.includes('/chat/realtime')) {
+  if (oldPath && oldPath.includes('/chat') && !newPath.includes('/chat')) {
     console.log('離開即時聊天室頁面，清理資源')
     realtimeChat.cleanup()
   }
 })
+
+// 監聽頁面可見性變化，確保回到頁面時重新連接
+const handleVisibilityChange = async () => {
+  if (!document.hidden && route.path.includes('/chat')) {
+    console.log('頁面重新可見，檢查聊天室連接狀態')
+    
+    // 如果連接斷開，重新初始化
+    if (connectionStatus.value === 'disconnected' || connectionStatus.value === 'error') {
+      console.log('重新初始化聊天室連接')
+      try {
+        await realtimeChat.initialize()
+        console.log('聊天室重新連接成功')
+      } catch (error) {
+        console.error('聊天室重新連接失敗:', error)
+      }
+    }
+  }
+}
 
 // 頁面標題
 useHead({

@@ -20,6 +20,18 @@ export const useRealtimeChat = () => {
     console.log('初始化Firebase即時聊天系統...')
     
     try {
+      // 如果已經連接，先清理舊的連接
+      if (connectionStatus.value === 'connected') {
+        console.log('檢測到已有連接，先清理舊連接')
+        await cleanup()
+      }
+      
+      // 重置狀態
+      conversations.value = []
+      messages.value = {}
+      error.value = null
+      connectionStatus.value = 'connecting'
+      
       // 初始化Firebase
       const firebaseAvailable = firebaseChat.initializeFirebase()
       
