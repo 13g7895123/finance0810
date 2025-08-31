@@ -113,6 +113,97 @@ Route::get('/test/line-user/basic', function() {
     }
 });
 
+// Point 49: Debug step by step controller execution
+Route::get('/debug/websites-step-by-step', function() {
+    try {
+        $page = request()->get('page', 1);
+        $perPage = request()->get('per_page', 15);
+        $search = request()->get('search', '');
+        $status = request()->get('status', '');
+        $type = request()->get('type', '');
+        
+        // Step 1: Raw count
+        $rawCount = \App\Models\Website::count();
+        
+        // Step 2: Initial query
+        $query = \App\Models\Website::query();
+        $initialCount = $query->count();
+        
+        // Step 3: With relationships
+        $query = \App\Models\Website::with(['createdBy', 'updatedBy']);
+        $withRelationshipsCount = $query->count();
+        
+        // Step 4: Apply filters one by one
+        $afterStatusFilter = 0;
+        $afterTypeFilter = 0;
+        $afterSearchFilter = 0;
+        
+        $query = \App\Models\Website::with(['createdBy', 'updatedBy']);
+        
+        if ($status) {
+            $query->where('status', $status);
+        }
+        $afterStatusFilter = $query->count();
+        
+        if ($type) {
+            $query->where('type', $type);
+        }
+        $afterTypeFilter = $query->count();
+        
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('domain', 'like', "%{$search}%");
+            });
+        }
+        $afterSearchFilter = $query->count();
+        
+        // Step 5: Get final paginated results
+        $query->orderBy('created_at', 'desc');
+        $paginatedResults = $query->paginate($perPage);
+        
+        // Step 6: Check user authentication and roles
+        $user = \Illuminate\Support\Facades\Auth::user();
+        $userRoles = $user ? $user->getRoleNames()->toArray() : [];
+        
+        return response()->json([
+            'success' => true,
+            'debug_steps' => [
+                'step_1_raw_count' => $rawCount,
+                'step_2_initial_count' => $initialCount,
+                'step_3_with_relationships_count' => $withRelationshipsCount,
+                'step_4_after_status_filter' => $afterStatusFilter,
+                'step_4_after_type_filter' => $afterTypeFilter,
+                'step_4_after_search_filter' => $afterSearchFilter,
+                'step_5_paginated_total' => $paginatedResults->total(),
+                'step_5_paginated_count' => $paginatedResults->count(),
+                'step_5_paginated_data_count' => count($paginatedResults->items()),
+            ],
+            'applied_filters' => [
+                'status' => $status ?: 'none',
+                'type' => $type ?: 'none', 
+                'search' => $search ?: 'none',
+                'page' => $page,
+                'per_page' => $perPage
+            ],
+            'user_info' => [
+                'authenticated' => $user ? true : false,
+                'user_id' => $user ? $user->id : null,
+                'roles' => $userRoles,
+            ],
+            'sample_data' => \App\Models\Website::take(2)->get(['id', 'name', 'domain', 'status', 'type']),
+            'timestamp' => now()->format('c')
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+    }
+});
+
 // Point 49: Debug exact frontend API call
 Route::get('/debug/websites-frontend-test', function() {
     try {
