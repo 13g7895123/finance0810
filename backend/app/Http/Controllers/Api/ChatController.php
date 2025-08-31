@@ -1736,6 +1736,11 @@ class ChatController extends BaseApiController
             // Auto-reply functionality removed - no welcome message or flex message sent
             
             // Point 26: 自動建立案件 - 當新用戶加機器人好友
+            Log::info('Point 26 - About to call createFollowUpCaseIfNeeded from handleFollow', [
+                'line_user_id' => $lineUserId,
+                'customer_id' => $customer->id,
+                'customer_name' => $customer->name
+            ]);
             $this->createFollowUpCaseIfNeeded($customer, $lineUserId);
             
         } catch (\Exception $e) {
@@ -2031,30 +2036,69 @@ class ChatController extends BaseApiController
 
     /**
      * Point 26: Create follow-up case automatically when LINE user adds bot as friend
+     * Point 31: Enhanced logging for troubleshooting
      */
     protected function createFollowUpCaseIfNeeded($customer, $lineUserId)
     {
+        Log::info('Point 26 - Starting createFollowUpCaseIfNeeded', [
+            'customer_id' => $customer->id,
+            'line_user_id' => $lineUserId,
+            'customer_name' => $customer->name,
+            'customer_phone' => $customer->phone,
+            'customer_assigned_to' => $customer->assigned_to,
+            'timestamp' => now()->toISOString()
+        ]);
+
         try {
             // Check if this LINE user already has a pending case to avoid duplicates
+            Log::info('Point 26 - Checking for existing pending cases', [
+                'customer_id' => $customer->id,
+                'line_user_id' => $lineUserId
+            ]);
+
             $existingLead = CustomerLead::where('customer_id', $customer->id)
                 ->where('line_id', $lineUserId)
                 ->where('status', 'pending')
                 ->exists();
+
+            $allExistingLeads = CustomerLead::where('customer_id', $customer->id)
+                ->where('line_id', $lineUserId)
+                ->get(['id', 'status', 'created_at']);
+
+            Log::info('Point 26 - Existing leads check results', [
+                'customer_id' => $customer->id,
+                'line_user_id' => $lineUserId,
+                'has_pending_lead' => $existingLead,
+                'all_existing_leads' => $allExistingLeads->toArray(),
+                'total_existing_count' => $allExistingLeads->count()
+            ]);
                 
             if ($existingLead) {
-                Log::info('LINE follow case already exists, skipping creation', [
+                Log::info('Point 26 - LINE follow case already exists, skipping creation', [
                     'customer_id' => $customer->id,
-                    'line_user_id' => $lineUserId
+                    'line_user_id' => $lineUserId,
+                    'existing_leads_count' => $allExistingLeads->count()
                 ]);
                 return;
             }
 
             // Get LINE profile for email if available
+            Log::info('Point 26 - Retrieving LINE profile', [
+                'line_user_id' => $lineUserId
+            ]);
+
             $profile = $this->getLineUserProfile($lineUserId);
             $email = null; // LINE profiles rarely contain email, but check if available in future
+
+            Log::info('Point 26 - LINE profile retrieved', [
+                'line_user_id' => $lineUserId,
+                'profile_display_name' => $profile['displayName'] ?? null,
+                'profile_status_message' => $profile['statusMessage'] ?? null,
+                'profile_picture_url' => $profile['pictureUrl'] ?? null
+            ]);
             
-            // Create CustomerLead record according to Point 26 specifications
-            $lead = CustomerLead::create([
+            // Prepare data for CustomerLead creation
+            $leadData = [
                 'customer_id' => $customer->id,
                 'status' => 'pending',
                 'assigned_to' => $customer->assigned_to, // Inherit from customer if assigned
@@ -2073,14 +2117,33 @@ class ChatController extends BaseApiController
                 ],
                 'is_suspected_blacklist' => false,
                 'suspected_reason' => null,
+            ];
+
+            Log::info('Point 26 - About to create CustomerLead with data', [
+                'lead_data' => $leadData
+            ]);
+
+            // Create CustomerLead record according to Point 26 specifications
+            $lead = CustomerLead::create($leadData);
+
+            Log::info('Point 26 - CustomerLead created successfully', [
+                'lead_id' => $lead->id,
+                'customer_id' => $customer->id,
+                'line_user_id' => $lineUserId,
+                'created_at' => $lead->created_at
             ]);
 
             // Add notes according to Point 26 specification
             $lead->notes = '此案件為line官方加入好友後自動新建';
             $lead->save();
 
+            Log::info('Point 26 - CustomerLead notes updated', [
+                'lead_id' => $lead->id,
+                'notes' => $lead->notes
+            ]);
+
             // Create activity record for the auto-generated lead
-            \App\Models\CustomerActivity::create([
+            $activityData = [
                 'customer_id' => $customer->id,
                 'user_id' => null, // System-generated
                 'activity_type' => \App\Models\CustomerActivity::TYPE_CREATED,
@@ -2089,23 +2152,46 @@ class ChatController extends BaseApiController
                 'new_data' => $lead->toArray(),
                 'ip_address' => request()->ip(),
                 'user_agent' => request()->userAgent(),
+            ];
+
+            Log::info('Point 26 - About to create CustomerActivity', [
+                'activity_data' => $activityData
             ]);
 
-            Log::info('LINE follow case created automatically', [
+            $activity = \App\Models\CustomerActivity::create($activityData);
+
+            Log::info('Point 26 - CustomerActivity created successfully', [
+                'activity_id' => $activity->id,
+                'customer_id' => $customer->id,
+                'lead_id' => $lead->id
+            ]);
+
+            Log::info('Point 26 - ✅ LINE follow case creation completed successfully', [
                 'customer_id' => $customer->id,
                 'lead_id' => $lead->id,
+                'activity_id' => $activity->id,
                 'line_user_id' => $lineUserId,
-                'channel' => 'lineoa'
+                'channel' => 'lineoa',
+                'completion_timestamp' => now()->toISOString()
             ]);
 
         } catch (\Exception $e) {
-            // Log error but don't throw - this is supplementary functionality
-            Log::error('Failed to create LINE follow case', [
-                'customer_id' => $customer->id,
+            // Enhanced error logging
+            Log::error('Point 26 - ❌ Failed to create LINE follow case', [
+                'customer_id' => $customer->id ?? null,
                 'line_user_id' => $lineUserId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'error_code' => $e->getCode(),
+                'trace' => $e->getTraceAsString(),
+                'failure_timestamp' => now()->toISOString()
             ]);
+
+            // Also log to webhook debug log for easier access
+            file_put_contents(storage_path('logs/webhook-debug.log'), 
+                date('Y-m-d H:i:s') . " - Point 26 ERROR: Failed to create LINE follow case for user $lineUserId - " . $e->getMessage() . "\n", 
+                FILE_APPEND | LOCK_EX);
         }
     }
 
