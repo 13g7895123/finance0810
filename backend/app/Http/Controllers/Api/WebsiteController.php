@@ -18,45 +18,25 @@ class WebsiteController extends Controller
      */
     public function index(Request $request)
     {
-        // Point 49: Use safe relationship loading that handles missing foreign keys
-        $query = Website::query();
-
-        // Filter by status - only filter if value is not empty
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+        // Point 49: Ultra simplified version to fix data retrieval
+        try {
+            $query = Website::query();
+            $websites = $query->paginate(15);
+            
+            return response()->json($websites);
+            
+        } catch (\Exception $e) {
+            \Log::error('Point 49 - Website index error', [
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile()
+            ]);
+            
+            return response()->json([
+                'error' => 'Failed to load websites',
+                'message' => $e->getMessage()
+            ], 500);
         }
-
-        // Filter by type - only filter if value is not empty
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
-        }
-
-        // Search by name or domain - only search if value is not empty
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('domain', 'like', "%{$search}%");
-            });
-        }
-
-        // Sort options
-        $sortField = $request->get('sort', 'created_at');
-        $sortDirection = $request->get('direction', 'desc');
-        $query->orderBy($sortField, $sortDirection);
-
-        $perPage = $request->get('per_page', 15);
-        $websites = $query->paginate($perPage);
-
-        // Point 49: Temporarily remove statistics loading to avoid potential issues
-        // Add statistics to each website
-        // $websites->getCollection()->transform(function ($website) {
-        //     $website->statistics = $website->getStatistics();
-        //     $website->is_healthy = $website->isHealthy();
-        //     return $website;
-        // });
-
-        return response()->json($websites);
     }
 
     /**
