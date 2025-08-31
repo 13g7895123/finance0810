@@ -65,12 +65,104 @@
       </div>
 
       <!-- 用戶列表 -->
-      <div class="flex-1 overflow-y-auto custom-scrollbar-left">
+      <div 
+        ref="userListContainer"
+        class="flex-1 overflow-y-auto custom-scrollbar-left"
+      >
         <ChatUserList
+          ref="chatUserListComponent"
           :users="filteredUsers"
           :activeUserId="activeUserId"
           @userSelect="selectUser"
         />
+        
+        <!-- 調試信息面板 (僅在開發模式顯示) -->
+        <div 
+          v-if="showDebugPanel" 
+          class="fixed top-4 right-4 bg-white border border-gray-300 rounded-lg shadow-lg p-4 max-w-sm z-50"
+        >
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="font-medium text-gray-900">聊天室載入檢查</h4>
+            <button 
+              @click="toggleDebugPanel"
+              class="text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+          </div>
+          
+          <div class="space-y-2 text-xs">
+            <!-- DOM檢查 -->
+            <div class="flex items-center justify-between">
+              <span>用戶列表容器:</span>
+              <span :class="debugInfo.hasUserListContainer ? 'text-green-600' : 'text-red-600'">
+                {{ debugInfo.hasUserListContainer ? '✓' : '✗' }}
+              </span>
+            </div>
+            
+            <div class="flex items-center justify-between">
+              <span>用戶項目容器:</span>
+              <span :class="debugInfo.hasUserItemsContainer ? 'text-green-600' : 'text-red-600'">
+                {{ debugInfo.hasUserItemsContainer ? '✓' : '✗' }}
+              </span>
+            </div>
+            
+            <!-- 數據檢查 -->
+            <div class="flex items-center justify-between">
+              <span>原始對話數據:</span>
+              <span class="font-mono">{{ conversations.length }}</span>
+            </div>
+            
+            <div class="flex items-center justify-between">
+              <span>過濾後用戶:</span>
+              <span class="font-mono">{{ filteredUsers.length }}</span>
+            </div>
+            
+            <div class="flex items-center justify-between">
+              <span>DOM中用戶項目:</span>
+              <span class="font-mono">{{ debugInfo.renderedUserCount }}</span>
+            </div>
+            
+            <!-- 連接檢查 -->
+            <div class="flex items-center justify-between">
+              <span>Firebase狀態:</span>
+              <span :class="getStatusColor(connectionStatus)">
+                {{ connectionStatus }}
+              </span>
+            </div>
+            
+            <!-- 操作按鈕 -->
+            <div class="pt-2 border-t border-gray-200">
+              <button 
+                @click="performFullCheck"
+                class="w-full text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+              >
+                執行完整檢查
+              </button>
+            </div>
+            
+            <!-- 檢查結果 -->
+            <div v-if="debugInfo.lastCheckResult" class="pt-2 border-t border-gray-200">
+              <div class="text-xs font-medium mb-1">檢查結果:</div>
+              <div 
+                class="text-xs p-2 rounded"
+                :class="debugInfo.lastCheckResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'"
+              >
+                {{ debugInfo.lastCheckResult.message }}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 調試按鈕 -->
+        <button
+          v-if="!showDebugPanel && (import.meta.env.DEV || showDebugControls)"
+          @click="toggleDebugPanel"
+          class="fixed bottom-4 right-4 bg-blue-500 text-white p-2 rounded-full shadow-lg hover:bg-blue-600 z-40"
+          title="顯示調試面板"
+        >
+          🔍
+        </button>
       </div>
     </div>
 
@@ -130,6 +222,20 @@ const searchQuery = ref('')
 const activeFilter = ref('all')
 const activeUserId = ref(null)
 const selectedUser = ref(null)
+
+// 調試相關狀態
+const showDebugPanel = ref(false)
+const showDebugControls = ref(true) // 可通過URL參數或localStorage控制
+const userListContainer = ref(null)
+const chatUserListComponent = ref(null)
+
+// 調試信息
+const debugInfo = ref({
+  hasUserListContainer: false,
+  hasUserItemsContainer: false,
+  renderedUserCount: 0,
+  lastCheckResult: null
+})
 
 // 篩選選項
 const filters = ref([
@@ -247,6 +353,130 @@ const reconnectChat = async () => {
   }
 }
 
+// ===== 調試功能 =====
+
+/**
+ * 切換調試面板顯示
+ */
+const toggleDebugPanel = () => {
+  showDebugPanel.value = !showDebugPanel.value
+  if (showDebugPanel.value) {
+    updateDebugInfo()
+  }
+}
+
+/**
+ * 更新調試信息
+ */
+const updateDebugInfo = () => {
+  nextTick(() => {
+    // 檢查用戶列表容器
+    debugInfo.value.hasUserListContainer = !!userListContainer.value
+    
+    // 檢查用戶項目容器 (ChatUserList組件內的 .space-y-1.p-2)
+    const userItemsContainer = userListContainer.value?.querySelector('.space-y-1.p-2')
+    debugInfo.value.hasUserItemsContainer = !!userItemsContainer
+    
+    // 計算DOM中實際渲染的用戶項目數量
+    debugInfo.value.renderedUserCount = userItemsContainer?.children?.length || 0
+    
+    console.log('調試信息更新:', debugInfo.value)
+  })
+}
+
+/**
+ * 執行完整檢查
+ */
+const performFullCheck = () => {
+  console.log('執行聊天室數據載入完整檢查')
+  
+  updateDebugInfo()
+  
+  const checks = []
+  
+  // 1. DOM結構檢查
+  if (!debugInfo.value.hasUserListContainer) {
+    checks.push('用戶列表容器未找到')
+  }
+  
+  if (!debugInfo.value.hasUserItemsContainer) {
+    checks.push('用戶項目容器(.space-y-1.p-2)未找到')
+  }
+  
+  // 2. 數據一致性檢查
+  if (filteredUsers.value.length > 0 && debugInfo.value.renderedUserCount === 0) {
+    checks.push('有過濾後用戶數據但DOM中沒有渲染項目')
+  }
+  
+  if (filteredUsers.value.length !== debugInfo.value.renderedUserCount) {
+    checks.push(`數據不一致: 過濾用戶${filteredUsers.value.length}個，DOM渲染${debugInfo.value.renderedUserCount}個`)
+  }
+  
+  // 3. Firebase連接檢查
+  if (connectionStatus.value === 'error') {
+    checks.push('Firebase連接異常')
+  }
+  
+  if (connectionStatus.value === 'disconnected') {
+    checks.push('Firebase未連接')
+  }
+  
+  // 4. 數據源檢查
+  if (conversations.value.length === 0) {
+    checks.push('無原始對話數據')
+  }
+  
+  // 生成檢查結果
+  if (checks.length === 0) {
+    debugInfo.value.lastCheckResult = {
+      success: true,
+      message: '所有檢查項目通過 ✓'
+    }
+  } else {
+    debugInfo.value.lastCheckResult = {
+      success: false,
+      message: `發現 ${checks.length} 個問題:\n${checks.join('\n')}`
+    }
+  }
+  
+  // 輸出詳細檢查結果到控制台
+  console.log('聊天室檢查結果:', {
+    conversations: conversations.value.length,
+    filteredUsers: filteredUsers.value.length,
+    renderedCount: debugInfo.value.renderedUserCount,
+    connectionStatus: connectionStatus.value,
+    hasContainers: {
+      userListContainer: debugInfo.value.hasUserListContainer,
+      userItemsContainer: debugInfo.value.hasUserItemsContainer
+    },
+    issues: checks
+  })
+}
+
+/**
+ * 獲取狀態顏色樣式
+ */
+const getStatusColor = (status) => {
+  switch (status) {
+    case 'connected':
+      return 'text-green-600'
+    case 'connecting':
+      return 'text-yellow-600'
+    case 'error':
+      return 'text-red-600'
+    case 'disconnected':
+    default:
+      return 'text-gray-600'
+  }
+}
+
+
+// 監聽數據變化，自動更新調試信息
+watch([conversations, filteredUsers, connectionStatus], () => {
+  if (showDebugPanel.value) {
+    updateDebugInfo()
+  }
+}, { deep: true })
 
 // 頁面初始化
 onMounted(async () => {
@@ -256,9 +486,26 @@ onMounted(async () => {
     await realtimeChat.initialize()
     console.log('即時聊天室初始化完成')
     
+    // 初始化調試信息
+    nextTick(() => {
+      updateDebugInfo()
+    })
+    
     // 添加頁面可見性監聽器
     document.addEventListener('visibilitychange', handleVisibilityChange)
     console.log('頁面可見性監聽器已設置')
+    
+    // 添加鍵盤快捷鍵監聽器
+    document.addEventListener('keydown', handleKeyDown)
+    console.log('鍵盤快捷鍵監聽器已設置 (Ctrl+Shift+D)')
+    
+    // 檢查URL參數是否要求顯示調試面板
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.has('debug') || localStorage.getItem('chatDebugMode') === 'true') {
+      showDebugPanel.value = true
+      console.log('調試模式已啟用')
+    }
+    
   } catch (error) {
     console.error('即時聊天室初始化失敗:', error)
     await showError('聊天室初始化失敗，請重新整理頁面')
@@ -273,12 +520,17 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   console.log('頁面可見性監聽器已移除')
   
+  // 移除鍵盤快捷鍵監聽器
+  document.removeEventListener('keydown', handleKeyDown)
+  console.log('鍵盤快捷鍵監聽器已移除')
+  
   realtimeChat.cleanup()
 })
 
 onUnmounted(() => {
   // 確保清理工作完成
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  document.removeEventListener('keydown', handleKeyDown)
   realtimeChat.cleanup()
 })
 
@@ -298,6 +550,11 @@ const handleVisibilityChange = async () => {
   if (!document.hidden && route.path.includes('/chat')) {
     console.log('頁面重新可見，檢查聊天室連接狀態')
     
+    // 更新調試信息
+    if (showDebugPanel.value) {
+      updateDebugInfo()
+    }
+    
     // 如果連接斷開，重新初始化
     if (connectionStatus.value === 'disconnected' || connectionStatus.value === 'error') {
       console.log('重新初始化聊天室連接')
@@ -309,6 +566,30 @@ const handleVisibilityChange = async () => {
       }
     }
   }
+}
+
+// 鍵盤快捷鍵處理
+const handleKeyDown = (event) => {
+  // Ctrl+Shift+D 或 Cmd+Shift+D 切換調試面板
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'D') {
+    event.preventDefault()
+    toggleDebugPanel()
+  }
+}
+
+// 全域調試函數 - 可在瀏覽器控制台使用
+if (typeof window !== 'undefined') {
+  window.toggleChatDebug = () => {
+    showDebugPanel.value = !showDebugPanel.value
+    const mode = showDebugPanel.value ? 'enabled' : 'disabled'
+    localStorage.setItem('chatDebugMode', showDebugPanel.value.toString())
+    console.log(`聊天室調試模式已${mode === 'enabled' ? '啟用' : '禁用'}`)
+    if (showDebugPanel.value) {
+      updateDebugInfo()
+    }
+  }
+  
+  window.performChatCheck = performFullCheck
 }
 
 // 頁面標題
