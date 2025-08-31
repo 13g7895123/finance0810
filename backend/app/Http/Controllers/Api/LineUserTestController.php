@@ -39,20 +39,35 @@ class LineUserTestController extends Controller
             ];
             
             if ($tableExists) {
-                // Get table statistics
-                $totalUsers = LineUser::count();
-                $activeUsers = LineUser::active()->count();
-                $friendUsers = LineUser::friends()->count();
-                
-                $result['statistics'] = [
-                    'total_users' => $totalUsers,
-                    'active_users' => $activeUsers,
-                    'friend_users' => $friendUsers
-                ];
-                
-                // Check if service methods work
-                $stats = $this->lineUserService->getStatistics();
-                $result['service_statistics'] = $stats;
+                try {
+                    // Get table statistics - try with basic query first
+                    $totalUsers = DB::table('line_users')->count();
+                    
+                    $result['statistics'] = [
+                        'total_users' => $totalUsers
+                    ];
+                    
+                    // Only try Eloquent if basic DB query works
+                    if ($totalUsers >= 0) {
+                        try {
+                            $activeUsers = LineUser::active()->count();
+                            $friendUsers = LineUser::friends()->count();
+                            
+                            $result['statistics']['active_users'] = $activeUsers;
+                            $result['statistics']['friend_users'] = $friendUsers;
+                            
+                            // Check if service methods work
+                            $stats = $this->lineUserService->getStatistics();
+                            $result['service_statistics'] = $stats;
+                            
+                        } catch (\Exception $serviceError) {
+                            $result['eloquent_error'] = 'Eloquent/Service error: ' . $serviceError->getMessage();
+                        }
+                    }
+                    
+                } catch (\Exception $dbError) {
+                    $result['db_error'] = 'Database error: ' . $dbError->getMessage();
+                }
                 
             } else {
                 $result['error'] = 'line_users table does not exist - migration may not have run';
@@ -69,7 +84,8 @@ class LineUserTestController extends Controller
             return response()->json([
                 'success' => false,
                 'error' => 'System test failed: ' . $e->getMessage(),
-                'point_36_status' => 'error'
+                'point_36_status' => 'error',
+                'trace' => $e->getTraceAsString()
             ], 500);
         }
     }

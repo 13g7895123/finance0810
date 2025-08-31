@@ -59,6 +59,26 @@ Route::get('/test/customers-basic', [TestController::class, 'testCustomersBasic'
 Route::get('/test/line-user/system', [LineUserTestController::class, 'testSystem']);
 Route::get('/test/line-user/create', [LineUserTestController::class, 'testCreateUser']);
 
+// Point 36: Basic table check without dependencies
+Route::get('/test/line-user/basic', function() {
+    try {
+        $exists = \Schema::hasTable('line_users');
+        $count = $exists ? \DB::table('line_users')->count() : null;
+        
+        return response()->json([
+            'success' => true,
+            'line_users_table_exists' => $exists,
+            'record_count' => $count,
+            'timestamp' => now()->format('c')
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
+
 // Point 34: Test route for customer deletion debugging
 Route::delete('/test/customers/{customer}/delete', function(\App\Models\Customer $customer) {
     \Log::info('Point 34 - Test delete route called', [
