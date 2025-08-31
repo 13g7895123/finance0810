@@ -162,37 +162,16 @@
           </div>
           <!-- LINE 名稱 -->
           <div class="flex-1 min-w-0">
-            <div v-if="!editingLineName[item.id]" class="flex items-center space-x-1">
+            <div class="flex items-center space-x-1">
               <span class="text-xs font-medium text-gray-900 truncate">
                 {{ item.line_user_info.display_name || '未設定名稱' }}
               </span>
               <button 
-                @click="startEditLineName(item)"
+                @click="openLineNameModal(item)"
                 class="text-blue-500 hover:text-blue-700 text-xs"
                 title="編輯業務名稱"
               >
                 ✏️
-              </button>
-            </div>
-            <div v-else class="flex items-center space-x-1">
-              <input
-                v-model="lineNameEdit[item.id]"
-                @keyup.enter="saveLineName(item)"
-                @keyup.escape="cancelEditLineName(item)"
-                class="text-xs border rounded px-1 py-0.5 w-20"
-                maxlength="100"
-              />
-              <button 
-                @click="saveLineName(item)"
-                class="text-green-500 hover:text-green-700 text-xs"
-              >
-                ✓
-              </button>
-              <button 
-                @click="cancelEditLineName(item)"
-                class="text-red-500 hover:text-red-700 text-xs"
-              >
-                ✗
               </button>
             </div>
           </div>
@@ -482,7 +461,7 @@
     </div>
 
     <!-- Convert Modal -->
-    <div v-if="convertOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeConvert">
+    <div v-if="convertOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 mt-0" @click.self="closeConvert">
       <div class="bg-white rounded-lg p-6 w-full max-w-lg">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">送件（建立案件）</h3>
         <form @submit.prevent="doConvert" class="space-y-3">
@@ -509,16 +488,16 @@
     </div>
 
     <!-- Assign Modal -->
-    <div v-if="assignOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeAssign">
+    <div v-if="assignOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 mt-0" @click.self="closeAssign">
       <div class="bg-white rounded-lg p-6 w-full max-w-md">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">指派承辦業務</h3>
         <form @submit.prevent="doAssign" class="space-y-4">
           <div v-if="assignLead" class="mb-4">
-            <div class="text-sm text-gray-600 mb-2">案件資訊：</div>
+            <div class="text-sm text-gray-900 font-semibold mb-2">案件資訊：</div>
             <div class="bg-gray-50 p-3 rounded-lg">
-              <div class="text-sm"><span class="font-medium">案件編號：</span>{{ generateCaseNumber(assignLead) }}</div>
-              <div class="text-sm"><span class="font-medium">Email：</span>{{ assignLead.email || '未提供' }}</div>
-              <div class="text-sm"><span class="font-medium">LINE ID：</span>{{ assignLead.line_id || '未提供' }}</div>
+              <div class="text-sm text-gray-900"><span class="font-medium">案件編號：</span>{{ generateCaseNumber(assignLead) }}</div>
+              <div class="text-sm text-gray-900"><span class="font-medium">Email：</span>{{ assignLead.email || '未提供' }}</div>
+              <div class="text-sm text-gray-900"><span class="font-medium">LINE ID：</span>{{ assignLead.line_id || '未提供' }}</div>
             </div>
           </div>
           
@@ -530,8 +509,8 @@
               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">請選擇業務人員</option>
-              <option v-for="user in users.filter(u => u.role === 'sales' || u.role === 'admin')" :key="user.id" :value="user.id">
-                {{ user.name }} ({{ user.role === 'admin' ? '管理員' : '業務' }})
+              <option v-for="user in users.filter(u => u.role === 'sales' || u.role === 'admin' || u.role === 'manager' || u.role === 'executive')" :key="user.id" :value="user.id">
+                {{ user.name }} ({{ getRoleLabel(user.role) }})
               </option>
             </select>
           </div>
@@ -550,6 +529,62 @@
               :disabled="saving || !assignForm.assigned_to"
             >
               {{ saving ? '指派中...' : '確認指派' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- LINE Name Edit Modal -->
+    <div v-if="lineNameModalOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 mt-0" @click.self="closeLineNameModal">
+      <div class="bg-white rounded-lg p-6 w-full max-w-md">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">編輯LINE名稱</h3>
+        <form @submit.prevent="saveLineNameModal" class="space-y-4">
+          <div v-if="lineNameLead" class="mb-4">
+            <div class="text-sm text-gray-900 font-semibold mb-2">LINE使用者資訊：</div>
+            <div class="bg-gray-50 p-3 rounded-lg flex items-center space-x-3">
+              <img 
+                v-if="lineNameLead.line_user_info?.picture_url" 
+                :src="lineNameLead.line_user_info.picture_url" 
+                :alt="lineNameLead.line_user_info.display_name || 'LINE用戶'"
+                class="w-10 h-10 rounded-full object-cover"
+                @error="$event.target.style.display='none'"
+              />
+              <div v-else class="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white text-sm">
+                L
+              </div>
+              <div>
+                <div class="text-sm text-gray-900 font-medium">{{ lineNameLead.line_user_info?.display_name || '未設定名稱' }}</div>
+                <div class="text-xs text-gray-500">案件編號：{{ generateCaseNumber(lineNameLead) }}</div>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-semibold text-gray-900 mb-2">業務名稱 <span class="text-red-500">*</span></label>
+            <input 
+              v-model="lineNameForm.display_name" 
+              required
+              maxlength="100"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="請輸入業務名稱"
+            />
+          </div>
+
+          <div class="flex justify-end space-x-3 pt-4">
+            <button 
+              type="button" 
+              class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50" 
+              @click="closeLineNameModal"
+            >
+              取消
+            </button>
+            <button 
+              type="submit" 
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed" 
+              :disabled="saving || !lineNameForm.display_name?.trim()"
+            >
+              {{ saving ? '儲存中...' : '儲存' }}
             </button>
           </div>
         </form>
@@ -613,10 +648,12 @@ const editOpen = ref(false)
 const viewOpen = ref(false)
 const convertOpen = ref(false)
 const assignOpen = ref(false)
+const lineNameModalOpen = ref(false)
 const editingId = ref(null)
 const selectedLead = ref(null)
 const convertLead = ref(null)
 const assignLead = ref(null)
+const lineNameLead = ref(null)
 
 // 表單提交狀態
 const saving = ref(false)
@@ -629,9 +666,7 @@ const itemsPerPage = ref(5)
 const caseFields = ref([])
 const customFieldValues = reactive({})
 
-// LINE名稱編輯相關狀態
-const editingLineName = ref({})
-const lineNameEdit = ref({})
+// LINE名稱編輯相關狀態 (已改為modal方式)
 
 // 選項配置
 const CHANNEL_OPTIONS = [
@@ -679,6 +714,10 @@ const assignForm = reactive({
   assigned_to: null
 })
 
+const lineNameForm = reactive({
+  display_name: ''
+})
+
 // 表格配置
 const pendingTableColumns = computed(() => {
   return [
@@ -699,12 +738,6 @@ const pendingTableColumns = computed(() => {
       title: '來源管道',
       sortable: true,
       width: '100px'
-    },
-    {
-      key: 'datetime',
-      title: '時間',
-      sortable: true,
-      width: '140px'
     },
     {
       key: 'assignee',
@@ -746,6 +779,12 @@ const pendingTableColumns = computed(() => {
       key: 'custom_fields',
       title: '自定義欄位',
       sortable: false,
+      width: '140px'
+    },
+    {
+      key: 'datetime',
+      title: '時間',
+      sortable: true,
       width: '140px'
     },
     {
@@ -1084,38 +1123,40 @@ const doAssign = async () => {
 }
 
 // LINE名稱編輯方法
-const startEditLineName = (lead) => {
-  editingLineName.value[lead.id] = true
-  lineNameEdit.value[lead.id] = lead.line_user_info?.display_name || ''
+const openLineNameModal = (lead) => {
+  lineNameLead.value = lead
+  lineNameForm.display_name = lead.line_user_info?.display_name || ''
+  lineNameModalOpen.value = true
 }
 
-const cancelEditLineName = (lead) => {
-  editingLineName.value[lead.id] = false
-  delete lineNameEdit.value[lead.id]
+const closeLineNameModal = () => {
+  lineNameModalOpen.value = false
+  lineNameLead.value = null
+  lineNameForm.display_name = ''
 }
 
-const saveLineName = async (lead) => {
-  if (!lineNameEdit.value[lead.id] || !lineNameEdit.value[lead.id].trim()) {
+const saveLineNameModal = async () => {
+  if (!lineNameLead.value || !lineNameForm.display_name?.trim()) {
     showError('名稱不能為空')
     return
   }
 
+  saving.value = true
   try {
     const { $api } = useNuxtApp()
     
-    const { data, error } = await $api.put(`/leads/${lead.id}/line-name`, {
-      editable_name: lineNameEdit.value[lead.id].trim()
+    const { data, error } = await $api.put(`/leads/${lineNameLead.value.id}/line-name`, {
+      editable_name: lineNameForm.display_name.trim()
     })
 
     if (!error && data?.success) {
-      if (lead.line_user_info) {
-        lead.line_user_info.display_name = lineNameEdit.value[lead.id].trim()
-        lead.line_user_info.editable_name = lineNameEdit.value[lead.id].trim()
+      if (lineNameLead.value.line_user_info) {
+        lineNameLead.value.line_user_info.display_name = lineNameForm.display_name.trim()
+        lineNameLead.value.line_user_info.editable_name = lineNameForm.display_name.trim()
       }
       
-      editingLineName.value[lead.id] = false
-      delete lineNameEdit.value[lead.id]
-      
+      lineNameModalOpen.value = false
+      await loadLeads()
       success(`LINE用戶名稱已更新：${data.old_name} → ${data.new_name}`)
     } else {
       showError(data?.message || error?.message || '更新失敗')
@@ -1123,6 +1164,8 @@ const saveLineName = async (lead) => {
   } catch (error) {
     showError('更新失敗，請稍後再試')
     console.error('Save LINE name error:', error)
+  } finally {
+    saving.value = false
   }
 }
 
@@ -1179,6 +1222,18 @@ const getWebsiteInfo = (url) => {
     domain: domain || url,
     website: null
   }
+}
+
+// 角色標籤轉換
+const getRoleLabel = (role) => {
+  const roleLabels = {
+    'admin': '管理員',
+    'sales': '業務',
+    'manager': '主管',
+    'executive': '高層',
+    'staff': '員工'
+  }
+  return roleLabels[role] || role
 }
 
 const formatDate = (d) => new Date(d).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
