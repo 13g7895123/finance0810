@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use App\Models\ChatConversation;
 use App\Models\Customer;
+use App\Models\CustomerLead;
 use App\Models\User;
 use App\Models\LineIntegrationSetting;
 use App\Models\CustomerIdentifier;
