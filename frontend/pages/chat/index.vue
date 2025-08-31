@@ -145,7 +145,7 @@
             <div v-if="debugInfo.lastCheckResult" class="pt-2 border-t border-gray-200">
               <div class="text-xs font-medium mb-1">檢查結果:</div>
               <div 
-                class="text-xs p-2 rounded"
+                class="text-xs p-2 rounded whitespace-pre-wrap"
                 :class="debugInfo.lastCheckResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'"
               >
                 {{ debugInfo.lastCheckResult.message }}
@@ -156,7 +156,7 @@
         
         <!-- 調試按鈕 -->
         <button
-          v-if="!showDebugPanel && (import.meta.env.DEV || showDebugControls)"
+          v-if="!showDebugPanel && showDebugControls"
           @click="toggleDebugPanel"
           class="fixed bottom-4 right-4 bg-blue-500 text-white p-2 rounded-full shadow-lg hover:bg-blue-600 z-40"
           title="顯示調試面板"
@@ -225,7 +225,7 @@ const selectedUser = ref(null)
 
 // 調試相關狀態
 const showDebugPanel = ref(false)
-const showDebugControls = ref(true) // 可通過URL參數或localStorage控制
+const showDebugControls = ref(false) // 默認關閉，通過條件控制
 const userListContainer = ref(null)
 const chatUserListComponent = ref(null)
 
@@ -499,10 +499,16 @@ onMounted(async () => {
     document.addEventListener('keydown', handleKeyDown)
     console.log('鍵盤快捷鍵監聽器已設置 (Ctrl+Shift+D)')
     
+    // 設置調試控制項可見性
+    showDebugControls.value = window.location.hostname === 'localhost' || 
+                             window.location.hostname === '127.0.0.1' || 
+                             localStorage.getItem('chatDebugMode') === 'true'
+    
     // 檢查URL參數是否要求顯示調試面板
     const urlParams = new URLSearchParams(window.location.search)
     if (urlParams.has('debug') || localStorage.getItem('chatDebugMode') === 'true') {
       showDebugPanel.value = true
+      showDebugControls.value = true
       console.log('調試模式已啟用')
     }
     
