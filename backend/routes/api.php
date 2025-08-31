@@ -113,6 +113,82 @@ Route::get('/test/line-user/basic', function() {
     }
 });
 
+// Point 49: Direct controller method test
+Route::get('/debug/websites-direct-test', function() {
+    try {
+        // Test the exact same logic as the controller
+        $query = \App\Models\Website::query();
+        
+        // Test the filtering logic with empty parameters
+        $request = request();
+        $status = $request->get('status', '');
+        $type = $request->get('type', '');
+        $search = $request->get('search', '');
+        
+        $beforeFilters = $query->count();
+        
+        // Test filled() method behavior
+        $statusFilled = $request->filled('status');
+        $typeFilled = $request->filled('type'); 
+        $searchFilled = $request->filled('search');
+        
+        // Apply same filters as controller
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+        
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('domain', 'like', "%{$search}%");
+            });
+        }
+        
+        $afterFilters = $query->count();
+        
+        // Apply ordering and pagination
+        $query->orderBy('created_at', 'desc');
+        $websites = $query->paginate(15);
+        
+        return response()->json([
+            'success' => true,
+            'debug_info' => [
+                'parameters' => [
+                    'status' => $status,
+                    'type' => $type,
+                    'search' => $search
+                ],
+                'filled_checks' => [
+                    'status_filled' => $statusFilled,
+                    'type_filled' => $typeFilled,
+                    'search_filled' => $searchFilled
+                ],
+                'counts' => [
+                    'before_filters' => $beforeFilters,
+                    'after_filters' => $afterFilters,
+                    'paginated_total' => $websites->total(),
+                    'paginated_count' => $websites->count()
+                ],
+                'first_item' => $websites->items()[0] ?? null
+            ],
+            'websites_data' => $websites,
+            'timestamp' => now()->format('c')
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+    }
+});
+
 // Point 49: Simple debug without user auth issues
 Route::get('/debug/websites-simple-step', function() {
     try {
