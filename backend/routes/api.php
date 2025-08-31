@@ -59,6 +59,9 @@ Route::get('/test/customers-basic', [TestController::class, 'testCustomersBasic'
 Route::get('/test/line-user/system', [LineUserTestController::class, 'testSystem']);
 Route::get('/test/line-user/create', [LineUserTestController::class, 'testCreateUser']);
 
+// Point 38: LINE User Re-adding Friend Test route (public - for debugging)
+Route::get('/test/line-user/re-adding', [LineUserTestController::class, 'testReAddingFriend']);
+
 // Point 36: Basic table check without dependencies
 Route::get('/test/line-user/basic', function() {
     try {

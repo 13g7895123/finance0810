@@ -136,4 +136,103 @@ class LineUserTestController extends Controller
             ], 500);
         }
     }
+    
+    /**
+     * Point 38: Test re-adding friend functionality
+     * Simulates LINE user re-adding bot with updated profile data
+     */
+    public function testReAddingFriend(Request $request)
+    {
+        try {
+            $testLineUserId = $request->get('line_user_id', 'U' . str_pad(dechex(time()), 32, '0', STR_PAD_LEFT));
+            
+            // Step 1: Create initial user
+            $initialProfileData = [
+                'displayName' => 'Initial Test Name',
+                'pictureUrl' => 'https://example.com/initial.jpg',
+                'statusMessage' => 'Initial status'
+            ];
+            
+            Log::info('Point 38 - Test: Creating initial user', [
+                'line_user_id' => $testLineUserId,
+                'initial_data' => $initialProfileData
+            ]);
+            
+            $initialUser = $this->lineUserService->handleFriendAdd(
+                $testLineUserId,
+                $initialProfileData
+            );
+            
+            // Step 2: Simulate user removing friend (optional)
+            $this->lineUserService->handleFriendRemove($testLineUserId);
+            
+            // Step 3: Simulate user re-adding friend with updated profile
+            $updatedProfileData = [
+                'displayName' => 'Updated Test Name - Point 38',
+                'pictureUrl' => 'https://example.com/updated.jpg',
+                'statusMessage' => 'Updated status message',
+                'language' => 'zh-TW'
+            ];
+            
+            Log::info('Point 38 - Test: Re-adding friend with updated data', [
+                'line_user_id' => $testLineUserId,
+                'updated_data' => $updatedProfileData
+            ]);
+            
+            $updatedUser = $this->lineUserService->handleFriendAdd(
+                $testLineUserId,
+                $updatedProfileData
+            );
+            
+            // Compare data
+            $changes = [
+                'display_name' => [
+                    'old' => $initialProfileData['displayName'],
+                    'new' => $updatedUser->display_name
+                ],
+                'picture_url' => [
+                    'old' => $initialProfileData['pictureUrl'],
+                    'new' => $updatedUser->picture_url
+                ],
+                'status_message' => [
+                    'old' => $initialProfileData['statusMessage'],
+                    'new' => $updatedUser->status_message
+                ]
+            ];
+            
+            return response()->json([
+                'success' => true,
+                'point_38_test' => 'completed',
+                'line_user_id' => $testLineUserId,
+                'initial_user_id' => $initialUser->id,
+                'updated_user_id' => $updatedUser->id,
+                'same_record' => $initialUser->id === $updatedUser->id,
+                'profile_changes' => $changes,
+                'current_profile' => [
+                    'display_name' => $updatedUser->display_name,
+                    'picture_url' => $updatedUser->picture_url,
+                    'status_message' => $updatedUser->status_message,
+                    'language' => $updatedUser->language,
+                    'profile_completeness' => $updatedUser->getProfileCompletenessScore(),
+                    'is_friend' => $updatedUser->is_friend,
+                    'friend_added_at' => $updatedUser->friend_added_at,
+                    'messaging_api_synced_at' => $updatedUser->messaging_api_synced_at
+                ],
+                'message' => 'Point 38 - Re-adding friend test completed successfully'
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Point 38 - Re-adding friend test failed', [
+                'error' => $e->getMessage(),
+                'line_user_id' => $request->get('line_user_id'),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => 'Point 38 test failed: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    }
 }
