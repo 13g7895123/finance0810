@@ -65,6 +65,33 @@ Route::get('/test/line-user/re-adding', [LineUserTestController::class, 'testReA
 // Point 39: LINE User Business Display Name Test route (public - for debugging)
 Route::get('/test/line-user/business-name', [LineUserTestController::class, 'testBusinessDisplayName']);
 
+// Point 39: Simple table structure check
+Route::get('/test/line-user/check-columns', function() {
+    try {
+        $columns = \Schema::getColumnListing('line_users');
+        $hasBusinessColumns = in_array('business_display_name', $columns);
+        
+        return response()->json([
+            'success' => true,
+            'table_exists' => \Schema::hasTable('line_users'),
+            'all_columns' => $columns,
+            'has_business_columns' => $hasBusinessColumns,
+            'business_columns' => [
+                'business_display_name' => in_array('business_display_name', $columns),
+                'business_name_updated_by' => in_array('business_name_updated_by', $columns),
+                'business_name_updated_at' => in_array('business_name_updated_at', $columns),
+            ],
+            'migration_status' => $hasBusinessColumns ? 'completed' : 'pending',
+            'timestamp' => now()->format('c')
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
+
 // Point 36: Basic table check without dependencies
 Route::get('/test/line-user/basic', function() {
     try {
