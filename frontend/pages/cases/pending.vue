@@ -132,6 +132,7 @@
                       <div class="text-xs text-gray-400">
                         原始名稱: {{ lead.line_user_info.api_display_name }}
                       </div>
+                      <div class="flex space-x-2">
                         <button 
                           @click="saveLineName(lead)"
                           class="text-green-500 hover:text-green-700 text-xs"
