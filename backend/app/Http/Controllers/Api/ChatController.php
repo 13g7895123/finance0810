@@ -21,6 +21,7 @@ use App\Http\Resources\ChatIncrementalResource;
 use App\Services\ChatQueryCacheService;
 use App\Services\FirebaseChatService;
 use App\Services\FirebaseSyncService;
+use App\Services\LineUserService;
 // Removed WebhookLoggerService dependency
 
 class ChatController extends BaseApiController
@@ -28,15 +29,18 @@ class ChatController extends BaseApiController
     private $cacheService;
     private $firebaseChatService;
     private $firebaseSyncService;
+    private $lineUserService;
     
     public function __construct(
         ChatQueryCacheService $cacheService,
         FirebaseChatService $firebaseChatService,
-        FirebaseSyncService $firebaseSyncService
+        FirebaseSyncService $firebaseSyncService,
+        LineUserService $lineUserService
     ) {
         $this->cacheService = $cacheService;
         $this->firebaseChatService = $firebaseChatService;
         $this->firebaseSyncService = $firebaseSyncService;
+        $this->lineUserService = $lineUserService;
         $this->middleware('auth:api', ['except' => ['webhook', 'webhookTest', 'webhookSimpleTest', 'webhookDebugTest', 'webhookNoSignature', 'webhookSimulate', 'diagnoseDataFlow', 'verifyWebhookExecution', 'webhookStatus']]);
     }
 
@@ -697,7 +701,10 @@ class ChatController extends BaseApiController
         }
 
         try {
-            // Customer creation/finding
+            // Point 36: Handle LINE user message event using LineUserService
+            $lineUser = $this->lineUserService->handleMessage($lineUserId, $event['message'] ?? []);
+            
+            // Customer creation/finding (backward compatibility)
             $logger->logStep("customer_{$eventIndex}_lookup_start", ['line_user_id' => $lineUserId]);
             $customer = $this->createSimpleCustomer($lineUserId);
             
@@ -713,7 +720,8 @@ class ChatController extends BaseApiController
 
             $logger->logCustomerOperation('found_or_created', $customer->id, [
                 'line_user_id' => $lineUserId,
-                'customer_name' => $customer->name
+                'customer_name' => $customer->name,
+                'line_user_table_id' => $lineUser ? $lineUser->id : null // Point 36: Added
             ]);
 
             // Point 18: 調整順序 - 先Firebase後MySQL
@@ -1767,6 +1775,7 @@ class ChatController extends BaseApiController
 
     /**
      * Handle follow events (user adds bot as friend)
+     * Point 36: Now using LineUserService for centralized LINE user management
      */
     protected function handleFollow($event)
     {
@@ -1778,10 +1787,14 @@ class ChatController extends BaseApiController
             return;
         }
 
-        Log::info('Processing LINE follow event', ['line_user_id' => $lineUserId]);
+        Log::info('Processing LINE follow event - Point 36', ['line_user_id' => $lineUserId]);
 
         try {
-            // Find or create customer record
+            // Point 36: Use LineUserService to handle friend add event with profile sync
+            $profileData = $this->getLineUserProfile($lineUserId);
+            $lineUser = $this->lineUserService->handleFriendAdd($lineUserId, $profileData);
+            
+            // Find or create customer record (backward compatibility)
             $customer = $this->findOrCreateCustomer($lineUserId, $event);
             
             // Update customer status to indicate they are a LINE friend
@@ -1803,6 +1816,7 @@ class ChatController extends BaseApiController
                 'message_timestamp' => $timestamp ? \Carbon\Carbon::createFromTimestamp($timestamp / 1000) : now(),
                 'is_from_customer' => true,
                 'status' => 'unread',
+                'version_updated_at' => now(), // Point 24: Added required field
                 'metadata' => [
                     'event_type' => 'follow',
                     'timestamp' => $timestamp,
@@ -1815,10 +1829,12 @@ class ChatController extends BaseApiController
             // Broadcast the new message event for real-time updates
             broadcast(new NewChatMessage($conversation, $lineUserId));
 
-            Log::info('LINE follow event processed successfully (no auto-welcome messages)', [
+            Log::info('LINE follow event processed successfully - Point 36', [
                 'line_user_id' => $lineUserId,
+                'line_user_table_id' => $lineUser->id,
                 'customer_id' => $customer->id,
-                'conversation_id' => $conversation->id
+                'conversation_id' => $conversation->id,
+                'profile_completeness' => $lineUser->getProfileCompletenessScore()
             ]);
 
             // Auto-reply functionality removed - no welcome message or flex message sent
@@ -1832,7 +1848,7 @@ class ChatController extends BaseApiController
             $this->createFollowUpCaseIfNeeded($customer, $lineUserId);
             
         } catch (\Exception $e) {
-            Log::error('Failed to process LINE follow event', [
+            Log::error('Failed to process LINE follow event - Point 36', [
                 'line_user_id' => $lineUserId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -1842,6 +1858,7 @@ class ChatController extends BaseApiController
 
     /**
      * Handle unfollow events (user removes bot as friend)
+     * Point 36: Now using LineUserService for centralized LINE user management
      */
     protected function handleUnfollow($event)
     {
@@ -1853,10 +1870,13 @@ class ChatController extends BaseApiController
             return;
         }
 
-        Log::info('Processing LINE unfollow event', ['line_user_id' => $lineUserId]);
+        Log::info('Processing LINE unfollow event - Point 36', ['line_user_id' => $lineUserId]);
 
         try {
-            // Find customer record
+            // Point 36: Use LineUserService to handle friend remove event
+            $lineUser = $this->lineUserService->handleFriendRemove($lineUserId);
+            
+            // Find customer record (backward compatibility)
             $customer = Customer::where('line_user_id', $lineUserId)->first();
             
             if ($customer) {
@@ -1878,6 +1898,7 @@ class ChatController extends BaseApiController
                     'message_timestamp' => $timestamp ? \Carbon\Carbon::createFromTimestamp($timestamp / 1000) : now(),
                     'is_from_customer' => true,
                     'status' => 'read', // Mark as read since it's a system event
+                    'version_updated_at' => now(), // Point 24: Added required field
                     'metadata' => [
                         'event_type' => 'unfollow',
                         'timestamp' => $timestamp,
@@ -1890,19 +1911,21 @@ class ChatController extends BaseApiController
                 // Broadcast the new message event for real-time updates
                 broadcast(new NewChatMessage($conversation, $lineUserId));
 
-                Log::info('LINE unfollow event processed successfully', [
+                Log::info('LINE unfollow event processed successfully - Point 36', [
                     'line_user_id' => $lineUserId,
+                    'line_user_table_id' => $lineUser ? $lineUser->id : null,
                     'customer_id' => $customer->id,
                     'conversation_id' => $conversation->id
                 ]);
             } else {
-                Log::warning('LINE unfollow event for unknown customer', [
-                    'line_user_id' => $lineUserId
+                Log::warning('LINE unfollow event for unknown customer - Point 36', [
+                    'line_user_id' => $lineUserId,
+                    'line_user_table_id' => $lineUser ? $lineUser->id : null
                 ]);
             }
             
         } catch (\Exception $e) {
-            Log::error('Failed to process LINE unfollow event', [
+            Log::error('Failed to process LINE unfollow event - Point 36', [
                 'line_user_id' => $lineUserId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -2360,8 +2383,9 @@ class ChatController extends BaseApiController
 
     /**
      * Get LINE user profile
+     * Point 36: Made public so LineUserService can access it
      */
-    protected function getLineUserProfile($lineUserId)
+    public function getLineUserProfile($lineUserId)
     {
         try {
             $settings = $this->getLineSettings();
