@@ -113,7 +113,41 @@ Route::get('/test/line-user/basic', function() {
     }
 });
 
-// Point 49: Direct controller method test
+// Point 49: Test filled() behavior with empty params
+Route::get('/debug/websites-filled-test', function() {
+    try {
+        $request = request();
+        
+        return response()->json([
+            'success' => true,
+            'parameters' => [
+                'status_value' => $request->get('status', 'not_set'),
+                'type_value' => $request->get('type', 'not_set'),
+                'search_value' => $request->get('search', 'not_set'),
+            ],
+            'has_checks' => [
+                'has_status' => $request->has('status'),
+                'has_type' => $request->has('type'), 
+                'has_search' => $request->has('search'),
+            ],
+            'filled_checks' => [
+                'filled_status' => $request->filled('status'),
+                'filled_type' => $request->filled('type'),
+                'filled_search' => $request->filled('search'),
+            ],
+            'basic_website_count' => \App\Models\Website::count(),
+            'timestamp' => now()->format('c')
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+    }
+});
+
+// Point 49: Direct controller method test  
 Route::get('/debug/websites-direct-test', function() {
     try {
         // Test the exact same logic as the controller
