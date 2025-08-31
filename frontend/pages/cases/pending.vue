@@ -49,6 +49,7 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">時間</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">承辦業務</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">LINE</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">LINE ID</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">地區</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">地址</th>
@@ -64,7 +65,7 @@
           </thead>
           <tbody class="bg-white divide-y divide-gray-200 ">
             <tr v-if="loading">
-              <td colspan="6" class="px-6 py-6 text-center text-gray-500 ">載入中...</td>
+              <td colspan="16" class="px-6 py-6 text-center text-gray-500 ">載入中...</td>
             </tr>
             <tr v-for="lead in leads" :key="lead.id" class="hover:bg-gray-50 ">
               <!-- 網站 -->
@@ -85,8 +86,78 @@
               </td>
               <!-- Email -->
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.email || '-' }}</td>
-              <!-- LINE ID -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.line_id || lead.payload?.['LINE_ID'] || '-' }}</td>
+              <!-- LINE 欄位：顯示頭像與名稱 -->
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700">
+                <div v-if="lead.line_user_info && lead.is_line_user_id" class="flex items-center space-x-3">
+                  <!-- LINE 頭像 -->
+                  <img 
+                    v-if="lead.line_user_info.picture_url" 
+                    :src="lead.line_user_info.picture_url" 
+                    :alt="lead.line_user_info.display_name || 'LINE用戶'"
+                    class="w-8 h-8 rounded-full object-cover"
+                    @error="$event.target.style.display='none'"
+                  />
+                  <div v-else class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white text-sm">
+                    L
+                  </div>
+                  <!-- LINE 名稱 (可編輯) -->
+                  <div class="flex-1">
+                    <div v-if="!editingLineName[lead.id]" class="flex items-center space-x-2">
+                      <span class="text-sm font-medium">{{ lead.line_user_info.display_name || '未設定名稱' }}</span>
+                      <button 
+                        @click="startEditLineName(lead)"
+                        class="text-blue-500 hover:text-blue-700 text-xs"
+                        title="編輯名稱"
+                      >
+                        ✏️
+                      </button>
+                    </div>
+                    <div v-else class="flex items-center space-x-2">
+                      <input
+                        v-model="lineNameEdit[lead.id]"
+                        @keyup.enter="saveLineName(lead)"
+                        @keyup.escape="cancelEditLineName(lead)"
+                        class="text-sm border rounded px-2 py-1 w-24"
+                        maxlength="100"
+                      />
+                      <button 
+                        @click="saveLineName(lead)"
+                        class="text-green-500 hover:text-green-700 text-xs"
+                        title="儲存"
+                      >
+                        ✓
+                      </button>
+                      <button 
+                        @click="cancelEditLineName(lead)"
+                        class="text-red-500 hover:text-red-700 text-xs"
+                        title="取消"
+                      >
+                        ✗
+                      </button>
+                    </div>
+                    <div v-if="lead.line_user_info.status_message" class="text-xs text-gray-500 truncate max-w-[120px]">
+                      {{ lead.line_user_info.status_message }}
+                    </div>
+                  </div>
+                </div>
+                <div v-else-if="lead.line_id && !lead.is_line_user_id" class="text-gray-500">
+                  <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-full bg-gray-400 flex items-center justify-center text-white text-sm">
+                      @
+                    </div>
+                    <span class="text-sm">LINE ID用戶</span>
+                  </div>
+                </div>
+                <div v-else class="text-gray-400">
+                  -
+                </div>
+              </td>
+              <!-- LINE ID：只顯示非user_id的line_id -->
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700">
+                <span v-if="lead.line_id && !lead.is_line_user_id">{{ lead.line_id }}</span>
+                <span v-else-if="lead.line_id && lead.is_line_user_id" class="text-gray-400 text-xs">user_id (隱藏)</span>
+                <span v-else>-</span>
+              </td>
               <!-- 地區 -->
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '-' }}</td>
               <!-- 地址 -->
@@ -113,7 +184,7 @@
               </td>
             </tr>
             <tr v-if="!loading && leads.length === 0">
-              <td colspan="15" class="px-6 py-6 text-center text-gray-500 ">沒有資料</td>
+              <td colspan="16" class="px-6 py-6 text-center text-gray-500 ">沒有資料</td>
             </tr>
           </tbody>
         </table>
@@ -330,6 +401,10 @@ const loading = ref(false)
 const saving = ref(false)
 const search = ref('')
 const selectedAssignee = ref('all')
+
+// Point 37: LINE名稱編輯相關狀態
+const editingLineName = ref({})
+const lineNameEdit = ref({})
 
 // edit modal
 const editOpen = ref(false)
@@ -618,6 +693,51 @@ const openConvert = (lead) => {
   convertOpen.value = true
 }
 const closeConvert = () => { convertOpen.value = false; convertLead.value = null }
+
+// Point 37: LINE名稱編輯方法
+const startEditLineName = (lead) => {
+  editingLineName.value[lead.id] = true
+  lineNameEdit.value[lead.id] = lead.line_user_info?.display_name || ''
+}
+
+const cancelEditLineName = (lead) => {
+  editingLineName.value[lead.id] = false
+  delete lineNameEdit.value[lead.id]
+}
+
+const saveLineName = async (lead) => {
+  if (!lineNameEdit.value[lead.id] || !lineNameEdit.value[lead.id].trim()) {
+    showError('名稱不能為空')
+    return
+  }
+
+  try {
+    const { $api } = useNuxtApp()
+    
+    const { data, error } = await $api.put(`/leads/${lead.id}/line-name`, {
+      editable_name: lineNameEdit.value[lead.id].trim()
+    })
+
+    if (!error && data?.success) {
+      // 更新本地資料
+      if (lead.line_user_info) {
+        lead.line_user_info.display_name = lineNameEdit.value[lead.id].trim()
+        lead.line_user_info.editable_name = lineNameEdit.value[lead.id].trim()
+      }
+      
+      editingLineName.value[lead.id] = false
+      delete lineNameEdit.value[lead.id]
+      
+      success(`LINE用戶名稱已更新：${data.old_name} → ${data.new_name}`)
+    } else {
+      showError(data?.message || error?.message || '更新失敗')
+    }
+  } catch (error) {
+    console.error('Update LINE name error:', error)
+    showError('系統錯誤，請稍後再試')
+  }
+}
+
 const doConvert = async () => {
   if (!convertLead.value) return
   

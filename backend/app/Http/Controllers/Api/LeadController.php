@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Models\CustomerLead;
+use App\Models\LineUser;
 use Illuminate\Validation\Rule;
 
 class LeadController extends Controller
@@ -72,6 +73,45 @@ class LeadController extends Controller
         // );
         $perPage = (int)($request->get('per_page', 15));
         $leads = $query->orderByDesc('created_at')->paginate($perPage);
+        
+        // Point 37: 加載LINE用戶資訊
+        $leads->getCollection()->transform(function ($lead) {
+            // 檢查line_id是否存在，並判斷是否為user_id格式
+            if ($lead->line_id) {
+                $lineId = $lead->line_id;
+                
+                // Point 37: 區分user_id與line_id格式
+                $lead->is_line_user_id = $this->isLineUserId($lineId);
+                
+                if ($lead->is_line_user_id) {
+                    // 如果是user_id格式，查詢line_users表獲取完整資料
+                    $lineUser = LineUser::where('line_user_id', $lineId)->first();
+                    if ($lineUser) {
+                        $lead->line_user_info = [
+                            'id' => $lineUser->id,
+                            'display_name' => $lineUser->display_name,
+                            'display_name_original' => $lineUser->display_name_original,
+                            'picture_url' => $lineUser->picture_url,
+                            'status_message' => $lineUser->status_message,
+                            'profile_completeness' => $lineUser->getProfileCompletenessScore(),
+                            'is_friend' => $lineUser->is_friend,
+                            'editable_name' => $lineUser->display_name // 可編輯的名稱
+                        ];
+                    } else {
+                        $lead->line_user_info = null;
+                    }
+                } else {
+                    // 如果是一般line_id，保持原有顯示
+                    $lead->line_user_info = null;
+                }
+            } else {
+                $lead->is_line_user_id = false;
+                $lead->line_user_info = null;
+            }
+            
+            return $lead;
+        });
+        
         return response()->json($leads);
     }
 
@@ -167,5 +207,67 @@ class LeadController extends Controller
         // 簡單刪除 lead，不刪除 customer
         $lead->delete();
         return response()->json(['message' => 'deleted']);
+    }
+    
+    /**
+     * Point 37: 判斷是否為LINE user_id格式
+     * LINE user_id 格式：U + 32位字母數字，總長度33
+     */
+    private function isLineUserId($lineId)
+    {
+        // LINE user_id格式檢查：以U開頭，總長度33字符，只包含字母數字
+        return preg_match('/^U[a-f0-9]{32}$/i', $lineId) === 1;
+    }
+    
+    /**
+     * Point 37: 更新LINE用戶的可編輯名稱
+     */
+    public function updateLineUserName(Request $request, $leadId)
+    {
+        $lead = CustomerLead::findOrFail($leadId);
+        
+        $validator = Validator::make($request->all(), [
+            'editable_name' => 'required|string|max:100'
+        ]);
+        
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+        
+        $editableName = $request->get('editable_name');
+        
+        // 如果是LINE user_id格式，更新LineUser表中的顯示名稱
+        if ($lead->line_id && $this->isLineUserId($lead->line_id)) {
+            $lineUser = LineUser::where('line_user_id', $lead->line_id)->first();
+            if ($lineUser) {
+                $oldName = $lineUser->display_name;
+                $lineUser->update([
+                    'display_name' => $editableName
+                ]);
+                
+                // 記錄名稱變更
+                \Log::info('Point 37 - LINE用戶名稱變更', [
+                    'lead_id' => $leadId,
+                    'line_user_id' => $lead->line_id,
+                    'line_user_table_id' => $lineUser->id,
+                    'old_name' => $oldName,
+                    'new_name' => $editableName,
+                    'updated_by' => Auth::id(),
+                    'updated_at' => now()
+                ]);
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'LINE用戶名稱更新成功',
+                    'old_name' => $oldName,
+                    'new_name' => $editableName
+                ]);
+            }
+        }
+        
+        return response()->json([
+            'success' => false,
+            'message' => '無法更新：此不是有效的LINE用戶'
+        ], 400);
     }
 }

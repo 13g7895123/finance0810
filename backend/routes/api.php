@@ -339,6 +339,9 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('/leads/{lead}', [LeadController::class, 'show']);
     Route::put('/leads/{lead}', [LeadController::class, 'update']);
     Route::delete('/leads/{lead}', [LeadController::class, 'destroy']);
+    
+    // Point 37: LINE user name update for leads
+    Route::put('/leads/{lead}/line-name', [LeadController::class, 'updateLineUserName']);
 
     // Cases
     Route::get('/cases', [CaseController::class, 'index']);
