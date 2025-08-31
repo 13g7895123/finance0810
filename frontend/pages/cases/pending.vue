@@ -85,6 +85,13 @@
         <!-- 可以在這裡添加新增案件等按鈕 -->
       </template>
       
+      <!-- Case Number Cell -->
+      <template #cell-case_number="{ item }">
+        <div class="text-sm font-medium text-gray-900">
+          {{ generateCaseNumber(item) }}
+        </div>
+      </template>
+      
       <!-- Website Cell -->
       <template #cell-website="{ item }">
         <div>
@@ -102,7 +109,7 @@
       
       <!-- Channel Cell -->
       <template #cell-channel="{ item }">
-        <span class="text-sm text-gray-900">{{ item.channel || 'wp' }}</span>
+        <span class="text-sm text-gray-900">{{ item.channel || 'wp_form' }}</span>
       </template>
       
       <!-- DateTime Cell -->
@@ -115,7 +122,20 @@
       
       <!-- Assignee Cell -->
       <template #cell-assignee="{ item }">
-        <span class="text-sm text-gray-900">{{ item.assignee?.name || '未指派' }}</span>
+        <div class="flex items-center space-x-2">
+          <span class="text-sm text-gray-900">{{ item.assignee?.name || '未指派' }}</span>
+          <button 
+            v-if="!item.assignee && authStore.hasPermission && authStore.hasPermission('customer_management')"
+            @click="openAssignModal(item)"
+            class="inline-flex items-center justify-center w-6 h-6 text-blue-600 hover:text-white hover:bg-blue-600 rounded transition-colors duration-200 relative group"
+            title="指派業務"
+          >
+            <Icon name="heroicons:user-plus" class="w-4 h-4" />
+            <span class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+              指派業務
+            </span>
+          </button>
+        </div>
       </template>
       
       <!-- Contact Info Cell -->
@@ -433,7 +453,7 @@
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700">來源管道</label>
-              <p class="text-gray-900">{{ selectedLead.channel || 'wp' }}</p>
+              <p class="text-gray-900">{{ selectedLead.channel || 'wp_form' }}</p>
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700">時間</label>
@@ -483,6 +503,54 @@
           <div class="flex justify-end space-x-3 pt-2">
             <button type="button" class="px-4 py-2 border border-gray-300 rounded-lg" @click="closeConvert">取消</button>
             <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">送件</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Assign Modal -->
+    <div v-if="assignOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeAssign">
+      <div class="bg-white rounded-lg p-6 w-full max-w-md">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">指派承辦業務</h3>
+        <form @submit.prevent="doAssign" class="space-y-4">
+          <div v-if="assignLead" class="mb-4">
+            <div class="text-sm text-gray-600 mb-2">案件資訊：</div>
+            <div class="bg-gray-50 p-3 rounded-lg">
+              <div class="text-sm"><span class="font-medium">案件編號：</span>{{ generateCaseNumber(assignLead) }}</div>
+              <div class="text-sm"><span class="font-medium">Email：</span>{{ assignLead.email || '未提供' }}</div>
+              <div class="text-sm"><span class="font-medium">LINE ID：</span>{{ assignLead.line_id || '未提供' }}</div>
+            </div>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-semibold text-gray-900 mb-2">選擇承辦業務 <span class="text-red-500">*</span></label>
+            <select 
+              v-model="assignForm.assigned_to" 
+              required
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">請選擇業務人員</option>
+              <option v-for="user in users.filter(u => u.role === 'sales' || u.role === 'admin')" :key="user.id" :value="user.id">
+                {{ user.name }} ({{ user.role === 'admin' ? '管理員' : '業務' }})
+              </option>
+            </select>
+          </div>
+
+          <div class="flex justify-end space-x-3 pt-4">
+            <button 
+              type="button" 
+              class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50" 
+              @click="closeAssign"
+            >
+              取消
+            </button>
+            <button 
+              type="submit" 
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed" 
+              :disabled="saving || !assignForm.assigned_to"
+            >
+              {{ saving ? '指派中...' : '確認指派' }}
+            </button>
           </div>
         </form>
       </div>
@@ -544,9 +612,11 @@ const websiteOptions = ref([])
 const editOpen = ref(false)
 const viewOpen = ref(false)
 const convertOpen = ref(false)
+const assignOpen = ref(false)
 const editingId = ref(null)
 const selectedLead = ref(null)
 const convertLead = ref(null)
+const assignLead = ref(null)
 
 // 表單提交狀態
 const saving = ref(false)
@@ -565,7 +635,7 @@ const lineNameEdit = ref({})
 
 // 選項配置
 const CHANNEL_OPTIONS = [
-  { value: 'wp', label: 'wp' },
+  { value: 'wp_form', label: 'wp_form' },
   { value: 'lineoa', label: 'lineoa' },
   { value: 'email', label: 'email' },
   { value: 'phone', label: '電話' }
@@ -584,7 +654,7 @@ const STATUS_OPTIONS = [
 const form = reactive({
   page_url: '',
   website_domain: '', // Point 50: Add website_domain for dropdown selection
-  channel: 'wp',
+  channel: 'wp_form',
   status: 'pending',
   created_at: '',
   assigned_to: null,
@@ -605,9 +675,19 @@ const convertForm = reactive({
   notes: ''
 })
 
+const assignForm = reactive({
+  assigned_to: null
+})
+
 // 表格配置
 const pendingTableColumns = computed(() => {
   return [
+    {
+      key: 'case_number',
+      title: '案件編號',
+      sortable: true,
+      width: '140px'
+    },
     {
       key: 'website',
       title: '網站',
@@ -833,7 +913,7 @@ const onEdit = async (lead) => {
   Object.assign(form, {
     page_url: pageUrl,
     website_domain: websiteInfo.website ? websiteInfo.domain : (pageUrl ? 'other' : ''),
-    channel: lead.channel || 'wp',
+    channel: lead.channel || 'wp_form',
     status: lead.status || 'pending',
     created_at: lead.created_at ? new Date(lead.created_at).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
     assigned_to: lead.assigned_to || null,
@@ -962,6 +1042,47 @@ const doConvert = async () => {
   }
 }
 
+// 指派業務
+const openAssignModal = (lead) => {
+  assignLead.value = lead
+  assignForm.assigned_to = lead.assigned_to || null
+  assignOpen.value = true
+}
+
+const closeAssign = () => {
+  assignOpen.value = false
+  assignLead.value = null
+  assignForm.assigned_to = null
+}
+
+const doAssign = async () => {
+  if (!assignLead.value || !assignForm.assigned_to) {
+    showError('請選擇承辦業務')
+    return
+  }
+  
+  saving.value = true
+  try {
+    const { error } = await updateLead(assignLead.value.id, {
+      assigned_to: assignForm.assigned_to
+    })
+    
+    if (!error) {
+      assignOpen.value = false
+      await loadLeads()
+      const assignedUser = users.value.find(u => u.id === assignForm.assigned_to)
+      success(`已成功指派給 ${assignedUser?.name || '未知業務'}`)
+    } else {
+      showError(error?.message || '指派失敗')
+    }
+  } catch (err) {
+    showError('系統錯誤，請稍後再試')
+    console.error('Assign lead error:', err)
+  } finally {
+    saving.value = false
+  }
+}
+
 // LINE名稱編輯方法
 const startEditLineName = (lead) => {
   editingLineName.value[lead.id] = true
@@ -1023,6 +1144,17 @@ const preloadCustomFieldsFromLead = (lead) => {
 // 工具函數
 const extractDomain = (url) => {
   try { return new URL(url).hostname } catch { return url || '' }
+}
+
+// Point 51: Generate case number - CASE年份末兩碼+月日+三碼流水號
+const generateCaseNumber = (item) => {
+  const date = new Date(item.created_at)
+  const year = date.getFullYear().toString().slice(-2) // 年份末兩碼
+  const month = String(date.getMonth() + 1).padStart(2, '0') // 月份
+  const day = String(date.getDate()).padStart(2, '0') // 日期
+  const serial = String(item.id).padStart(3, '0') // 三碼流水號使用item.id
+  
+  return `CASE${year}${month}${day}${serial}`
 }
 
 // Point 50: Get website info from domain or URL
