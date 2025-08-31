@@ -1735,6 +1735,9 @@ class ChatController extends BaseApiController
 
             // Auto-reply functionality removed - no welcome message or flex message sent
             
+            // Point 26: 自動建立案件 - 當新用戶加機器人好友
+            $this->createFollowUpCaseIfNeeded($customer, $lineUserId);
+            
         } catch (\Exception $e) {
             Log::error('Failed to process LINE follow event', [
                 'line_user_id' => $lineUserId,
@@ -2023,6 +2026,86 @@ class ChatController extends BaseApiController
                 'trace' => $e->getTraceAsString()
             ]);
             throw $e;
+        }
+    }
+
+    /**
+     * Point 26: Create follow-up case automatically when LINE user adds bot as friend
+     */
+    protected function createFollowUpCaseIfNeeded($customer, $lineUserId)
+    {
+        try {
+            // Check if this LINE user already has a pending case to avoid duplicates
+            $existingLead = CustomerLead::where('customer_id', $customer->id)
+                ->where('line_id', $lineUserId)
+                ->where('status', 'pending')
+                ->exists();
+                
+            if ($existingLead) {
+                Log::info('LINE follow case already exists, skipping creation', [
+                    'customer_id' => $customer->id,
+                    'line_user_id' => $lineUserId
+                ]);
+                return;
+            }
+
+            // Get LINE profile for email if available
+            $profile = $this->getLineUserProfile($lineUserId);
+            $email = null; // LINE profiles rarely contain email, but check if available in future
+            
+            // Create CustomerLead record according to Point 26 specifications
+            $lead = CustomerLead::create([
+                'customer_id' => $customer->id,
+                'status' => 'pending',
+                'assigned_to' => $customer->assigned_to, // Inherit from customer if assigned
+                'channel' => 'lineoa', // Point 26: source channel should be 'lineoa'
+                'source' => null, // Point 26: website field should be empty
+                'name' => $customer->name,
+                'phone' => $customer->phone,
+                'email' => $email, // Point 26: from LINE if available, otherwise empty
+                'line_id' => $lineUserId,
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'payload' => [
+                    'event_type' => 'line_follow',
+                    'line_display_name' => $profile['displayName'] ?? null,
+                    'created_timestamp' => now()->toISOString(),
+                ],
+                'is_suspected_blacklist' => false,
+                'suspected_reason' => null,
+            ]);
+
+            // Add notes according to Point 26 specification
+            $lead->notes = '此案件為line官方加入好友後自動新建';
+            $lead->save();
+
+            // Create activity record for the auto-generated lead
+            \App\Models\CustomerActivity::create([
+                'customer_id' => $customer->id,
+                'user_id' => null, // System-generated
+                'activity_type' => \App\Models\CustomerActivity::TYPE_CREATED,
+                'description' => 'LINE 加好友自動建立案件',
+                'old_data' => null,
+                'new_data' => $lead->toArray(),
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+            ]);
+
+            Log::info('LINE follow case created automatically', [
+                'customer_id' => $customer->id,
+                'lead_id' => $lead->id,
+                'line_user_id' => $lineUserId,
+                'channel' => 'lineoa'
+            ]);
+
+        } catch (\Exception $e) {
+            // Log error but don't throw - this is supplementary functionality
+            Log::error('Failed to create LINE follow case', [
+                'customer_id' => $customer->id,
+                'line_user_id' => $lineUserId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
         }
     }
 
