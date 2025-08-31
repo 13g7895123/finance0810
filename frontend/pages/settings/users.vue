@@ -87,35 +87,53 @@
           <button
             v-if="item.id !== authStore.user?.id"
             @click="toggleStatus(item)"
-            class="text-indigo-600 hover:text-indigo-800 transition-colors duration-200"
+            class="p-2 rounded-lg transition-all duration-200 group relative"
+            :class="item.status === 'active' ? 'text-orange-600 hover:text-orange-800 hover:bg-orange-50' : 'text-green-600 hover:text-green-800 hover:bg-green-50'"
+            :title="item.status === 'active' ? '停用用戶' : '啟用用戶'"
           >
-            {{ item.status === 'active' ? t('auth.deactivate') : t('auth.activate') }}
+            <PauseIcon v-if="item.status === 'active'" class="w-4 h-4" />
+            <PlayIcon v-else class="w-4 h-4" />
+            <span class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+              {{ item.status === 'active' ? '停用' : '啟用' }}
+            </span>
           </button>
           
           <!-- Assign Customers (Only for sales staff) -->
           <button
             v-if="item.roles?.[0]?.name === 'staff' && authStore.hasPermission('customer_management')"
             @click="openAssignCustomersModal(item)"
-            class="text-green-600 hover:text-green-800 transition-colors duration-200"
+            class="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-all duration-200 group relative"
+            title="指派客戶"
           >
-            指派客戶
+            <UserPlusIcon class="w-4 h-4" />
+            <span class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+              指派客戶
+            </span>
           </button>
           
           <!-- Edit -->
           <button
             @click="editUser(item)"
-            class="text-blue-600 hover:text-blue-800 transition-colors duration-200"
+            class="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200 group relative"
+            title="編輯用戶"
           >
-            {{ t('common.edit') }}
+            <PencilIcon class="w-4 h-4" />
+            <span class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+              編輯
+            </span>
           </button>
           
           <!-- Delete -->
           <button
             v-if="item.id !== authStore.user?.id"
             @click="deleteUserConfirm(item)"
-            class="text-red-600 hover:text-red-800 transition-colors duration-200"
+            class="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200 group relative"
+            title="刪除用戶"
           >
-            刪除
+            <TrashIcon class="w-4 h-4" />
+            <span class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+              刪除
+            </span>
           </button>
         </div>
       </template>
@@ -432,7 +450,12 @@ import {
   PlusIcon,
   ArrowPathIcon,
   ChevronLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  PlayIcon,
+  PauseIcon,
+  UserPlusIcon,
+  PencilIcon,
+  TrashIcon
 } from '@heroicons/vue/24/outline'
 import DataTable from '~/components/DataTable.vue'
 import { formatters } from '~/utils/tableColumns'

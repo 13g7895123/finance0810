@@ -182,30 +182,46 @@
         <div class="flex items-center space-x-2 justify-end">
           <button 
             @click="viewCustomer(item)"
-            class="text-blue-600 hover:text-blue-800 transition-colors"
+            class="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200 group relative"
+            title="查看客戶詳情"
           >
-            查看
+            <EyeIcon class="w-4 h-4" />
+            <span class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+              查看
+            </span>
           </button>
           <button 
             v-if="authStore.hasPermission('customer_management') || item.assigned_to === authStore.user?.id"
             @click="editCustomer(item)"
-            class="text-gray-600 hover:text-gray-800 transition-colors"
+            class="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-all duration-200 group relative"
+            title="編輯客戶資料"
           >
-            編輯
+            <PencilIcon class="w-4 h-4" />
+            <span class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+              編輯
+            </span>
           </button>
           <button 
             v-if="authStore.hasPermission('customer_management')"
             @click="openAssignModal(item)"
-            class="text-green-600 hover:text-green-800 transition-colors"
+            class="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-all duration-200 group relative"
+            title="指派負責業務"
           >
-            指派
+            <UserPlusIcon class="w-4 h-4" />
+            <span class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+              指派
+            </span>
           </button>
           <button 
             v-if="authStore.hasPermission('customer_management')"
             @click="confirmDeleteCustomer(item)"
-            class="text-red-600 hover:text-red-800 transition-colors"
+            class="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200 group relative"
+            title="刪除客戶"
           >
-            刪除
+            <TrashIcon class="w-4 h-4" />
+            <span class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+              刪除
+            </span>
           </button>
         </div>
       </template>
@@ -562,7 +578,11 @@ import {
   MagnifyingGlassIcon,
   UserGroupIcon,
   CheckCircleIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  EyeIcon,
+  PencilIcon,
+  UserPlusIcon,
+  TrashIcon
 } from '@heroicons/vue/24/outline'
 
 // 明確匯入組件
