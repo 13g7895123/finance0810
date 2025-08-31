@@ -84,7 +84,6 @@
           <thead class="bg-gray-50">
             <tr>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">網站</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">域名</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">狀態</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">統計</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Webhook</th>
@@ -95,14 +94,11 @@
             <tr v-for="website in websites.data" :key="website.id" class="hover:bg-gray-50">
               <td class="px-6 py-4 whitespace-nowrap">
                 <div>
-                  <div class="text-sm font-medium text-gray-900">{{ website.name }}</div>
+                  <a :href="website.url" target="_blank" class="text-sm font-medium text-blue-600 hover:text-blue-800">
+                    {{ website.name }}
+                  </a>
                   <div class="text-sm text-gray-500">{{ website.type === 'wordpress' ? 'WordPress' : '其他' }}</div>
                 </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <a :href="website.url" target="_blank" class="text-blue-600 hover:text-blue-800">
-                  {{ website.domain }}
-                </a>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <span :class="getStatusClass(website.status)" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
@@ -121,7 +117,7 @@
                   {{ website.webhook_enabled ? '已啟用' : '已停用' }}
                 </span>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                 <!-- 編輯按鈕 -->
                 <button 
                   @click="editWebsite(website)" 
