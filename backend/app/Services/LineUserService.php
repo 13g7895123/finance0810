@@ -265,15 +265,73 @@ class LineUserService
 
     /**
      * Handle friend add event
+     * Point 38: Enhanced to handle re-adding friends with profile updates
      */
     public function handleFriendAdd($lineUserId, $profileData = [])
     {
-        $lineUser = $this->findOrCreateLineUser($lineUserId, $profileData);
+        // Point 38: Check if user already exists to detect re-adding
+        $existingUser = LineUser::where('line_user_id', $lineUserId)->first();
+        $isReAdding = !is_null($existingUser);
+        
+        if ($isReAdding) {
+            Log::info('Point 38 - LineUserService: Detected re-adding friend', [
+                'line_user_id' => $lineUserId,
+                'existing_user_id' => $existingUser->id,
+                'previous_friend_status' => $existingUser->is_friend,
+                'last_updated' => $existingUser->updated_at
+            ]);
+        }
+        
+        // Process user (create or update)
+        $lineUser = $this->findOrCreateLineUser($lineUserId, $profileData, 'messaging_api');
+        
+        // Point 38: Force profile refresh for re-adding friends
+        if ($isReAdding && !empty($profileData)) {
+            $oldData = [
+                'display_name' => $existingUser->display_name,
+                'picture_url' => $existingUser->picture_url,
+                'email' => $existingUser->email,
+                'status_message' => $existingUser->status_message
+            ];
+            
+            // Force sync messaging API profile data
+            $lineUser->syncMessagingApiProfile($profileData);
+            
+            // Log what was updated
+            $newData = [
+                'display_name' => $lineUser->display_name,
+                'picture_url' => $lineUser->picture_url,
+                'email' => $lineUser->email,
+                'status_message' => $lineUser->status_message
+            ];
+            
+            $changes = [];
+            foreach ($oldData as $field => $oldValue) {
+                if ($oldValue !== $newData[$field]) {
+                    $changes[$field] = [
+                        'old' => $oldValue,
+                        'new' => $newData[$field]
+                    ];
+                }
+            }
+            
+            if (!empty($changes)) {
+                Log::info('Point 38 - LineUserService: Profile data updated on re-adding', [
+                    'line_user_id' => $lineUserId,
+                    'line_user_table_id' => $lineUser->id,
+                    'changes' => $changes
+                ]);
+            }
+        }
+        
+        // Update friend status
         $lineUser->updateFriendStatus(true);
         
-        Log::info('Point 36 - LineUserService: Friend add handled', [
+        Log::info('Point 38 - LineUserService: Friend add handled', [
             'line_user_id' => $lineUserId,
-            'line_user_id_db' => $lineUser->id
+            'line_user_table_id' => $lineUser->id,
+            'is_re_adding' => $isReAdding,
+            'profile_completeness' => $lineUser->getProfileCompletenessScore()
         ]);
         
         return $lineUser;
