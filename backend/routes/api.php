@@ -113,6 +113,56 @@ Route::get('/test/line-user/basic', function() {
     }
 });
 
+// Point 49: Simple debug without user auth issues
+Route::get('/debug/websites-simple-step', function() {
+    try {
+        // Step 1: Basic counts
+        $rawCount = \App\Models\Website::count();
+        $basicQuery = \App\Models\Website::query();
+        $withRelCount = \App\Models\Website::with(['createdBy', 'updatedBy'])->count();
+        
+        // Step 2: Test pagination without filters
+        $simplePagedQuery = \App\Models\Website::query();
+        $simplePaged = $simplePagedQuery->paginate(15);
+        
+        // Step 3: Test with relationships
+        $relPagedQuery = \App\Models\Website::with(['createdBy', 'updatedBy']);
+        $relPaged = $relPagedQuery->paginate(15);
+        
+        // Step 4: Get actual first website data
+        $firstWebsite = \App\Models\Website::first();
+        
+        return response()->json([
+            'success' => true,
+            'counts' => [
+                'raw_count' => $rawCount,
+                'with_relations_count' => $withRelCount,
+                'simple_paged_total' => $simplePaged->total(),
+                'simple_paged_count' => $simplePaged->count(),
+                'rel_paged_total' => $relPaged->total(),
+                'rel_paged_count' => $relPaged->count(),
+            ],
+            'first_website' => $firstWebsite ? [
+                'id' => $firstWebsite->id,
+                'name' => $firstWebsite->name,
+                'domain' => $firstWebsite->domain,
+                'created_by' => $firstWebsite->created_by,
+                'updated_by' => $firstWebsite->updated_by,
+                'created_at' => $firstWebsite->created_at,
+            ] : null,
+            'timestamp' => now()->format('c')
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ]);
+    }
+});
+
 // Point 49: Debug step by step controller execution
 Route::get('/debug/websites-step-by-step', function() {
     try {
