@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\VersionController;
 use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\DebugController;
 use App\Http\Controllers\Api\WebhookLogController;
+use App\Http\Controllers\Api\LineUserTestController;
 
 /*
 |--------------------------------------------------------------------------
@@ -53,6 +54,10 @@ Route::get('/test/cookies', [TestController::class, 'cookieTest']);
 Route::get('/test/simple-debug', [TestController::class, 'simpleDebug']);
 Route::get('/test/debug-auth', [TestController::class, 'detailedAuthDebug']);
 Route::get('/test/customers-basic', [TestController::class, 'testCustomersBasic']);
+
+// Point 36: LINE User Test routes (public - for debugging)
+Route::get('/test/line-user/system', [LineUserTestController::class, 'testSystem']);
+Route::get('/test/line-user/create', [LineUserTestController::class, 'testCreateUser']);
 
 // Point 34: Test route for customer deletion debugging
 Route::delete('/test/customers/{customer}/delete', function(\App\Models\Customer $customer) {
