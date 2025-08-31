@@ -1,232 +1,354 @@
 <template>
   <div class="space-y-6">
-    <!-- Header -->
+    <!-- 頁面標題 -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 ">已核准案件</h1>
-        <p class="text-gray-600 mt-2">顯示來自 WP 表單的進件（可搜尋、編輯、刪除）</p>
+        <h1 class="text-3xl font-bold text-gray-900">已核准案件</h1>
+        <p class="text-gray-600 mt-2">顯示已核准的案件（可搜尋、編輯、刪除）</p>
       </div>
-      <div class="flex items-center space-x-3">
-        <input
-          v-model="search"
-          type="text"
-          placeholder="搜尋姓名/手機/Email/LINE/網站... (至少2個字符)"
-          class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-        <template v-if="authStore?.hasPermission && authStore.hasPermission('customer_management')">
-          <select v-model="selectedAssignee" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-            <option value="all">全部承辦</option>
-            <option value="null">未指派</option>
-            <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
-          </select>
-        </template>
-        <select v-model="pagination.perPage" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-          <option v-for="option in PAGINATION_OPTIONS" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
+    </div>
+
+    <!-- 統計卡片 -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <StatsCard
+        title="已核准案件"
+        :value="caseStats.approved"
+        description="核准通過的案件"
+        icon="CheckCircleIcon"
+        iconColor="green"
+        :trend="8.5"
+      />
+      
+      <StatsCard
+        title="本月核准"
+        :value="caseStats.thisMonth"
+        description="本月新核准"
+        icon="TrendingUpIcon"
+        iconColor="blue"
+        :trend="12.3"
+      />
+      
+      <StatsCard
+        title="平均金額"
+        :value="caseStats.averageAmount"
+        format="currency"
+        description="平均核准金額"
+        icon="CurrencyDollarIcon"
+        iconColor="yellow"
+        :trend="5.7"
+      />
+      
+      <StatsCard
+        title="核准率"
+        :value="caseStats.approvalRate"
+        format="percentage"
+        description="整體核准率"
+        icon="ChartBarIcon"
+        iconColor="purple"
+        :trend="2.1"
+      />
+    </div>
+
+    <!-- 案件列表 -->
+    <DataTable
+      title="已核准案件列表"
+      :columns="approvedTableColumns"
+      :data="filteredLeads"
+      :loading="loading"
+      :error="loadError"
+      :search-query="searchQuery"
+      search-placeholder="搜尋姓名/手機/Email/LINE/網站... (至少2個字符)"
+      :current-page="currentPage"
+      :items-per-page="itemsPerPage"
+      loading-text="載入中..."
+      empty-text="沒有已核准案件"
+      @search="handleSearch"
+      @refresh="loadLeads"
+      @retry="loadLeads"
+      @page-change="handlePageChange"
+      @page-size-change="handlePageSizeChange"
+    >
+      <!-- Filter Controls -->
+      <template #filters>
+        <select
+          v-if="authStore.hasPermission && authStore.hasPermission('customer_management')"
+          v-model="selectedAssignee"
+          class="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">全部承辦</option>
+          <option value="null">未指派</option>
+          <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
         </select>
-      </div>
-    </div>
-
-    <!-- Table -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-        <h3 class="text-lg font-medium text-gray-900 ">WP 進件列表</h3>
-        <div class="text-sm text-gray-500 ">
-          第
-          <span class="font-medium">{{ startIndex + 1 }}</span>
-          -
-          <span class="font-medium">{{ Math.min(endIndex, pagination.total) }}</span>
-          筆，共 <span class="font-medium">{{ pagination.total }}</span> 筆
+        
+        <!-- 核准金額範圍篩選 -->
+        <select
+          v-model="amountFilter"
+          class="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">所有金額</option>
+          <option value="0-100000">10萬以下</option>
+          <option value="100000-500000">10-50萬</option>
+          <option value="500000-1000000">50-100萬</option>
+          <option value="1000000+">100萬以上</option>
+        </select>
+      </template>
+      
+      <!-- Action Buttons -->
+      <template #actions>
+        <!-- 可以在這裡添加匯出等按鈕 -->
+      </template>
+      
+      <!-- Website Cell -->
+      <template #cell-website="{ item }">
+        <div>
+          <div class="text-sm font-medium text-gray-900">
+            {{ extractDomain(item.payload?.['頁面_URL'] || item.source) || '-' }}
+          </div>
+          <div class="text-xs text-gray-500 truncate max-w-[240px]">
+            {{ item.payload?.['頁面_URL'] || item.source }}
+          </div>
         </div>
-      </div>
-
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead class="bg-gray-50 ">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">網站</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">來源管道</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">時間</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">承辦業務</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">LINE ID</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">地區</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">地址</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">需求金額</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">諮詢項目</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">可聯繫時間</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP 位址</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">備註</th>
-              <!-- 自定義欄位（可見）動態欄位 -->
-              <th v-for="cf in visibleCaseFields" :key="cf.id" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ cf.label }}</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200 ">
-            <tr v-if="loading">
-              <td colspan="6" class="px-6 py-6 text-center text-gray-500 ">載入中...</td>
-            </tr>
-            <tr v-for="lead in leads" :key="lead.id" class="hover:bg-gray-50 ">
-              <!-- 網站 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">
-                <div class="text-gray-900 ">{{ extractDomain(lead.payload?.['頁面_URL'] || lead.source) || '-' }}</div>
-                <div class="text-xs text-gray-500 truncate max-w-[240px]">{{ lead.payload?.['頁面_URL'] || lead.source }}</div>
-              </td>
-              <!-- 來源管道 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.channel || 'wp' }}</td>
-              <!-- 時間 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">
-                <div>{{ formatDate(lead.created_at) }}</div>
-                <div class="text-sm">{{ formatTime(lead.created_at) }}</div>
-              </td>
-              <!-- 承辦業務 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">
-                {{ lead.assignee?.name || '-' }}
-              </td>
-              <!-- Email -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.email || '-' }}</td>
-              <!-- LINE ID -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.line_id || lead.payload?.['LINE_ID'] || '-' }}</td>
-              <!-- 地區 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '-' }}</td>
-              <!-- 地址 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.payload?.['房屋地址'] || '-' }}</td>
-              <!-- 需求金額 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.payload?.['資金需求'] || '-' }}</td>
-              <!-- 諮詢項目 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.payload?.['貸款需求'] || '-' }}</td>
-              <!-- 可聯繫時間 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.payload?.['方便聯絡時間'] || '-' }}</td>
-              <!-- IP 位址 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.ip_address || '-' }}</td>
-              <!-- 備註 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.notes || lead.payload?.['備註'] || lead.payload?.notes || '-' }}</td>
-              <!-- 動態自定義欄位顯示（is_visible=true） -->
-              <td v-for="cf in visibleCaseFields" :key="cf.id" class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">
-                {{ formatCustomFieldValue(lead.payload?.[cf.key], cf) }}
-              </td>
-              <!-- 操作 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">
-                <button @click="onEdit(lead)" class="text-blue-600 hover:text-blue-800 ">編輯</button>
-                <!-- <button @click="openConvert(lead)" class="text-green-600 hover:text-green-900 ">轉送件</button> -->
-                <button @click="onDelete(lead)" class="text-red-600 hover:text-red-800 ">刪除</button>
-              </td>
-            </tr>
-            <tr v-if="!loading && leads.length === 0">
-              <td colspan="15" class="px-6 py-6 text-center text-gray-500 ">沒有資料</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Pagination -->
-      <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-        <div class="flex space-x-2">
-          <button @click="prevPage" :disabled="pagination.currentPage === 1" class="px-3 py-1 border rounded text-sm disabled:opacity-50 ">上一頁</button>
-          <button @click="nextPage" :disabled="pagination.currentPage === totalPages" class="px-3 py-1 border rounded text-sm disabled:opacity-50 ">下一頁</button>
+      </template>
+      
+      <!-- Channel Cell -->
+      <template #cell-channel="{ item }">
+        <span class="text-sm text-gray-900">{{ item.channel || 'wp' }}</span>
+      </template>
+      
+      <!-- DateTime Cell -->
+      <template #cell-datetime="{ item }">
+        <div>
+          <div class="text-sm text-gray-900">{{ formatDate(item.created_at) }}</div>
+          <div class="text-xs text-gray-500">{{ formatTime(item.created_at) }}</div>
         </div>
-        <div class="text-sm text-gray-500 ">第 {{ pagination.currentPage }} / {{ totalPages }} 頁</div>
-      </div>
-    </div>
+      </template>
+      
+      <!-- Assignee Cell -->
+      <template #cell-assignee="{ item }">
+        <span class="text-sm text-gray-900">{{ item.assignee?.name || '未指派' }}</span>
+      </template>
+      
+      <!-- Contact Info Cell -->
+      <template #cell-contact_info="{ item }">
+        <div>
+          <div class="text-sm text-gray-900">{{ item.email || '未提供' }}</div>
+          <div class="text-xs text-gray-500">{{ item.phone || '未提供' }}</div>
+        </div>
+      </template>
+      
+      <!-- LINE Info Cell -->
+      <template #cell-line_info="{ item }">
+        <span class="text-sm text-gray-900">{{ item.line_id || item.payload?.['LINE_ID'] || '未綁定' }}</span>
+      </template>
+      
+      <!-- Location Cell -->
+      <template #cell-location="{ item }">
+        <div>
+          <div class="text-sm text-gray-900">
+            {{ item.payload?.['房屋區域'] || item.payload?.['所在地區'] || '未提供' }}
+          </div>
+          <div class="text-xs text-gray-500 truncate max-w-[120px]">
+            {{ item.payload?.['房屋地址'] || '' }}
+          </div>
+        </div>
+      </template>
+      
+      <!-- Amount Cell -->
+      <template #cell-amount="{ item }">
+        <div>
+          <div class="text-sm font-medium text-gray-900">
+            {{ item.approved_amount ? formatCurrency(item.approved_amount) : '未設定' }}
+          </div>
+          <div class="text-xs text-gray-500">
+            需求：{{ item.payload?.['資金需求'] || '-' }}
+          </div>
+        </div>
+      </template>
+      
+      <!-- Purpose Cell -->
+      <template #cell-purpose="{ item }">
+        <span class="text-sm text-gray-900">
+          {{ item.payload?.['貸款需求'] || '未填寫' }}
+        </span>
+      </template>
+      
+      <!-- Approval Status Cell -->
+      <template #cell-approval_status="{ item }">
+        <div>
+          <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+            已核准
+          </span>
+          <div class="text-xs text-gray-500 mt-1">
+            {{ item.approved_at ? formatDate(item.approved_at) : '未記錄' }}
+          </div>
+        </div>
+      </template>
+      
+      <!-- Custom Fields Cell -->
+      <template #cell-custom_fields="{ item }">
+        <div v-if="visibleCaseFields.length > 0" class="space-y-1">
+          <div v-for="cf in visibleCaseFields.slice(0, 2)" :key="cf.id" class="text-xs">
+            <span class="text-gray-500">{{ cf.label }}:</span>
+            <span class="text-gray-900 ml-1">
+              {{ formatCustomFieldValue(item.payload?.[cf.key], cf) }}
+            </span>
+          </div>
+          <div v-if="visibleCaseFields.length > 2" class="text-xs text-gray-400">
+            +{{ visibleCaseFields.length - 2 }} 個欄位
+          </div>
+        </div>
+        <span v-else class="text-xs text-gray-400">無自定義欄位</span>
+      </template>
+      
+      <!-- Actions Cell -->
+      <template #cell-actions="{ item }">
+        <div class="flex items-center space-x-2 justify-end">
+          <!-- 查看 -->
+          <button 
+            @click="viewLead(item)"
+            class="group relative inline-flex items-center justify-center p-2 text-blue-600 hover:text-white hover:bg-blue-600 rounded-lg transition-all duration-200"
+            title="查看詳情"
+          >
+            <EyeIcon class="w-4 h-4" />
+            <!-- Tooltip -->
+            <div class="absolute bottom-full mb-2 hidden group-hover:block px-2 py-1 text-xs text-white bg-gray-900 rounded whitespace-nowrap z-10">
+              查看詳情
+            </div>
+          </button>
+          
+          <!-- 編輯 -->
+          <button 
+            @click="onEdit(item)"
+            class="group relative inline-flex items-center justify-center p-2 text-gray-600 hover:text-white hover:bg-gray-600 rounded-lg transition-all duration-200"
+            title="編輯"
+          >
+            <PencilIcon class="w-4 h-4" />
+            <!-- Tooltip -->
+            <div class="absolute bottom-full mb-2 hidden group-hover:block px-2 py-1 text-xs text-white bg-gray-900 rounded whitespace-nowrap z-10">
+              編輯
+            </div>
+          </button>
+          
+          <!-- 撥款處理 -->
+          <button 
+            @click="processDisbursement(item)"
+            class="group relative inline-flex items-center justify-center p-2 text-green-600 hover:text-white hover:bg-green-600 rounded-lg transition-all duration-200"
+            title="撥款處理"
+          >
+            <CurrencyDollarIcon class="w-4 h-4" />
+            <!-- Tooltip -->
+            <div class="absolute bottom-full mb-2 hidden group-hover:block px-2 py-1 text-xs text-white bg-gray-900 rounded whitespace-nowrap z-10">
+              撥款處理
+            </div>
+          </button>
+          
+          <!-- 下載文件 -->
+          <button 
+            @click="downloadDocuments(item)"
+            class="group relative inline-flex items-center justify-center p-2 text-purple-600 hover:text-white hover:bg-purple-600 rounded-lg transition-all duration-200"
+            title="下載文件"
+          >
+            <DocumentArrowDownIcon class="w-4 h-4" />
+            <!-- Tooltip -->
+            <div class="absolute bottom-full mb-2 hidden group-hover:block px-2 py-1 text-xs text-white bg-gray-900 rounded whitespace-nowrap z-10">
+              下載文件
+            </div>
+          </button>
+          
+          <!-- 刪除 -->
+          <button 
+            @click="onDelete(item)"
+            class="group relative inline-flex items-center justify-center p-2 text-red-600 hover:text-white hover:bg-red-600 rounded-lg transition-all duration-200"
+            title="刪除"
+          >
+            <TrashIcon class="w-4 h-4" />
+            <!-- Tooltip -->
+            <div class="absolute bottom-full mb-2 hidden group-hover:block px-2 py-1 text-xs text-white bg-gray-900 rounded whitespace-nowrap z-10">
+              刪除
+            </div>
+          </button>
+        </div>
+      </template>
+    </DataTable>
 
     <!-- Edit Modal -->
     <div v-if="editOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeEdit">
       <div class="bg-white rounded-lg p-6 w-full max-w-xl max-h-[80vh] overflow-y-auto">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">編輯進件</h3>
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">編輯核准案件</h3>
         <form @submit.prevent="saveEdit" class="space-y-3">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label class="block text-sm mb-1">網站（頁面URL）</label>
+              <label class="block text-sm font-semibold text-gray-900 mb-1">網站（頁面URL）</label>
               <input v-model="form.page_url" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
             </div>
             <div>
-              <label class="block text-sm mb-1">來源管道</label>
+              <label class="block text-sm font-semibold text-gray-900 mb-1">來源管道</label>
               <select v-model="form.channel" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 <option v-for="opt in CHANNEL_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
             <div>
-              <label class="block text-sm mb-1">案件狀態</label>
+              <label class="block text-sm font-semibold text-gray-900 mb-1">案件狀態</label>
               <select v-model="form.status" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 <option v-for="opt in STATUS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
             <div>
-              <label class="block text-sm mb-1">時間</label>
-              <input v-model="form.created_at" type="datetime-local" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              <label class="block text-sm font-semibold text-gray-900 mb-1">核准金額</label>
+              <input v-model.number="form.approved_amount" type="number" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
             </div>
             <div>
-              <label class="block text-sm mb-1">Email</label>
+              <label class="block text-sm font-semibold text-gray-900 mb-1">Email</label>
               <input v-model="form.email" type="email" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
             </div>
             <div>
-              <label class="block text-sm mb-1">LINE ID</label>
+              <label class="block text-sm font-semibold text-gray-900 mb-1">LINE ID</label>
               <input v-model="form.line_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
             </div>
             <div>
-              <label class="block text-sm mb-1">地區</label>
+              <label class="block text-sm font-semibold text-gray-900 mb-1">地區</label>
               <input v-model="form.region" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
             </div>
             <div>
-              <label class="block text-sm mb-1">地址</label>
+              <label class="block text-sm font-semibold text-gray-900 mb-1">地址</label>
               <input v-model="form.address" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
             </div>
-            <div>
-              <label class="block text-sm mb-1">需求金額</label>
-              <input v-model.number="form.required_amount" type="number" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div>
-              <label class="block text-sm mb-1">諮詢項目</label>
-              <input v-model="form.loan_purpose" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div>
-              <label class="block text-sm mb-1">可聯繫時間</label>
-              <input v-model="form.contact_time" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div>
-              <label class="block text-sm mb-1">IP 位址</label>
-              <input v-model="form.ip_address" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-            </div>
             <div class="md:col-span-2">
-              <label class="block text-sm mb-1">備註</label>
+              <label class="block text-sm font-semibold text-gray-900 mb-1">備註</label>
               <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
             </div>
 
-            <!-- 自定義欄位（案件）顯示於表格/彈窗 -->
+            <!-- 自定義欄位（案件） -->
             <template v-if="caseFields.length">
               <div class="md:col-span-2 pt-2">
                 <div class="text-sm font-semibold mb-2">自定義欄位（案件）</div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div v-for="cf in caseFields" :key="cf.id">
-                    <label class="block text-sm mb-1">{{ cf.label }} <span v-if="cf.is_required" class="text-red-500">*</span></label>
-                    <!-- 文字/數字/小數/日期 -->
+                    <label class="block text-sm font-semibold text-gray-900 mb-1">{{ cf.label }} <span v-if="cf.is_required" class="text-red-500">*</span></label>
+                    <!-- 各種input類型實現 -->
                     <input
                       v-if="['text','number','decimal','date'].includes(cf.type)"
                       :type="cf.type === 'decimal' ? 'number' : (cf.type === 'number' ? 'number' : (cf.type === 'date' ? 'date' : 'text'))"
                       :step="cf.type === 'decimal' ? 'any' : undefined"
-                      class="w-full px-3 py-2 border rounded "
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       :required="cf.is_required"
                       v-model="customFieldValues[cf.key]"
                     />
-                    <!-- 文字區塊 -->
                     <textarea
                       v-else-if="cf.type === 'textarea'"
-                      class="w-full px-3 py-2 border rounded "
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       :required="cf.is_required"
                       v-model="customFieldValues[cf.key]"
                     ></textarea>
-                    <!-- 單選 -->
                     <select
                       v-else-if="cf.type === 'select'"
-                      class="w-full px-3 py-2 border rounded "
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       :required="cf.is_required"
                       v-model="customFieldValues[cf.key]"
                     >
                       <option value="">請選擇</option>
                       <option v-for="opt in (cf.options||[])" :key="opt" :value="opt">{{ opt }}</option>
                     </select>
-                    <!-- 多選（強化 UI：checkbox 群組 + 全選/清空 + 已選標籤） -->
                     <div v-else-if="cf.type === 'multiselect'">
                       <div class="flex flex-wrap gap-3">
                         <label v-for="opt in (cf.options||[])" :key="opt" class="inline-flex items-center">
@@ -234,15 +356,7 @@
                           <span>{{ opt }}</span>
                         </label>
                       </div>
-                      <div class="mt-2 text-xs text-gray-500 space-x-3">
-                        <button type="button" class="underline" @click="selectAllOptions(cf)">全選</button>
-                        <button type="button" class="underline" @click="clearOptions(cf)">清空</button>
-                      </div>
-                      <div class="mt-2 flex flex-wrap gap-2" v-if="(customFieldValues[cf.key]||[]).length">
-                        <span v-for="v in customFieldValues[cf.key]" :key="v" class="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded">{{ v }}</span>
-                      </div>
                     </div>
-                    <!-- 是/否 -->
                     <label v-else-if="cf.type === 'boolean'" class="inline-flex items-center space-x-2">
                       <input type="checkbox" v-model="customFieldValues[cf.key]" />
                       <span>是/否</span>
@@ -253,138 +367,351 @@
             </template>
           </div>
           <div class="flex justify-end space-x-3 pt-2">
-            <button type="button" class="px-4 py-2 border rounded " @click="closeEdit">取消</button>
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded" :disabled="saving">{{ saving ? '儲存中...' : '儲存' }}</button>
+            <button type="button" class="px-4 py-2 border border-gray-300 rounded-lg" @click="closeEdit">取消</button>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" :disabled="saving">{{ saving ? '儲存中...' : '儲存' }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- View Modal -->
+    <div v-if="viewOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeView">
+      <div class="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-900">核准案件詳情</h3>
+          <button 
+            @click="closeView"
+            class="text-gray-400 hover:text-gray-600"
+          >
+            ✕
+          </button>
+        </div>
+        
+        <div v-if="selectedLead" class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">網站</label>
+              <p class="text-gray-900">{{ extractDomain(selectedLead.payload?.['頁面_URL'] || selectedLead.source) || '-' }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">來源管道</label>
+              <p class="text-gray-900">{{ selectedLead.channel || 'wp' }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">時間</label>
+              <p class="text-gray-900">{{ formatDate(selectedLead.created_at) }} {{ formatTime(selectedLead.created_at) }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">承辦業務</label>
+              <p class="text-gray-900">{{ selectedLead.assignee?.name || '未指派' }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">核准金額</label>
+              <p class="text-gray-900 font-semibold">{{ selectedLead.approved_amount ? formatCurrency(selectedLead.approved_amount) : '未設定' }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">LINE ID</label>
+              <p class="text-gray-900">{{ selectedLead.line_id || '未提供' }}</p>
+            </div>
+          </div>
+          
+          <div v-if="selectedLead.notes">
+            <label class="block text-sm font-medium text-gray-700">備註</label>
+            <p class="text-gray-900 whitespace-pre-wrap">{{ selectedLead.notes }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Disbursement Modal -->
+    <div v-if="disbursementOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeDisbursement">
+      <div class="bg-white rounded-lg p-6 w-full max-w-lg">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">撥款處理</h3>
+        <form @submit.prevent="processDisbursementSubmit" class="space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-semibold text-gray-900 mb-1">撥款金額</label>
+              <input v-model.number="disbursementForm.amount" required type="number" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-900 mb-1">撥款日期</label>
+              <input v-model="disbursementForm.date" required type="date" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-semibold text-gray-900 mb-1">撥款備註</label>
+              <textarea v-model="disbursementForm.notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+            </div>
+          </div>
+          <div class="flex justify-end space-x-3 pt-2">
+            <button type="button" class="px-4 py-2 border border-gray-300 rounded-lg" @click="closeDisbursement">取消</button>
+            <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">確認撥款</button>
           </div>
         </form>
       </div>
     </div>
   </div>
-
-  <!-- Convert Modal -->
-  <div v-if="convertOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeConvert">
-    <div class="bg-white rounded-lg p-6 w-full max-w-lg">
-      <h3 class="text-lg font-semibold text-gray-900 mb-4">送件（建立案件）</h3>
-      <form @submit.prevent="doConvert" class="space-y-3">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm mb-1">貸款金額</label>
-            <input v-model.number="convertForm.loan_amount" required type="number" min="0" class="w-full px-3 py-2 border rounded " />
-          </div>
-          <div>
-            <label class="block text-sm mb-1">貸款類型</label>
-            <input v-model="convertForm.loan_type" class="w-full px-3 py-2 border rounded " />
-          </div>
-          <div>
-            <label class="block text-sm mb-1">期數（月）</label>
-            <input v-model.number="convertForm.loan_term" type="number" min="0" class="w-full px-3 py-2 border rounded " />
-          </div>
-          <div>
-            <label class="block text-sm mb-1">利率</label>
-            <input v-model.number="convertForm.interest_rate" type="number" min="0" step="0.01" class="w-full px-3 py-2 border rounded " />
-          </div>
-          <div class="md:col-span-2">
-            <label class="block text-sm mb-1">備註</label>
-            <textarea v-model="convertForm.notes" rows="2" class="w-full px-3 py-2 border rounded "></textarea>
-          </div>
-        </div>
-        <div class="flex justify-end space-x-3 pt-2">
-          <button type="button" class="px-4 py-2 border rounded " @click="closeConvert">取消</button>
-          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">送件</button>
-        </div>
-      </form>
-    </div>
-  </div>
 </template>
 
 <script setup>
+import { 
+  EyeIcon,
+  PencilIcon,
+  CurrencyDollarIcon,
+  DocumentArrowDownIcon,
+  TrashIcon,
+  CheckCircleIcon,
+  TrendingUpIcon,
+  ChartBarIcon
+} from '@heroicons/vue/24/outline'
+
+// 明確匯入組件
+import StatsCard from '~/components/StatsCard.vue'
+import DataTable from '~/components/DataTable.vue'
+import { formatters } from '~/utils/tableColumns'
+
 definePageMeta({ middleware: 'auth' })
 
 const authStore = useAuthStore()
-
-const { list: listLeads, updateOne: updateLead, removeOne: removeLead, convertToCase } = useLeads()
-const { pagination, totalPages, startIndex, endIndex, nextPage, prevPage, updatePagination } = usePagination(10)
-const { validateCaseForm } = useFormValidation()
-const { success, error: showError, confirm } = useNotification()
-const { PAGINATION_OPTIONS, SEARCH_CONFIG } = useConstants()
+const { alert, success, error: showError, confirm } = useNotification()
+const { list: listLeads, updateOne: updateLead, removeOne: removeLead } = useLeads()
 const { getUsers } = useUsers()
 const { list: listCustomFields } = useCustomFields()
 
+// 搜尋和篩選
+const searchQuery = ref('')
+const selectedAssignee = ref('all')
+const amountFilter = ref('')
+
+// 載入狀態
+const loading = ref(false)
+const loadError = ref(null)
+
+// 案件數據
+const leads = ref([])
 const users = ref([])
+const caseStats = ref({
+  approved: 0,
+  thisMonth: 0,
+  averageAmount: 0,
+  approvalRate: 0
+})
+
+// 模態窗口狀態
+const editOpen = ref(false)
+const viewOpen = ref(false)
+const disbursementOpen = ref(false)
+const editingId = ref(null)
+const selectedLead = ref(null)
+const disbursementLead = ref(null)
+
+// 表單提交狀態
+const saving = ref(false)
+
+// Pagination
+const currentPage = ref(1)
+const itemsPerPage = ref(5)
+
+// 自定義欄位
+const caseFields = ref([])
+const customFieldValues = reactive({})
+
+// 選項配置
 const CHANNEL_OPTIONS = [
   { value: 'wp', label: 'wp' },
   { value: 'lineoa', label: 'lineoa' },
   { value: 'email', label: 'email' },
   { value: 'phone', label: '電話' }
 ]
+
 const STATUS_OPTIONS = [
-  { value: 'pending', label: '待處理' },
-  { value: 'intake', label: '已進件' },
   { value: 'approved', label: '已核准' },
-  // { value: 'submitted', label: '已送件' },
   { value: 'disbursed', label: '已撥款' },
   { value: 'tracking', label: '追蹤中' },
-  { value: 'blacklist', label: '黑名單' }
+  { value: 'completed', label: '已完成' }
 ]
 
-// state
-const leads = ref([])
-const loading = ref(false)
-const saving = ref(false)
-const search = ref('')
-const selectedAssignee = ref('all')
-
-// edit modal
-const editOpen = ref(false)
-const editingId = ref(null)
+// 表單數據
 const form = reactive({
   page_url: '',
   channel: 'wp',
   status: 'approved',
-  created_at: '',
-  assigned_to: null,
+  approved_amount: null,
   email: null,
   line_id: '',
   region: '',
   address: '',
-  required_amount: null,
-  loan_purpose: '',
-  contact_time: '',
-  ip_address: null,
   notes: ''
 })
 
-// convert modal
-const convertOpen = ref(false)
-const convertLead = ref(null)
-const convertForm = reactive({ loan_amount: null, loan_type: '', loan_term: null, interest_rate: null, notes: '' })
+const disbursementForm = reactive({
+  amount: null,
+  date: '',
+  notes: ''
+})
 
-// lifecycle
+// 表格配置
+const approvedTableColumns = computed(() => {
+  return [
+    {
+      key: 'website',
+      title: '網站',
+      sortable: false,
+      width: '180px'
+    },
+    {
+      key: 'channel',
+      title: '來源管道',
+      sortable: true,
+      width: '100px'
+    },
+    {
+      key: 'datetime',
+      title: '時間',
+      sortable: true,
+      width: '140px'
+    },
+    {
+      key: 'assignee',
+      title: '承辦業務',
+      sortable: true,
+      width: '100px'
+    },
+    {
+      key: 'contact_info',
+      title: '聯絡資訊',
+      sortable: false,
+      width: '160px'
+    },
+    {
+      key: 'line_info',
+      title: 'LINE ID',
+      sortable: false,
+      width: '120px'
+    },
+    {
+      key: 'location',
+      title: '地區/地址',
+      sortable: false,
+      width: '140px'
+    },
+    {
+      key: 'amount',
+      title: '核准金額',
+      sortable: true,
+      width: '140px'
+    },
+    {
+      key: 'purpose',
+      title: '諮詢項目',
+      sortable: false,
+      width: '120px'
+    },
+    {
+      key: 'approval_status',
+      title: '核准狀態',
+      sortable: false,
+      width: '120px'
+    },
+    {
+      key: 'custom_fields',
+      title: '自定義欄位',
+      sortable: false,
+      width: '140px'
+    },
+    {
+      key: 'actions',
+      title: '操作',
+      sortable: false,
+      width: '200px'
+    }
+  ]
+})
+
+// 過濾數據
+const filteredLeads = computed(() => {
+  let filtered = leads.value
+
+  // 搜尋過濾
+  if (searchQuery.value && searchQuery.value.length >= 2) {
+    const query = searchQuery.value.toLowerCase()
+    filtered = filtered.filter(lead => {
+      return (
+        lead.email?.toLowerCase().includes(query) ||
+        lead.line_id?.toLowerCase().includes(query) ||
+        lead.payload?.['頁面_URL']?.toLowerCase().includes(query) ||
+        lead.source?.toLowerCase().includes(query) ||
+        lead.assignee?.name?.toLowerCase().includes(query)
+      )
+    })
+  }
+
+  // 承辦業務過濾
+  if (selectedAssignee.value && selectedAssignee.value !== 'all') {
+    if (selectedAssignee.value === 'null') {
+      filtered = filtered.filter(lead => !lead.assigned_to)
+    } else {
+      filtered = filtered.filter(lead => lead.assigned_to === parseInt(selectedAssignee.value))
+    }
+  }
+
+  // 金額範圍過濾
+  if (amountFilter.value) {
+    filtered = filtered.filter(lead => {
+      const amount = lead.approved_amount || 0
+      if (amountFilter.value === '0-100000') return amount > 0 && amount <= 100000
+      if (amountFilter.value === '100000-500000') return amount > 100000 && amount <= 500000
+      if (amountFilter.value === '500000-1000000') return amount > 500000 && amount <= 1000000
+      if (amountFilter.value === '1000000+') return amount > 1000000
+      return true
+    })
+  }
+
+  return filtered
+})
+
+// 自定義欄位
+const visibleCaseFields = computed(() => caseFields.value.filter(f => f.is_visible))
+
+// 載入數據
 const loadLeads = async () => {
   loading.value = true
+  loadError.value = null
   
-  // 搜尋優化：最少字符限制
-  const searchValue = search.value.trim()
-  if (searchValue && searchValue.length < SEARCH_CONFIG.MIN_CHARACTERS) {
-    leads.value = []
-    pagination.total = 0
+  try {
+    const { items, meta, success: ok } = await listLeads({
+      page: currentPage.value,
+      per_page: itemsPerPage.value,
+      status: 'approved'
+    })
+    
+    if (ok) {
+      leads.value = items || []
+      
+      // 計算統計數據
+      const total = leads.value.length
+      const thisMonth = new Date()
+      const monthCount = leads.value.filter(lead => {
+        const leadDate = new Date(lead.created_at)
+        return leadDate.getFullYear() === thisMonth.getFullYear() && 
+               leadDate.getMonth() === thisMonth.getMonth()
+      }).length
+      
+      const totalAmount = leads.value.reduce((sum, lead) => sum + (lead.approved_amount || 0), 0)
+      const averageAmount = total > 0 ? Math.round(totalAmount / total) : 0
+      
+      caseStats.value = {
+        approved: total,
+        thisMonth: monthCount,
+        averageAmount,
+        approvalRate: 85 // 這裡可以從 API 獲取實際核准率
+      }
+    }
+  } catch (err) {
+    loadError.value = '載入案件數據失敗'
+    console.error('Load leads error:', err)
+  } finally {
     loading.value = false
-    return
   }
-  
-  const { items, meta, success: ok } = await listLeads({
-    page: pagination.currentPage,
-    per_page: pagination.perPage,
-    search: searchValue,
-    // channel: 'wp_form',
-    assigned_to: selectedAssignee.value,
-    status: 'approved'
-  })
-  if (ok) {
-    leads.value = items
-    updatePagination(meta)
-  }
-  loading.value = false
 }
 
 const loadUsers = async () => {
@@ -396,90 +723,175 @@ const loadUsers = async () => {
   }
 }
 
-onMounted(async () => {
-  const promises = [loadLeads(), loadCaseFields()];
-  if (authStore?.hasPermission && authStore.hasPermission('customer_management')) {
-    promises.push(loadUsers());
-  }
-  await Promise.all(promises);
-})
-
-// 搜尋防抖
-let searchTimer
-const debouncedLoadLeads = () => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(loadLeads, SEARCH_CONFIG.DEBOUNCE_DELAY)
-}
-
-watch([() => pagination.currentPage, () => pagination.perPage], loadLeads)
-watch([search, selectedAssignee], debouncedLoadLeads)
-
-// 組件銷毀時清理
-onUnmounted(() => {
-  clearTimeout(searchTimer)
-})
-
-// 自定義欄位（案件）
-const caseFields = ref([])
-const customFieldValues = reactive({})
-const FIELD_COMPONENTS = {
-  text: {
-    render() {},
-  },
-}
-
-const visibleCaseFields = computed(() => caseFields.value.filter(f => f.is_visible))
-
 const loadCaseFields = async () => {
   const { success, items } = await listCustomFields('case')
   if (success) caseFields.value = items
 }
 
-// 根據欄位型別返回對應的輸入元件
-const getInputComponent = (cf) => ({
-  props: ['modelValue','cf'],
-  emits: ['update:modelValue'],
-  template: `
-    <div>
-      <input v-if="['text','number','decimal','date'].includes(cf.type)"
-             :type="cf.type === 'decimal' ? 'number' : (cf.type === 'text' ? 'text' : (cf.type === 'date' ? 'date' : 'number'))"
-             step="any"
-             class="w-full px-3 py-2 border rounded "
-             :required="cf.is_required"
-             :value="modelValue"
-             @input="$emit('update:modelValue', $event.target.value)"
-      />
-      <textarea v-else-if="cf.type==='textarea'"
-                class="w-full px-3 py-2 border rounded "
-                :required="cf.is_required"
-                :value="modelValue"
-                @input="$emit('update:modelValue', $event.target.value)"></textarea>
-      <select v-else-if="cf.type==='select'"
-              class="w-full px-3 py-2 border rounded "
-              :required="cf.is_required"
-              :value="modelValue"
-              @change="$emit('update:modelValue', $event.target.value)">
-        <option value="">請選擇</option>
-        <option v-for="opt in (cf.options||[])" :key="opt" :value="opt">{{ opt }}</option>
-      </select>
-      <select v-else-if="cf.type==='multiselect'" multiple
-              class="w-full px-3 py-2 border rounded "
-              :required="cf.is_required"
-              @change="$emit('update:modelValue', Array.from($event.target.selectedOptions).map(o=>o.value))">
-        <option v-for="opt in (cf.options||[])" :key="opt" :value="opt" :selected="(modelValue||[]).includes(opt)">{{ opt }}</option>
-      </select>
-      <label v-else-if="cf.type==='boolean'" class="inline-flex items-center">
-        <input type="checkbox" :checked="!!modelValue" @change="$emit('update:modelValue', $event.target.checked)" class="mr-2" /> 是/否
-      </label>
-    </div>
-  `
+// DataTable event handlers
+const handleSearch = (query) => {
+  searchQuery.value = query
+}
+
+const handlePageChange = (page) => {
+  currentPage.value = page
+}
+
+const handlePageSizeChange = (size) => {
+  itemsPerPage.value = size
+  currentPage.value = 1
+}
+
+// 搜尋防抖
+let searchTimer
+watch([searchQuery, selectedAssignee, amountFilter], () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    // 搜尋過濾已經在 computed 中處理
+  }, 300)
 })
 
-const selectAllOptions = (cf) => { customFieldValues[cf.key] = Array.isArray(cf.options) ? [...cf.options] : [] }
-const clearOptions = (cf) => { customFieldValues[cf.key] = [] }
+// 模態窗口控制
+const viewLead = (lead) => {
+  selectedLead.value = lead
+  viewOpen.value = true
+}
 
+const closeView = () => {
+  viewOpen.value = false
+  selectedLead.value = null
+}
+
+const onEdit = async (lead) => {
+  editingId.value = lead.id
+  Object.assign(form, {
+    page_url: lead.payload?.['頁面_URL'] || lead.source || '',
+    channel: lead.channel || 'wp',
+    status: lead.status || 'approved',
+    approved_amount: lead.approved_amount || null,
+    email: lead.email || null,
+    line_id: lead.line_id || lead.payload?.['LINE_ID'] || '',
+    region: lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '',
+    address: lead.payload?.['房屋地址'] || '',
+    notes: lead.notes || lead.payload?.['備註'] || ''
+  })
+  
+  // 載入自定義欄位
+  await loadCaseFields()
+  preloadCustomFieldsFromLead(lead)
+  editOpen.value = true
+}
+
+const closeEdit = () => {
+  editOpen.value = false
+  editingId.value = null
+}
+
+const saveEdit = async () => {
+  if (!editingId.value) return
+  
+  saving.value = true
+  try {
+    const payload = {
+      channel: form.channel,
+      status: form.status,
+      approved_amount: form.approved_amount,
+      email: form.email,
+      line_id: form.line_id,
+      notes: form.notes,
+      payload: {
+        '頁面_URL': form.page_url,
+        'LINE_ID': form.line_id,
+        '房屋區域': form.region,
+        '房屋地址': form.address,
+        ...customFieldValues
+      }
+    }
+
+    const { error } = await updateLead(editingId.value, payload)
+    
+    if (!error) {
+      editOpen.value = false
+      await loadLeads()
+      success('案件資料更新成功')
+    } else {
+      showError(error?.message || '更新失敗')
+    }
+  } catch (err) {
+    showError('系統錯誤，請稍後再試')
+    console.error('Update lead error:', err)
+  } finally {
+    saving.value = false
+  }
+}
+
+const onDelete = async (lead) => {
+  const confirmed = await confirm(`確定刪除編號 ${lead.id} 的核准案件嗎？`)
+  if (!confirmed) return
+  
+  try {
+    const { error } = await removeLead(lead.id)
+    if (!error) {
+      await loadLeads()
+      success(`編號 ${lead.id} 的案件已刪除`)
+    } else {
+      showError(error?.message || '刪除失敗')
+    }
+  } catch (err) {
+    showError('系統錯誤，請稍後再試')
+    console.error('Delete lead error:', err)
+  }
+}
+
+// 撥款處理
+const processDisbursement = (lead) => {
+  disbursementLead.value = lead
+  disbursementForm.amount = lead.approved_amount || null
+  disbursementForm.date = new Date().toISOString().split('T')[0]
+  disbursementForm.notes = ''
+  disbursementOpen.value = true
+}
+
+const closeDisbursement = () => {
+  disbursementOpen.value = false
+  disbursementLead.value = null
+}
+
+const processDisbursementSubmit = async () => {
+  if (!disbursementLead.value) return
+  
+  try {
+    // 這裡應該調用撥款 API
+    const payload = {
+      status: 'disbursed',
+      disbursed_amount: disbursementForm.amount,
+      disbursed_at: disbursementForm.date,
+      disbursement_notes: disbursementForm.notes
+    }
+    
+    const { error } = await updateLead(disbursementLead.value.id, payload)
+    
+    if (!error) {
+      disbursementOpen.value = false
+      await loadLeads()
+      success('撥款處理完成')
+    } else {
+      showError(error?.message || '撥款處理失敗')
+    }
+  } catch (err) {
+    showError('系統錯誤，請稍後再試')
+    console.error('Disbursement error:', err)
+  }
+}
+
+// 下載文件
+const downloadDocuments = (lead) => {
+  // 這裡實現文件下載功能
+  success('功能開發中...')
+}
+
+// 自定義欄位處理
 const preloadCustomFieldsFromLead = (lead) => {
-  // 預設取 lead.payload[自定義欄位key] 做為初值
   const payload = lead?.payload || {}
   caseFields.value.forEach(cf => {
     const key = cf.key
@@ -493,13 +905,22 @@ const preloadCustomFieldsFromLead = (lead) => {
   })
 }
 
-
-// helpers
+// 工具函數
 const extractDomain = (url) => {
   try { return new URL(url).hostname } catch { return url || '' }
 }
+
 const formatDate = (d) => new Date(d).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
 const formatTime = (d) => new Date(d).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
+
+const formatCurrency = (amount) => {
+  return new Intl.NumberFormat('zh-TW', {
+    style: 'currency',
+    currency: 'TWD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(amount)
+}
 
 const formatCustomFieldValue = (val, cf) => {
   if (cf.type === 'multiselect') return Array.isArray(val) ? val.join(', ') : (val || '-')
@@ -507,176 +928,25 @@ const formatCustomFieldValue = (val, cf) => {
   return val ?? '-'
 }
 
-// 移除重複的分頁邏輯（已由 usePagination 提供）
+// 頁面載入
+onMounted(async () => {
+  await Promise.all([loadUsers(), loadLeads(), loadCaseFields()])
+})
 
-// edit & delete
-const onEdit = async (lead) => {
-  console.log('Editing lead:', lead);
-  editingId.value = lead.id
-  Object.assign(form, {
-    page_url: lead.payload?.['頁面_URL'] || lead.source || '',
-    channel: lead.channel || 'wp',
-    status: lead.status || 'approved',
-    created_at: lead.created_at ? new Date(lead.created_at).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
-    assigned_to: lead.assigned_to || null,
-    email: lead.email || null,
-    line_id: lead.line_id || lead.payload?.['LINE_ID'] || '',
-    region: lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '',
-    address: lead.payload?.['房屋地址'] || '',
-    required_amount: lead.payload?.['資金需求'] || '',
-    loan_purpose: lead.payload?.['貸款需求'] || '',
-    contact_time: lead.payload?.['方便聯絡時間'] || '',
-    ip_address: lead.ip_address || null,
-    notes: lead.notes || lead.payload?.['備註'] || ''
-  })
-  // 載入自定義欄位（案件）
-  await loadCaseFields()
-  // 從 lead.payload 帶入自定義欄位預設值
-  preloadCustomFieldsFromLead(lead)
-  editOpen.value = true
-}
-const closeEdit = () => { editOpen.value = false; editingId.value = null }
-const saveEdit = async () => {
-  if (!editingId.value) return
-  
-  // 自定義欄位必填檢查
-  const missing = []
-  caseFields.value.filter(f => f.is_required).forEach(cf => {
-    const val = customFieldValues[cf.key]
-    const isEmpty = (
-      (cf.type === 'multiselect' && (!Array.isArray(val) || val.length === 0)) ||
-      (cf.type !== 'multiselect' && (val === undefined || val === null || String(val).trim() === ''))
-    )
-    if (isEmpty) missing.push(cf.label)
-  })
-  if (missing.length) {
-    showError(`請填寫必填欄位：\n- ${missing.join('\n- ')}`)
-    return
-  }
-  
-  saving.value = true
-  try {
-    // 組合 payload：top-level + payload 物件
-    const payload = {
-      channel: form.channel,
-      status: form.status,
-      email: form.email,
-      line_id: form.line_id,
-      ip_address: form.ip_address,
-      assigned_to: form.assigned_to, // 後端已有欄位，直接存欄位
-      notes: form.notes, // 若後端未有欄位會自動併入 payload（現已改為欄位，仍保留）
-      // 其他資料放在 payload 物件
-      payload: {
-        '頁面_URL': form.page_url,
-        'LINE_ID': form.line_id,
-        '房屋區域': form.region,
-        '房屋地址': form.address,
-        '資金需求': form.required_amount,
-        '貸款需求': form.loan_purpose,
-        '方便聯絡時間': form.contact_time,
-        // 併入自定義欄位值
-        ...customFieldValues
-      }
-    }
+// 組件銷毀時清理
+onUnmounted(() => {
+  clearTimeout(searchTimer)
+})
 
-    const { error } = await updateLead(editingId.value, payload)
-    
-    if (!error) {
-      editOpen.value = false
-      await loadLeads()
-      success('進件資料更新成功')
-    } else {
-      showError(error?.message || '更新失敗')
-    }
-  } catch (err) {
-    showError('系統錯誤，請稍後再試')
-    console.error('Update lead error:', err)
-  } finally {
-    saving.value = false
-  }
-}
-
-const onDelete = async (lead) => {
-  const confirmed = await confirm(`確定刪除編號 ${lead.id} 的進件嗎？`)
-  if (!confirmed) return
-  
-  try {
-    const { error } = await removeLead(lead.id)
-    if (!error) {
-      await loadLeads()
-      success(`編號 ${lead.id} 的進件已刪除`)
-    } else {
-      showError(error?.message || '刪除失敗')
-    }
-  } catch (err) {
-    showError('系統錯誤，請稍後再試')
-    console.error('Delete lead error:', err)
-  }
-}
-
-// convert methods
-const openConvert = (lead) => {
-  if (!lead.customer_id) {
-    showError('此進件尚未綁定客戶，請先建立/綁定客戶後再送件')
-    return
-  }
-  convertLead.value = lead
-  Object.assign(convertForm, { loan_amount: null, loan_type: '', loan_term: null, interest_rate: null, notes: '' })
-  convertOpen.value = true
-}
-const closeConvert = () => { convertOpen.value = false; convertLead.value = null }
-const doConvert = async () => {
-  if (!convertLead.value) return
-  
-  // 使用統一的表單驗證
-  const { isValid, errors } = validateCaseForm(convertForm)
-  // 最小驗證
-  if (!form.channel) return showError('來源管道為必填')
-  if (form.required_amount !== null && Number(form.required_amount) < 0) return showError('需求金額不能為負數')
-  if (form.page_url && !/^https?:\/\//i.test(form.page_url)) return showError('請輸入有效的網站URL（需以 http:// 或 https:// 開頭）')
-  if (!isValid) {
-    const errorMessages = Object.values(errors).join('\n')
-    showError(`表單驗證失敗：\n${errorMessages}`)
-    return
-  }
-  
-  try {
-    const { error, data } = await convertToCase(convertLead.value, { ...convertForm })
-    
-    if (!error) {
-      // 從本地 leads 陣列移除該筆
-      const idx = leads.value.findIndex(l => l.id === convertLead.value.id)
-      if (idx >= 0) leads.value.splice(idx, 1)
-      
-      // 重置表單
-      Object.assign(convertForm, { loan_amount: null, loan_type: '', loan_term: null, interest_rate: null, notes: '' })
-      convertOpen.value = false
-      
-      const caseNumber = data?.case?.case_number || ''
-      success(`送件成功！案件編號：${caseNumber}`)
-    } else {
-      if (error.errors) {
-        const errorMessages = Object.entries(error.errors)
-          .map(([field, messages]) => `${messages.join(', ')}`)
-          .join('\n')
-        showError(`表單驗證失敗：\n${errorMessages}`)
-      } else {
-        showError(error?.message || '送件失敗')
-      }
-    }
-  } catch (err) {
-    showError('系統錯誤，請稍後再試')
-    console.error('Convert to case error:', err)
-  }
-}
+// 設定頁面標題
+useHead({
+  title: '已核准案件 - 貸款案件管理系統'
+})
 </script>
 
 <style scoped>
-@media (max-width: 768px) {
-  table, thead, tbody, th, td, tr { display: block; }
-  thead tr { position: absolute; top: -9999px; left: -9999px; }
-  tr { border: 1px solid #ccc; margin-bottom: 10px; padding: 10px; }
-  td { border: none; position: relative; padding-left: 50% !important; }
-  td:before { content: attr(data-label); position: absolute; left: 6px; width: 45%; padding-right: 10px; white-space: nowrap; font-weight: bold; }
+/* Ensure tooltips appear above everything */
+.group:hover .group-hover\\:block {
+  z-index: 50;
 }
 </style>
