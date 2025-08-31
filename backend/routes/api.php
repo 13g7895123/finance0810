@@ -62,6 +62,9 @@ Route::get('/test/line-user/create', [LineUserTestController::class, 'testCreate
 // Point 38: LINE User Re-adding Friend Test route (public - for debugging)
 Route::get('/test/line-user/re-adding', [LineUserTestController::class, 'testReAddingFriend']);
 
+// Point 39: LINE User Business Display Name Test route (public - for debugging)
+Route::get('/test/line-user/business-name', [LineUserTestController::class, 'testBusinessDisplayName']);
+
 // Point 36: Basic table check without dependencies
 Route::get('/test/line-user/basic', function() {
     try {

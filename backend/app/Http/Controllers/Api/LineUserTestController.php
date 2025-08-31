@@ -138,6 +138,100 @@ class LineUserTestController extends Controller
     }
     
     /**
+     * Point 39: Test business display name functionality
+     * Tests the dual name management system
+     */
+    public function testBusinessDisplayName(Request $request)
+    {
+        try {
+            $testLineUserId = $request->get('line_user_id', 'U' . str_pad(dechex(time()), 32, '0', STR_PAD_LEFT));
+            
+            // Step 1: Create initial user with API data
+            $apiProfileData = [
+                'displayName' => 'API Original Name - Point 39',
+                'pictureUrl' => 'https://example.com/api-user.jpg',
+                'statusMessage' => 'API status message'
+            ];
+            
+            Log::info('Point 39 - Test: Creating user with API data', [
+                'line_user_id' => $testLineUserId,
+                'api_data' => $apiProfileData
+            ]);
+            
+            $lineUser = $this->lineUserService->findOrCreateLineUser(
+                $testLineUserId,
+                $apiProfileData,
+                'messaging_api'
+            );
+            
+            $initialState = [
+                'api_name' => $lineUser->getApiDisplayName(),
+                'display_name' => $lineUser->getDisplayName(),
+                'has_custom_name' => $lineUser->hasCustomBusinessName()
+            ];
+            
+            // Step 2: Business staff updates display name
+            $businessName = 'Business Custom Name - Point 39';
+            $lineUser->updateBusinessDisplayName($businessName, 1); // Assuming user ID 1
+            
+            $afterBusinessUpdate = [
+                'api_name' => $lineUser->getApiDisplayName(),
+                'display_name' => $lineUser->getDisplayName(),
+                'business_name' => $lineUser->business_display_name,
+                'has_custom_name' => $lineUser->hasCustomBusinessName(),
+                'updated_by' => $lineUser->business_name_updated_by,
+                'updated_at' => $lineUser->business_name_updated_at
+            ];
+            
+            // Step 3: Simulate API update (should preserve business name)
+            $updatedApiData = [
+                'displayName' => 'Updated API Name - Point 39',
+                'pictureUrl' => 'https://example.com/updated-api-user.jpg'
+            ];
+            
+            $lineUser->syncMessagingApiProfile($updatedApiData);
+            
+            $afterApiUpdate = [
+                'api_name' => $lineUser->getApiDisplayName(),
+                'display_name' => $lineUser->getDisplayName(), // Should still show business name
+                'business_name' => $lineUser->business_display_name,
+                'has_custom_name' => $lineUser->hasCustomBusinessName()
+            ];
+            
+            return response()->json([
+                'success' => true,
+                'point_39_test' => 'completed',
+                'line_user_id' => $testLineUserId,
+                'line_user_table_id' => $lineUser->id,
+                'test_results' => [
+                    'initial_state' => $initialState,
+                    'after_business_update' => $afterBusinessUpdate,
+                    'after_api_update' => $afterApiUpdate
+                ],
+                'validation' => [
+                    'api_name_protected' => $afterApiUpdate['api_name'] === 'Updated API Name - Point 39',
+                    'business_name_preserved' => $afterApiUpdate['display_name'] === $businessName,
+                    'dual_system_working' => $afterApiUpdate['api_name'] !== $afterApiUpdate['display_name']
+                ],
+                'message' => 'Point 39 - Dual name management test completed successfully'
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Point 39 - Business display name test failed', [
+                'error' => $e->getMessage(),
+                'line_user_id' => $request->get('line_user_id'),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => 'Point 39 test failed: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    }
+
+    /**
      * Point 38: Test re-adding friend functionality
      * Simulates LINE user re-adding bot with updated profile data
      */
