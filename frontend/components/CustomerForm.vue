@@ -4,27 +4,27 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">姓名</label>
-          <input v-model="form.name" type="text" class="w-full px-3 py-2 border rounded " required />
+          <input v-model="form.name" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">手機號碼</label>
-          <input v-model="form.phone" type="text" class="w-full px-3 py-2 border rounded " required />
+          <input v-model="form.phone" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Email</label>
-          <input v-model="form.email" type="email" class="w-full px-3 py-2 border rounded " />
+          <input v-model="form.email" type="email" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">所在地區</label>
-          <input v-model="form.region" type="text" class="w-full px-3 py-2 border rounded " />
+          <input v-model="form.region" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
         </div>
         <div class="md:col-span-2">
           <label class="block text-sm font-medium mb-1">地址</label>
-          <input v-model="form.address" type="text" class="w-full px-3 py-2 border rounded " />
+          <input v-model="form.address" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">來源管道</label>
-          <select v-model="form.channel" class="w-full px-3 py-2 border rounded ">
+          <select v-model="form.channel" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
             <option value="">未指定</option>
             <option value="wp_form">WP 表單</option>
             <option value="line">LINE OA</option>
@@ -34,7 +34,7 @@
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">網站來源 (domain)</label>
-          <select v-model="form.website_source" class="w-full px-3 py-2 border rounded ">
+          <select v-model="form.website_source" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
             <option value="">請選擇網站</option>
             <option v-for="website in availableWebsites" :key="website.id" :value="website.domain">
               {{ website.name }} ({{ website.domain }})
@@ -47,13 +47,13 @@
             v-model="customWebsiteInput" 
             type="text" 
             placeholder="請輸入域名..."
-            class="w-full px-3 py-2 border rounded mt-2" 
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mt-2" 
             @blur="handleCustomWebsiteInput"
           />
         </div>
         <div class="md:col-span-2">
           <label class="block text-sm font-medium mb-1">備註</label>
-          <textarea v-model="form.notes" rows="3" class="w-full px-3 py-2 border rounded " />
+          <textarea v-model="form.notes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
         </div>
       </div>
       <div class="flex justify-end space-x-3">

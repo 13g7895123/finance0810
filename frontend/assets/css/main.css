@@ -281,14 +281,79 @@ textarea[class*="border"] {
   border-width: 1px !important;
 }
 
-/* Specific input types to ensure consistent styling */
+/* Point 42: 統一的input配色規則 - 淺色調配色 */
+
+/* 基本input樣式 */
+input,
+select,
+textarea {
+  border: 1px solid #d1d5db !important;
+  background-color: #ffffff !important;
+  color: #1f2937 !important;
+}
+
+/* 各種input類型 */
 input[type="text"],
 input[type="email"],
 input[type="password"],
 input[type="search"],
+input[type="number"],
+input[type="datetime-local"],
+input[type="url"],
+input[type="tel"],
+input[type="date"],
+input[type="time"],
 select,
 textarea {
   border: 1px solid #d1d5db !important;
+  background-color: #ffffff !important;
+  color: #1f2937 !important;
+  border-radius: 0.5rem !important;
+  padding: 0.5rem 0.75rem !important;
+}
+
+/* placeholder顏色 */
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+/* focus狀態 */
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
+  outline: none !important;
+}
+
+/* 特定樣式覆蓋 - 處理舊的樣式類 */
+.border.rounded,
+.border.rounded-lg,
+input.border.rounded,
+input.border.rounded-lg,
+select.border.rounded,
+select.border.rounded-lg,
+textarea.border.rounded,
+textarea.border.rounded-lg {
+  border: 1px solid #d1d5db !important;
+  background-color: #ffffff !important;
+  color: #1f2937 !important;
+  border-radius: 0.5rem !important;
+}
+
+/* 確保focus狀態正確 */
+.border.rounded:focus,
+.border.rounded-lg:focus,
+input.border.rounded:focus,
+input.border.rounded-lg:focus,
+select.border.rounded:focus,
+select.border.rounded-lg:focus,
+textarea.border.rounded:focus,
+textarea.border.rounded-lg:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
+  outline: none !important;
 }
 
 /* Dark mode CSS removed - using light theme only */

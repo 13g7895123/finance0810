@@ -11,16 +11,16 @@
           v-model="search"
           type="text"
           placeholder="搜尋姓名/手機/Email/LINE/網站... (至少2個字符)"
-          class="px-3 py-2 border rounded-lg "
+          class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
         <template v-if="authStore?.hasPermission && authStore.hasPermission('customer_management')">
-          <select v-model="selectedAssignee" class="px-3 py-2 border rounded ">
+          <select v-model="selectedAssignee" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
             <option value="all">全部承辦</option>
             <option value="null">未指派</option>
             <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
           </select>
         </template>
-        <select v-model="pagination.perPage" class="px-3 py-2 border rounded ">
+        <select v-model="pagination.perPage" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
           <option v-for="option in PAGINATION_OPTIONS" :key="option.value" :value="option.value">
             {{ option.label }}
           </option>

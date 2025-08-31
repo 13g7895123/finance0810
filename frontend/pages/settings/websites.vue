@@ -47,16 +47,16 @@
             v-model="filters.search" 
             @input="searchWebsites"
             placeholder="搜尋網站名稱或域名..." 
-            class="w-full px-3 py-2 border rounded-lg"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
-        <select v-model="filters.status" @change="loadWebsites" class="px-3 py-2 border rounded-lg">
+        <select v-model="filters.status" @change="loadWebsites" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
           <option value="">所有狀態</option>
           <option value="active">運行中</option>
           <option value="inactive">已停用</option>
           <option value="maintenance">維護中</option>
         </select>
-        <select v-model="filters.type" @change="loadWebsites" class="px-3 py-2 border rounded-lg">
+        <select v-model="filters.type" @change="loadWebsites" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
           <option value="">所有類型</option>
           <option value="wordpress">WordPress</option>
           <option value="other">其他</option>
@@ -175,7 +175,7 @@
               <input 
                 v-model="form.name" 
                 required
-                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="例如：熊好貸"
               />
             </div>
@@ -185,7 +185,7 @@
               <input 
                 v-model="form.domain" 
                 required
-                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="例如：example.com"
               />
             </div>
@@ -196,14 +196,14 @@
                 v-model="form.url" 
                 type="url"
                 required
-                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="https://example.com"
               />
             </div>
             
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">狀態</label>
-              <select v-model="form.status" class="w-full px-3 py-2 border rounded-lg">
+              <select v-model="form.status" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 <option value="active">運行中</option>
                 <option value="inactive">已停用</option>
                 <option value="maintenance">維護中</option>
@@ -212,7 +212,7 @@
             
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">類型</label>
-              <select v-model="form.type" class="w-full px-3 py-2 border rounded-lg">
+              <select v-model="form.type" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 <option value="wordpress">WordPress</option>
                 <option value="other">其他</option>
               </select>
@@ -230,7 +230,7 @@
               <input 
                 v-model="form.webhook_url" 
                 type="url"
-                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="https://example.com/webhook"
               />
             </div>
@@ -240,7 +240,7 @@
               <input 
                 v-model="form.webhook_secret" 
                 type="password"
-                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="webhook密鑰"
               />
             </div>
@@ -250,7 +250,7 @@
               <textarea 
                 v-model="form.notes" 
                 rows="3"
-                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="網站相關備註..."
               ></textarea>
             </div>
