@@ -113,6 +113,54 @@ Route::get('/test/line-user/basic', function() {
     }
 });
 
+// Point 49: Debug exact frontend API call
+Route::get('/debug/websites-frontend-test', function() {
+    try {
+        // Simulate exact same parameters as frontend
+        $page = request()->get('page', 1);
+        $perPage = request()->get('per_page', 15);
+        $search = request()->get('search', '');
+        $status = request()->get('status', '');
+        $type = request()->get('type', '');
+        
+        // Log the exact parameters
+        \Log::info('Point 49 - Frontend API test called', [
+            'page' => $page,
+            'per_page' => $perPage,
+            'search' => $search,
+            'status' => $status,
+            'type' => $type,
+            'all_params' => request()->all()
+        ]);
+        
+        // Use the exact same controller logic
+        $controller = new \App\Http\Controllers\Api\WebsiteController();
+        $response = $controller->index(request());
+        
+        return response()->json([
+            'success' => true,
+            'controller_response' => $response->getContent(),
+            'status_code' => $response->getStatusCode(),
+            'headers' => $response->headers->all(),
+            'test_params' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'search' => $search,
+                'status' => $status,
+                'type' => $type
+            ],
+            'timestamp' => now()->format('c')
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+    }
+});
+
 // Point 49: Debug website data retrieval issue
 Route::get('/debug/websites-check', function() {
     try {
