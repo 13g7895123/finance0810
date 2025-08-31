@@ -18,10 +18,36 @@ class WebsiteController extends Controller
      */
     public function index(Request $request)
     {
-        // Point 49: Ultra simplified version to fix data retrieval
+        // Point 49: Fixed version with safe filtering
         try {
             $query = Website::query();
-            $websites = $query->paginate(15);
+
+            // Safe filtering - only apply filters if values are not empty
+            $status = $request->get('status');
+            if (!empty($status)) {
+                $query->where('status', $status);
+            }
+
+            $type = $request->get('type');
+            if (!empty($type)) {
+                $query->where('type', $type);
+            }
+
+            $search = $request->get('search');
+            if (!empty($search)) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('domain', 'like', "%{$search}%");
+                });
+            }
+
+            // Sort options
+            $sortField = $request->get('sort', 'created_at');
+            $sortDirection = $request->get('direction', 'desc');
+            $query->orderBy($sortField, $sortDirection);
+
+            $perPage = $request->get('per_page', 15);
+            $websites = $query->paginate($perPage);
             
             return response()->json($websites);
             
