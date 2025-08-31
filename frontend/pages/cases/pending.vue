@@ -57,6 +57,7 @@
       :error="loadError"
       :search-query="searchQuery"
       search-placeholder="搜尋姓名/手機/Email/LINE/網站... (至少2個字符)"
+      :show-search-icon="false"
       :current-page="currentPage"
       :items-per-page="itemsPerPage"
       loading-text="載入中..."
@@ -561,13 +562,13 @@
           </div>
           
           <div>
-            <label class="block text-sm font-semibold text-gray-900 mb-2">業務名稱 <span class="text-red-500">*</span></label>
+            <label class="block text-sm font-semibold text-gray-900 mb-2">LINE名稱 <span class="text-red-500">*</span></label>
             <input 
               v-model="lineNameForm.display_name" 
               required
               maxlength="100"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="請輸入業務名稱"
+              placeholder="請輸入LINE名稱"
             />
           </div>
 

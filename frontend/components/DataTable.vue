@@ -14,9 +14,10 @@
               @input="$emit('search', $event.target.value)"
               type="text"
               :placeholder="searchPlaceholder"
-              class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-64"
+              :class="showSearchIcon ? 'pl-10 pr-4 py-2' : 'pl-4 pr-4 py-2'"
+              class="border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-64"
             />
-            <MagnifyingGlassIcon class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <MagnifyingGlassIcon v-if="showSearchIcon" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           </div>
           
           <!-- Additional Filters Slot -->
@@ -231,6 +232,10 @@ const props = defineProps({
   searchPlaceholder: {
     type: String,
     default: '搜尋...'
+  },
+  showSearchIcon: {
+    type: Boolean,
+    default: true
   },
   
   // State
