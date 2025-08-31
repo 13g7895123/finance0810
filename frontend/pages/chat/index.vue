@@ -82,71 +82,78 @@
           class="fixed top-4 right-4 bg-white border border-gray-300 rounded-lg shadow-lg p-4 max-w-sm z-50"
         >
           <div class="flex items-center justify-between mb-3">
-            <h4 class="font-medium text-gray-900">聊天室載入檢查</h4>
+            <h4 class="font-semibold text-gray-900">聊天室載入檢查</h4>
             <button 
               @click="toggleDebugPanel"
-              class="text-gray-400 hover:text-gray-600"
+              class="text-gray-500 hover:text-gray-700 font-bold text-lg"
             >
               ✕
             </button>
           </div>
           
-          <div class="space-y-2 text-xs">
+          <div class="space-y-2 text-xs text-gray-800">
             <!-- DOM檢查 -->
             <div class="flex items-center justify-between">
-              <span>用戶列表容器:</span>
-              <span :class="debugInfo.hasUserListContainer ? 'text-green-600' : 'text-red-600'">
+              <span class="font-medium text-gray-700">用戶列表容器:</span>
+              <span :class="debugInfo.hasUserListContainer ? 'text-green-700 font-bold' : 'text-red-700 font-bold'">
                 {{ debugInfo.hasUserListContainer ? '✓' : '✗' }}
               </span>
             </div>
             
             <div class="flex items-center justify-between">
-              <span>用戶項目容器:</span>
-              <span :class="debugInfo.hasUserItemsContainer ? 'text-green-600' : 'text-red-600'">
+              <span class="font-medium text-gray-700">用戶項目容器:</span>
+              <span :class="debugInfo.hasUserItemsContainer ? 'text-green-700 font-bold' : 'text-red-700 font-bold'">
                 {{ debugInfo.hasUserItemsContainer ? '✓' : '✗' }}
               </span>
             </div>
             
             <!-- 數據檢查 -->
             <div class="flex items-center justify-between">
-              <span>原始對話數據:</span>
-              <span class="font-mono">{{ conversations.length }}</span>
+              <span class="font-medium text-gray-700">原始對話數據:</span>
+              <span class="font-mono font-bold text-gray-900">{{ conversations.length }}</span>
             </div>
             
             <div class="flex items-center justify-between">
-              <span>過濾後用戶:</span>
-              <span class="font-mono">{{ filteredUsers.length }}</span>
+              <span class="font-medium text-gray-700">過濾後用戶:</span>
+              <span class="font-mono font-bold text-gray-900">{{ filteredUsers.length }}</span>
             </div>
             
             <div class="flex items-center justify-between">
-              <span>DOM中用戶項目:</span>
-              <span class="font-mono">{{ debugInfo.renderedUserCount }}</span>
+              <span class="font-medium text-gray-700">DOM中用戶項目:</span>
+              <span class="font-mono font-bold text-gray-900">{{ debugInfo.renderedUserCount }}</span>
             </div>
             
             <!-- 連接檢查 -->
             <div class="flex items-center justify-between">
-              <span>Firebase狀態:</span>
-              <span :class="getStatusColor(connectionStatus)">
+              <span class="font-medium text-gray-700">Firebase狀態:</span>
+              <span :class="getStatusColor(connectionStatus)" class="font-bold">
                 {{ connectionStatus }}
               </span>
             </div>
             
             <!-- 操作按鈕 -->
-            <div class="pt-2 border-t border-gray-200">
+            <div class="pt-2 border-t border-gray-200 space-y-1">
               <button 
                 @click="performFullCheck"
-                class="w-full text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+                class="w-full text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 font-medium"
               >
                 執行完整檢查
+              </button>
+              
+              <button 
+                @click="forceReloadData"
+                class="w-full text-xs bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600 font-medium"
+              >
+                強制重新載入數據
               </button>
             </div>
             
             <!-- 檢查結果 -->
             <div v-if="debugInfo.lastCheckResult" class="pt-2 border-t border-gray-200">
-              <div class="text-xs font-medium mb-1">檢查結果:</div>
+              <div class="text-xs font-bold mb-1 text-gray-700">檢查結果:</div>
               <div 
-                class="text-xs p-2 rounded whitespace-pre-wrap"
-                :class="debugInfo.lastCheckResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'"
+                class="text-xs p-2 rounded whitespace-pre-wrap font-medium"
+                :class="debugInfo.lastCheckResult.success ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'"
               >
                 {{ debugInfo.lastCheckResult.message }}
               </div>
@@ -459,14 +466,50 @@ const performFullCheck = () => {
 const getStatusColor = (status) => {
   switch (status) {
     case 'connected':
-      return 'text-green-600'
+      return 'text-green-700'
     case 'connecting':
-      return 'text-yellow-600'
+      return 'text-yellow-700'
     case 'error':
-      return 'text-red-600'
+      return 'text-red-700'
     case 'disconnected':
     default:
-      return 'text-gray-600'
+      return 'text-gray-700'
+  }
+}
+
+/**
+ * 強制重新載入數據
+ */
+const forceReloadData = async () => {
+  console.log('強制重新載入聊天室數據')
+  
+  try {
+    debugInfo.value.lastCheckResult = {
+      success: false,
+      message: '正在重新載入數據...'
+    }
+    
+    // 完全清理並重新初始化
+    await realtimeChat.cleanup()
+    await nextTick()
+    
+    // 重新初始化
+    await realtimeChat.initialize()
+    
+    // 更新調試信息
+    await nextTick(() => {
+      updateDebugInfo()
+      performFullCheck()
+    })
+    
+    console.log('數據重新載入完成')
+    
+  } catch (error) {
+    console.error('強制重新載入失敗:', error)
+    debugInfo.value.lastCheckResult = {
+      success: false,
+      message: `重新載入失敗: ${error.message}`
+    }
   }
 }
 
@@ -596,6 +639,7 @@ if (typeof window !== 'undefined') {
   }
   
   window.performChatCheck = performFullCheck
+  window.forceReloadChatData = forceReloadData
 }
 
 // 頁面標題
