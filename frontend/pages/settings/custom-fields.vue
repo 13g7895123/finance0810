@@ -53,15 +53,15 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="block text-sm mb-1">顯示名稱 (label)</label>
-              <input v-model="form.label" required class="w-full px-3 py-2 border rounded " />
+              <input v-model="form.label" required class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
             </div>
             <div>
               <label class="block text-sm mb-1">鍵值 Key</label>
-              <input v-model="form.key" :disabled="!!form.id" required class="w-full px-3 py-2 border rounded " />
+              <input v-model="form.key" :disabled="!!form.id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
             </div>
             <div>
               <label class="block text-sm mb-1">類型</label>
-              <select v-model="form.type" required class="w-full px-3 py-2 border rounded ">
+              <select v-model="form.type" required class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 <option v-for="t in FIELD_TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
               </select>
             </div>
@@ -72,7 +72,7 @@
             </div>
             <div>
               <label class="block text-sm mb-1">排序</label>
-              <input v-model.number="form.sort_order" type="number" class="w-full px-3 py-2 border rounded " />
+              <input v-model.number="form.sort_order" type="number" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
             </div>
             <div>
               <label class="inline-flex items-center mt-7">
@@ -84,7 +84,7 @@
           <!-- 選項（select/multiselect） -->
           <div v-if="['select','multiselect'].includes(form.type)">
             <label class="block text-sm mb-1">選項 (以逗號分隔)</label>
-            <input v-model="optionsText" class="w-full px-3 py-2 border rounded " placeholder="例如：高,中,低" />
+            <input v-model="optionsText" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="例如：高,中,低" />
           </div>
 
           <div class="flex justify-end space-x-3 pt-2">
