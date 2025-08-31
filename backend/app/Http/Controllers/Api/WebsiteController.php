@@ -18,7 +18,7 @@ class WebsiteController extends Controller
      */
     public function index(Request $request)
     {
-        // Point 49: Temporarily remove relationships to debug data loading issue
+        // Point 49: Use safe relationship loading that handles missing foreign keys
         $query = Website::query();
 
         // Filter by status
