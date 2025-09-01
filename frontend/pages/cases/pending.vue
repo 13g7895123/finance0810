@@ -3,15 +3,15 @@
     <!-- 頁面標題 -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900">待處理案件</h1>
+        <h1 class="text-3xl font-bold text-gray-900">網路進線</h1>
         <p class="text-gray-600 mt-2">顯示來自 WP 表單的進件（可搜尋、編輯、刪除）</p>
       </div>
     </div>
 
     <!-- 統計卡片 -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+    <div v-if="false" class="grid grid-cols-1 md:grid-cols-4 gap-6">
       <StatsCard
-        title="待處理案件"
+        title="網路進線"
         :value="caseStats.pending"
         description="需要處理的進件"
         icon="DocumentTextIcon"
@@ -50,7 +50,7 @@
 
     <!-- 案件列表 -->
     <DataTable
-      title="WP 進件列表"
+      title="網路進線列表"
       :columns="pendingTableColumns"
       :data="filteredLeads"
       :loading="loading"
@@ -110,7 +110,9 @@
       
       <!-- Channel Cell -->
       <template #cell-channel="{ item }">
-        <span class="text-sm text-gray-900">{{ item.channel || 'wp_form' }}</span>
+        <span class="text-sm text-gray-900">
+          {{ item.channel === 'wp_form' ? '網站表單' : (item.channel === 'lineoa' ? '官方賴' : (item.channel === 'email' ? 'Email' : (item.channel === 'phone' ? '電話' : (item.channel || '-')))) }}
+        </span>
       </template>
       
       <!-- DateTime Cell -->
@@ -671,9 +673,9 @@ const customFieldValues = reactive({})
 
 // 選項配置
 const CHANNEL_OPTIONS = [
-  { value: 'wp_form', label: 'wp_form' },
-  { value: 'lineoa', label: 'lineoa' },
-  { value: 'email', label: 'email' },
+  { value: 'wp_form', label: '網站表單' },
+  { value: 'lineoa', label: '官方賴' },
+  { value: 'email', label: 'Email' },
   { value: 'phone', label: '電話' }
 ]
 
@@ -720,6 +722,7 @@ const lineNameForm = reactive({
 })
 
 // 表格配置
+// 可連絡時間欄位可隱藏設置：若未來需要顯示可連絡時間，可在此調整 columns 配置
 const pendingTableColumns = computed(() => {
   return [
     {
@@ -729,16 +732,10 @@ const pendingTableColumns = computed(() => {
       width: '140px'
     },
     {
-      key: 'website',
-      title: '網站',
-      sortable: false,
-      width: '180px'
-    },
-    {
-      key: 'channel',
-      title: '來源管道',
+      key: 'datetime',
+      title: '時間', // 可選：可連絡時間（可隱藏）
       sortable: true,
-      width: '100px'
+      width: '140px'
     },
     {
       key: 'assignee',
@@ -747,14 +744,32 @@ const pendingTableColumns = computed(() => {
       width: '100px'
     },
     {
-      key: 'contact_info',
-      title: '聯絡資訊',
-      sortable: false,
-      width: '160px'
+      key: 'channel',
+      title: '來源管道',
+      sortable: true,
+      width: '100px'
     },
     {
       key: 'line_info',
       title: 'LINE資訊',
+      sortable: false,
+      width: '160px'
+    },
+    {
+      key: 'purpose',
+      title: '諮詢項目',
+      sortable: false,
+      width: '120px'
+    },
+    {
+      key: 'website',
+      title: '網站',
+      sortable: false,
+      width: '180px'
+    },
+    {
+      key: 'contact_info',
+      title: '聯絡資訊',
       sortable: false,
       width: '160px'
     },
@@ -771,21 +786,9 @@ const pendingTableColumns = computed(() => {
       width: '120px'
     },
     {
-      key: 'purpose',
-      title: '諮詢項目',
-      sortable: false,
-      width: '120px'
-    },
-    {
       key: 'custom_fields',
       title: '自定義欄位',
       sortable: false,
-      width: '140px'
-    },
-    {
-      key: 'datetime',
-      title: '時間',
-      sortable: true,
       width: '140px'
     },
     {

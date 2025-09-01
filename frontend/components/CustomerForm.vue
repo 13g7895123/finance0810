@@ -26,8 +26,8 @@
           <label class="block text-sm font-medium mb-1">來源管道</label>
           <select v-model="form.channel" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
             <option value="">未指定</option>
-            <option value="wp_form">WP 表單</option>
-            <option value="line">LINE OA</option>
+            <option value="wp_form">網站表單</option>
+            <option value="line">官方賴</option>
             <option value="email">Email</option>
             <option value="phone_call">電話</option>
           </select>

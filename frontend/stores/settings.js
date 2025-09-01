@@ -14,10 +14,16 @@ export const useSettingsStore = defineStore('settings', () => {
       permissions: ['chat', 'all_access']
     },
     {
+      name: '網路進線',
+      icon: 'DocumentTextIcon',
+      href: '/cases/pending',
+      permissions: ['customer_management', 'all_access']
+    },
+    {
       name: '案件管理',
       icon: 'DocumentTextIcon',
       children: [
-        { name: '待處理案件', href: '/cases/pending', permissions: ['customer_management', 'all_access'] },
+        // { name: '待處理案件', href: '/cases/pending', permissions: ['customer_management', 'all_access'] },
         // { name: '可送件案件', href: '/cases/submittable', permissions: ['case.view', 'all_access'] },
         // { name: '進行中案件', href: '/cases/progress', permissions: ['case.view', 'all_access'] },
         // { name: '已完成案件', href: '/cases/completed', permissions: ['case.view', 'all_access'] },

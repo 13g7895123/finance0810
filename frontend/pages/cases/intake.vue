@@ -74,7 +74,7 @@
                 <div class="text-xs text-gray-500 truncate max-w-[240px]">{{ lead.payload?.['頁面_URL'] || lead.source }}</div>
               </td>
               <!-- 來源管道 -->
-              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.channel || 'wp' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">{{ lead.channel === 'wp' ? '網站表單' : (lead.channel === 'lineoa' ? '官方賴' : (lead.channel === 'email' ? 'Email' : (lead.channel === 'phone' ? '電話' : (lead.channel || '-')))) }}</td>
               <!-- 時間 -->
               <td class="px-6 py-4 whitespace-nowrap text-base text-gray-700 ">
                 <div>{{ formatDate(lead.created_at) }}</div>
@@ -311,8 +311,8 @@ const { list: listCustomFields } = useCustomFields()
 
 const users = ref([])
 const CHANNEL_OPTIONS = [
-  { value: 'wp', label: 'wp' },
-  { value: 'lineoa', label: 'lineoa' },
+  { value: 'wp', label: '網站表單' },
+  { value: 'lineoa', label: '官方賴' },
   { value: 'email', label: 'email' },
   { value: 'phone', label: '電話' }
 ]

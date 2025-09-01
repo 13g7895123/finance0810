@@ -518,7 +518,7 @@ const customFieldValues = reactive({})
 // 選項配置
 const CHANNEL_OPTIONS = [
   { value: 'wp', label: 'wp' },
-  { value: 'lineoa', label: 'lineoa' },
+  { value: 'lineoa', label: '官方賴' },
   { value: 'email', label: 'email' },
   { value: 'phone', label: '電話' }
 ]
@@ -533,7 +533,7 @@ const STATUS_OPTIONS = [
 // 表單數據
 const form = reactive({
   page_url: '',
-  channel: 'wp',
+  channel: 'wp', // 網站表單
   status: 'approved',
   approved_amount: null,
   email: null,

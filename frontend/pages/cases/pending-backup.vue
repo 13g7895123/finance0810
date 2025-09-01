@@ -395,7 +395,7 @@ const { list: listCustomFields } = useCustomFields()
 const users = ref([])
 const CHANNEL_OPTIONS = [
   { value: 'wp', label: 'wp' },
-  { value: 'lineoa', label: 'lineoa' },
+  { value: 'lineoa', label: '官方賴' },
   { value: 'email', label: 'email' },
   { value: 'phone', label: '電話' }
 ]
