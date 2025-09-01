@@ -28,6 +28,7 @@
           :key="item.name"
           :item="item"
           :collapsed="sidebarCollapsed"
+          :badge="getBadgeCount(item)"
         />
       </nav>
 
@@ -92,6 +93,7 @@
           :key="item.name"
           :item="item"
           :collapsed="false"
+          :badge="getBadgeCount(item)"
           @click="closeMobileSidebar"
         />
       </nav>
@@ -133,6 +135,27 @@ const { sidebarMenuItems } = storeToRefs(settingsStore)
 
 const authStore = useAuthStore()
 
+// Badge system for sidebar notifications
+const { badges, startPolling, stopPolling } = useSidebarBadges()
+
+// Get badge count for menu item
+const getBadgeCount = (item) => {
+  if (!item.href) return 0
+  
+  // Map href to badge key
+  const badgeMapping = {
+    '/cases/pending': 'pending',
+    '/cases/intake': 'intake',
+    '/cases/disbursed': 'disbursed',
+    '/cases/tracking': 'tracking',
+    '/cases/blacklist': 'blacklist',
+    '/cases/negotiated': 'negotiated'
+  }
+  
+  const badgeKey = badgeMapping[item.href]
+  return badgeKey ? badges.value[badgeKey] : 0
+}
+
 // 客戶端狀態標記
 const isClient = ref(false)
 const sidebar = ref(null)
@@ -148,6 +171,12 @@ onMounted(() => {
   if (savedWidth) {
     sidebarWidth.value = parseInt(savedWidth)
   }
+  // Start polling for badge updates
+  startPolling()
+})
+
+onUnmounted(() => {
+  stopPolling()
 })
 
 // 權限過濾選單項目

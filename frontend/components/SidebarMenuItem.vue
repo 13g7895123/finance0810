@@ -18,7 +18,16 @@
       
       <!-- Text (desktop) -->
       <div v-if="!collapsed" class="flex items-center justify-between flex-1 ml-3">
-        <span class="font-medium">{{ item.name }}</span>
+        <div class="flex items-center space-x-2">
+          <span class="font-medium">{{ item.name }}</span>
+          <!-- Badge -->
+          <span 
+            v-if="badge > 0" 
+            class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full"
+          >
+            {{ badge > 99 ? '99+' : badge }}
+          </span>
+        </div>
       </div>
     </NuxtLink>
     
@@ -39,7 +48,16 @@
       
       <!-- Text and Arrow (desktop) -->
       <div v-if="!collapsed" class="flex items-center justify-between flex-1 ml-3">
-        <span class="font-medium">{{ item.name }}</span>
+        <div class="flex items-center space-x-2">
+          <span class="font-medium">{{ item.name }}</span>
+          <!-- Badge -->
+          <span 
+            v-if="badge > 0" 
+            class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full"
+          >
+            {{ badge > 99 ? '99+' : badge }}
+          </span>
+        </div>
         <ChevronDownIcon 
           v-if="item.children"
           class="w-4 h-4 transition-transform duration-200"
@@ -53,7 +71,15 @@
       v-if="collapsed"
       class="absolute left-full top-0 ml-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 whitespace-nowrap"
     >
-      {{ item.name }}
+      <div class="flex items-center space-x-2">
+        <span>{{ item.name }}</span>
+        <span 
+          v-if="badge > 0" 
+          class="inline-flex items-center justify-center w-4 h-4 text-xs font-bold text-white bg-red-500 rounded-full"
+        >
+          {{ badge > 99 ? '99+' : badge }}
+        </span>
+      </div>
     </div>
 
     <!-- Submenu -->
@@ -100,6 +126,10 @@ const props = defineProps({
   collapsed: {
     type: Boolean,
     default: false
+  },
+  badge: {
+    type: Number,
+    default: 0
   }
 })
 
