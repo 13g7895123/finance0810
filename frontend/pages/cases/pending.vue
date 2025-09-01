@@ -833,16 +833,16 @@ const filteredLeads = computed(() => {
 // 自定義欄位
 const visibleCaseFields = computed(() => caseFields.value.filter(f => f.is_visible))
 
-// 載入數據
+// 載入數據 - 改為客戶端分頁實現
 const loadLeads = async () => {
   loading.value = true
   loadError.value = null
   
   try {
+    // 獲取所有待處理案件，不使用分頁參數
     const { items, meta, success: ok } = await listLeads({
-      page: currentPage.value,
-      per_page: itemsPerPage.value,
-      status: 'pending'
+      status: 'pending',
+      per_page: 1000  // 獲取大量數據以支持客戶端分頁
     })
     
     if (ok) {
@@ -932,9 +932,9 @@ watch([searchQuery, selectedAssignee], () => {
   }, 300)
 })
 
-watch([() => currentPage.value, () => itemsPerPage.value], () => {
-  // 可以在這裡重新載入數據如果需要服務器端分頁
-})
+// 客戶端分頁不需要在頁面變化時重新載入數據
+
+// 使用 DataTable 內建的分頁功能，不需要手動分頁
 
 // 模態窗口控制
 const viewLead = (lead) => {
