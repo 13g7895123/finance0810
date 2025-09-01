@@ -6,13 +6,6 @@
         <h1 class="text-3xl font-bold text-gray-900">WordPress網站管理</h1>
         <p class="text-gray-600 mt-2">管理和編輯WordPress網站設定，統一管理所有進件來源</p>
       </div>
-      <button 
-        @click="openCreateModal" 
-        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
-      >
-        <Icon name="heroicons:plus" class="w-5 h-5" />
-        <span>新增網站</span>
-      </button>
     </div>
 
     <!-- Statistics Cards -->
@@ -39,134 +32,116 @@
       </div>
     </div>
 
-    <!-- Filters and Search -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <div class="flex flex-col md:flex-row gap-4">
-        <div class="flex-1">
-          <input 
-            v-model="filters.search" 
-            @input="searchWebsites"
-            placeholder="搜尋網站名稱..." 
-            class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-        <select v-model="filters.status" @change="loadWebsites" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+    <!-- Websites DataTable -->
+    <DataTable
+      title="網站列表"
+      :columns="websiteColumns"
+      :data="websiteData"
+      :loading="loading"
+      :error="error"
+      :search-query="filters.search"
+      search-placeholder="搜尋網站名稱..."
+      :show-search-icon="false"
+      :current-page="currentPage"
+      :items-per-page="itemsPerPage"
+      loading-text="載入中..."
+      empty-text="尚無網站資料"
+      @search="handleSearch"
+      @refresh="loadWebsites"
+      @retry="loadWebsites"
+      @page-change="handlePageChange"
+      @page-size-change="handlePageSizeChange"
+    >
+      <!-- Filter Controls -->
+      <template #filters>
+        <select v-model="filters.status" @change="loadWebsites" class="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">所有狀態</option>
           <option value="active">運行中</option>
           <option value="inactive">已停用</option>
           <option value="maintenance">維護中</option>
         </select>
-        <select v-model="filters.type" @change="loadWebsites" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        <select v-model="filters.type" @change="loadWebsites" class="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">所有類型</option>
           <option value="wordpress">WordPress</option>
           <option value="other">其他</option>
         </select>
-      </div>
-    </div>
-
-    <!-- Websites Table -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-200">
-        <h2 class="text-xl font-semibold text-gray-900">網站列表</h2>
-      </div>
+      </template>
       
-      <div v-if="loading" class="p-8 text-center">
-        <div class="animate-spin inline-block w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-        <div class="mt-2 text-gray-500">載入中...</div>
-      </div>
-
-      <div v-else-if="websites.data && websites.data.length === 0" class="p-8 text-center text-gray-500">
-        尚無網站資料
-      </div>
-
-      <div v-else class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">網站</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">狀態</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">統計</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Webhook</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="website in websites.data" :key="website.id" class="hover:bg-gray-50">
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div>
-                  <a :href="website.url" target="_blank" class="text-sm font-medium text-blue-600 hover:text-blue-800">
-                    {{ website.name }}
-                  </a>
-                  <div class="text-sm text-gray-500">{{ website.type === 'wordpress' ? 'WordPress' : '其他' }}</div>
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span :class="getStatusClass(website.status)" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
-                  {{ getStatusText(website.status) }}
-                </span>
-                <div v-if="website.is_healthy" class="text-xs text-green-500 mt-1">健康</div>
-                <div v-else class="text-xs text-red-500 mt-1">需關注</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                <div>進件: {{ website.statistics?.total_leads || 0 }}</div>
-                <div>客戶: {{ website.statistics?.total_customers || 0 }}</div>
-                <div>轉換率: {{ website.conversion_rate }}%</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span :class="website.webhook_enabled ? 'text-green-500' : 'text-red-500'" class="text-sm">
-                  {{ website.webhook_enabled ? '已啟用' : '已停用' }}
-                </span>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                <!-- 編輯按鈕 -->
-                <button 
-                  @click="editWebsite(website)" 
-                  class="inline-flex items-center justify-center w-8 h-8 text-blue-600 hover:text-white hover:bg-blue-600 rounded transition-colors duration-200 relative group"
-                  title="編輯網站"
-                >
-                  <Icon name="heroicons:pencil" class="w-4 h-4" />
-                  <span class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-                    編輯網站
-                  </span>
-                </button>
-                
-                <!-- 刪除按鈕 -->
-                <button 
-                  @click="deleteWebsite(website)" 
-                  class="inline-flex items-center justify-center w-8 h-8 text-red-600 hover:text-white hover:bg-red-600 rounded transition-colors duration-200 relative group"
-                  title="刪除網站"
-                >
-                  <Icon name="heroicons:trash" class="w-4 h-4" />
-                  <span class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-                    刪除網站
-                  </span>
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Pagination -->
-      <div v-if="websites.last_page > 1" class="bg-gray-50 px-6 py-3 border-t border-gray-200">
-        <div class="flex items-center justify-between">
-          <div class="text-sm text-gray-700">
-            顯示 {{ websites.from }} 到 {{ websites.to }} 共 {{ websites.total }} 筆
-          </div>
-          <div class="flex space-x-1">
-            <button 
-              v-for="page in getPaginationPages()" 
-              :key="page"
-              @click="changePage(page)"
-              :class="page === websites.current_page ? 'bg-blue-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
-              class="px-3 py-1 border rounded"
-            >
-              {{ page }}
-            </button>
-          </div>
+      <!-- Action Buttons -->
+      <template #actions>
+        <button 
+          @click="openCreateModal" 
+          class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
+        >
+          <PlusIcon class="w-5 h-5" />
+          <span>新增網站</span>
+        </button>
+      </template>
+      
+      <!-- Website Cell -->
+      <template #cell-website="{ item }">
+        <div>
+          <a :href="item.url" target="_blank" class="text-sm font-medium text-blue-600 hover:text-blue-800">
+            {{ item.name }}
+          </a>
+          <div class="text-sm text-gray-500">{{ item.type === 'wordpress' ? 'WordPress' : '其他' }}</div>
         </div>
-      </div>
-    </div>
+      </template>
+      
+      <!-- Status Cell -->
+      <template #cell-status="{ item }">
+        <div>
+          <span :class="getStatusClass(item.status)" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
+            {{ getStatusText(item.status) }}
+          </span>
+          <div v-if="item.is_healthy" class="text-xs text-green-500 mt-1">健康</div>
+          <div v-else class="text-xs text-red-500 mt-1">需關注</div>
+        </div>
+      </template>
+      
+      <!-- Statistics Cell -->
+      <template #cell-statistics="{ item }">
+        <div class="text-sm text-gray-900">
+          <div>進件: {{ item.statistics?.total_leads || 0 }}</div>
+          <div>客戶: {{ item.statistics?.total_customers || 0 }}</div>
+          <div>轉換率: {{ item.conversion_rate }}%</div>
+        </div>
+      </template>
+      
+      <!-- Webhook Cell -->
+      <template #cell-webhook="{ item }">
+        <span :class="item.webhook_enabled ? 'text-green-500' : 'text-red-500'" class="text-sm">
+          {{ item.webhook_enabled ? '已啟用' : '已停用' }}
+        </span>
+      </template>
+      
+      <!-- Actions Cell -->
+      <template #cell-actions="{ item }">
+        <div class="flex items-center space-x-2 justify-end">
+          <button 
+            @click="editWebsite(item)" 
+            class="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-all duration-200 group relative"
+            title="編輯網站"
+          >
+            <PencilIcon class="w-4 h-4" />
+            <span class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+              編輯
+            </span>
+          </button>
+          
+          <button 
+            @click="deleteWebsite(item)" 
+            class="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200 group relative"
+            title="刪除網站"
+          >
+            <TrashIcon class="w-4 h-4" />
+            <span class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+              刪除
+            </span>
+          </button>
+        </div>
+      </template>
+    </DataTable>
 
     <!-- Create/Edit Modal -->
     <div v-if="modalOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeModal">
@@ -287,6 +262,8 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import DataTable from '~/components/DataTable.vue'
+import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/vue/24/outline'
 
 definePageMeta({
   middleware: 'role'
@@ -303,6 +280,11 @@ const loading = ref(false)
 const saving = ref(false)
 const modalOpen = ref(false)
 const editingWebsite = ref(null)
+const error = ref('')
+
+// Pagination
+const currentPage = ref(1)
+const itemsPerPage = ref(15)
 
 // Filters
 const filters = ref({
@@ -327,33 +309,76 @@ const form = ref({
 // Initialize API composable
 const { get, post, put, del } = useApi()
 
+// DataTable columns
+const websiteColumns = [
+  {
+    key: 'website',
+    title: '網站',
+    sortable: true,
+    width: '200px'
+  },
+  {
+    key: 'status',
+    title: '狀態',
+    sortable: true,
+    width: '120px'
+  },
+  {
+    key: 'statistics',
+    title: '統計',
+    sortable: false,
+    width: '150px'
+  },
+  {
+    key: 'webhook',
+    title: 'Webhook',
+    sortable: true,
+    width: '100px'
+  },
+  {
+    key: 'actions',
+    title: '操作',
+    sortable: false,
+    width: '120px'
+  }
+]
+
+// Computed properties
+const websiteData = computed(() => {
+  return websites.value.data || []
+})
+
 // Methods
-const loadWebsites = async (page = 1) => {
+const loadWebsites = async (page = currentPage.value) => {
   loading.value = true
+  error.value = ''
   try {
     const params = {
       page: page.toString(),
-      per_page: '15',
+      per_page: itemsPerPage.value.toString(),
       ...filters.value
     }
     
-    const { data, error } = await get('/websites', params)
-    if (error) {
-      console.error('載入網站失敗:', error)
+    const { data, error: apiError } = await get('/websites', params)
+    if (apiError) {
+      console.error('載入網站失敗:', apiError)
+      error.value = apiError.message || '無法載入網站列表'
       useToast().add({
         title: '載入失敗',
-        description: error.message || '無法載入網站列表',
+        description: error.value,
         color: 'red'
       })
       return
     }
     // 後端返回分頁對象，保持完整的分頁信息
     websites.value = data || { data: [], current_page: 1, last_page: 1, total: 0, from: 0, to: 0 }
-  } catch (error) {
-    console.error('載入網站失敗:', error)
+    currentPage.value = websites.value.current_page
+  } catch (err) {
+    console.error('載入網站失敗:', err)
+    error.value = '無法載入網站列表'
     useToast().add({
       title: '載入失敗',
-      description: '無法載入網站列表',
+      description: error.value,
       color: 'red'
     })
   } finally {
@@ -506,20 +531,21 @@ const closeModal = () => {
   editingWebsite.value = null
 }
 
-const changePage = (page) => {
+// DataTable event handlers
+const handleSearch = (query) => {
+  filters.value.search = query
+  // Search will be handled by searchWebsites debounce
+}
+
+const handlePageChange = (page) => {
+  currentPage.value = page
   loadWebsites(page)
 }
 
-const getPaginationPages = () => {
-  const pages = []
-  const current = websites.value.current_page
-  const total = websites.value.last_page
-  
-  for (let i = Math.max(1, current - 2); i <= Math.min(total, current + 2); i++) {
-    pages.push(i)
-  }
-  
-  return pages
+const handlePageSizeChange = (size) => {
+  itemsPerPage.value = size
+  currentPage.value = 1
+  loadWebsites(1)
 }
 
 const getStatusClass = (status) => {
