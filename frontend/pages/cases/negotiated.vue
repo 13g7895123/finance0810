@@ -1,98 +1,100 @@
 <template>
   <div class="space-y-6">
+    <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-3xl font-bold text-gray-900 ">協商客戶</h1>
         <p class="text-gray-600 mt-2">顯示有銀行交涉紀錄的客戶/案件</p>
       </div>
-      <div class="flex items-center space-x-3">
-        <input v-model="search" placeholder="搜尋姓名/電話/Email/銀行/內容" class="px-3 py-2 border rounded " />
-        <input v-model="bank" placeholder="銀行名稱" class="px-3 py-2 border rounded " />
-        <select v-model="status" class="px-3 py-2 border rounded ">
+    </div>
+
+    <!-- DataTable Component -->
+    <DataTable
+      title="交涉紀錄"
+      :columns="tableColumns"
+      :data="records"
+      :loading="loading"
+      :error="loadError"
+      :search-query="search"
+      search-placeholder="搜尋姓名/電話/Email/銀行/內容..."
+      :current-page="pagination.currentPage"
+      :items-per-page="pagination.perPage"
+      loading-text="載入中..."
+      empty-text="沒有資料"
+      @search="handleSearch"
+      @refresh="load"
+      @retry="load"
+      @page-change="handlePageChange"
+      @page-size-change="handlePageSizeChange"
+    >
+      <!-- Filter Controls -->
+      <template #filters>
+        <input v-model="bank" placeholder="銀行名稱" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <select v-model="status" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">所有狀態</option>
           <option v-for="(label, value) in BANK_RECORD_STATUS_LABELS" :key="value" :value="value">
             {{ label }}
           </option>
         </select>
-        <input v-model="dateFrom" type="date" class="px-3 py-2 border rounded " placeholder="聯絡日期開始" />
-        <input v-model="dateTo" type="date" class="px-3 py-2 border rounded " placeholder="聯絡日期結束" />
-        <input v-model="nextDateFrom" type="date" class="px-3 py-2 border rounded " placeholder="下次聯絡開始" />
-        <input v-model="nextDateTo" type="date" class="px-3 py-2 border rounded " placeholder="下次聯絡結束" />
-        <select v-model="pagination.perPage" class="px-3 py-2 border rounded ">
-          <option v-for="option in PAGINATION_OPTIONS" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-      </div>
-    </div>
+        <input v-model="dateFrom" type="date" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="聯絡日期開始" />
+        <input v-model="dateTo" type="date" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="聯絡日期結束" />
+        <input v-model="nextDateFrom" type="date" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="下次聯絡開始" />
+        <input v-model="nextDateTo" type="date" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="下次聯絡結束" />
+      </template>
 
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-        <h3 class="text-lg font-medium text-gray-900 ">交涉紀錄</h3>
-        <div class="flex items-center space-x-3">
-          <button class="px-3 py-1 border rounded text-sm " @click="openCreate">新增紀錄</button>
-          <div class="text-sm text-gray-500 ">
-            第 <span class="font-medium">{{ startIndex + 1 }}</span> -
-            <span class="font-medium">{{ Math.min(endIndex, pagination.total) }}</span>
-            筆，共 <span class="font-medium">{{ pagination.total }}</span> 筆
-          </div>
+      <!-- Custom Actions in Header -->
+      <template #actions>
+        <button 
+          @click="openCreate" 
+          class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
+        >
+          新增紀錄
+        </button>
+      </template>
+      
+      <!-- Custom Table Cells -->
+      <template #cell-customer="{ item }">
+        <div>
+          <div class="text-gray-900 ">{{ item.customer?.name || '-' }}</div>
+          <div class="text-sm text-gray-500 ">{{ item.customer?.phone || '-' }}</div>
         </div>
-      </div>
-
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead class="bg-gray-50 ">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">客戶</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">銀行</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">聯絡窗口</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">聯絡方式/日期</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">摘要</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">狀態</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200 ">
-            <tr v-if="loading">
-              <td colspan="6" class="px-6 py-6 text-center text-gray-500 ">載入中...</td>
-            </tr>
-            <tr v-for="r in records" :key="r.id" class="hover:bg-gray-50 ">
-              <td class="px-6 py-4">
-                <div class="text-gray-900 ">{{ r.customer?.name || '-' }}</div>
-                <div class="text-sm text-gray-500 ">{{ r.customer?.phone || '-' }}</div>
-              </td>
-              <td class="px-6 py-4">{{ r.bank_name }}</td>
-              <td class="px-6 py-4">
-                <div>{{ r.contact_person || '-' }}</div>
-                <div class="text-sm text-gray-500 ">{{ r.contact_phone || r.contact_email || '-' }}</div>
-              </td>
-              <td class="px-6 py-4">
-                <div class="capitalize">{{ r.communication_type }}</div>
-                <div class="text-sm">{{ formatDateTime(r.communication_date) }}</div>
-              </td>
-              <td class="px-6 py-4">
-                <div class="truncate max-w-[360px]">{{ r.content }}</div>
-                <div v-if="r.result" class="text-sm text-gray-500 ">結果：{{ r.result }}</div>
-              </td>
-              <td class="px-6 py-4 capitalize">
-                {{ r.status }}
-                <button class="ml-3 px-2 py-0.5 border rounded text-xs " @click="openEdit(r)">編輯</button>
-              </td>
-            </tr>
-            <tr v-if="!loading && records.length === 0">
-              <td colspan="6" class="px-6 py-6 text-center text-gray-500 ">沒有資料</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-        <div class="flex space-x-2">
-          <button @click="prevPage" :disabled="pagination.currentPage === 1" class="px-3 py-1 border rounded text-sm disabled:opacity-50 ">上一頁</button>
-          <button @click="nextPage" :disabled="pagination.currentPage === totalPages" class="px-3 py-1 border rounded text-sm disabled:opacity-50 ">下一頁</button>
+      </template>
+      
+      <template #cell-bank="{ item }">
+        {{ item.bank_name }}
+      </template>
+      
+      <template #cell-contact="{ item }">
+        <div>{{ item.contact_person || '-' }}</div>
+        <div class="text-sm text-gray-500 ">{{ item.contact_phone || item.contact_email || '-' }}</div>
+      </template>
+      
+      <template #cell-communication="{ item }">
+        <div class="capitalize">{{ item.communication_type }}</div>
+        <div class="text-sm">{{ formatDateTime(item.communication_date) }}</div>
+      </template>
+      
+      <template #cell-summary="{ item }">
+        <div class="truncate max-w-[360px]">{{ item.content }}</div>
+        <div v-if="item.result" class="text-sm text-gray-500 ">結果：{{ item.result }}</div>
+      </template>
+      
+      <!-- Actions Cell -->
+      <template #cell-actions="{ item }">
+        <div class="flex items-center justify-end">
+          <button 
+            @click="openEdit(item)"
+            class="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-all duration-200 group relative"
+            title="編輯"
+          >
+            <PencilIcon class="w-4 h-4" />
+            <span class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+              編輯
+            </span>
+          </button>
         </div>
-        <div class="text-sm text-gray-500 ">第 {{ pagination.currentPage }} / {{ totalPages }} 頁</div>
-      </div>
-    </div>
+      </template>
+    </DataTable>
   </div>
 
   <!-- Modal -->
@@ -192,6 +194,9 @@
 </template>
 
 <script setup>
+import { PencilIcon } from '@heroicons/vue/24/outline'
+import DataTable from '~/components/DataTable.vue'
+
 definePageMeta({ middleware: 'auth' })
 
 const { list, createOne, updateOne } = useBankRecords()
@@ -211,25 +216,98 @@ const dateFrom = ref('')
 const dateTo = ref('')
 const nextDateFrom = ref('')
 const nextDateTo = ref('')
+const loadError = ref(null)
+
+// Table columns configuration
+const tableColumns = computed(() => [
+  {
+    key: 'customer',
+    title: '客戶',
+    sortable: false,
+    width: '200px'
+  },
+  {
+    key: 'bank',
+    title: '銀行',
+    sortable: false,
+    width: '120px'
+  },
+  {
+    key: 'contact',
+    title: '聯絡窗口',
+    sortable: false,
+    width: '150px'
+  },
+  {
+    key: 'communication',
+    title: '聯絡方式/日期',
+    sortable: false,
+    width: '150px'
+  },
+  {
+    key: 'summary',
+    title: '摘要',
+    sortable: false,
+    width: '300px'
+  },
+  {
+    key: 'status',
+    title: '狀態',
+    sortable: false,
+    width: '120px',
+    formatter: (value) => value
+  },
+  {
+    key: 'actions',
+    title: '操作',
+    sortable: false,
+    width: '80px'
+  }
+])
 
 const load = async () => {
   loading.value = true
-  const { items, meta, success } = await list({
-    search: search.value,
-    bank_name: bank.value || undefined,
-    status: status.value || undefined,
-    date_from: dateFrom.value || undefined,
-    date_to: dateTo.value || undefined,
-    next_date_from: nextDateFrom.value || undefined,
-    next_date_to: nextDateTo.value || undefined,
-    page: pagination.currentPage,
-    per_page: pagination.perPage
-  })
-  if (success) {
-    records.value = items
-    updatePagination(meta)
+  loadError.value = null
+  
+  try {
+    const { items, meta, success: ok, error } = await list({
+      search: search.value,
+      bank_name: bank.value || undefined,
+      status: status.value || undefined,
+      date_from: dateFrom.value || undefined,
+      date_to: dateTo.value || undefined,
+      next_date_from: nextDateFrom.value || undefined,
+      next_date_to: nextDateTo.value || undefined,
+      page: pagination.currentPage,
+      per_page: pagination.perPage
+    })
+    
+    if (ok) {
+      records.value = items
+      updatePagination(meta)
+    } else {
+      loadError.value = error?.message || '載入資料失敗'
+    }
+  } catch (err) {
+    loadError.value = '載入資料時發生錯誤'
+    console.error('Load records error:', err)
+  } finally {
+    loading.value = false
   }
-  loading.value = false
+}
+
+// DataTable event handlers
+const handleSearch = (query) => {
+  search.value = query
+}
+
+const handlePageChange = (page) => {
+  pagination.currentPage = page
+}
+
+const handlePageSizeChange = (size) => {
+  pagination.perPage = size
+  pagination.currentPage = 1
 }
 
 onMounted(load)
@@ -368,5 +446,14 @@ const selectCase = (opt) => {
   form.case_id = opt.id
   caseOptions.value = []
 }
-
 </script>
+
+<style scoped>
+@media (max-width: 768px) {
+  table, thead, tbody, th, td, tr { display: block; }
+  thead tr { position: absolute; top: -9999px; left: -9999px; }
+  tr { border: 1px solid #ccc; margin-bottom: 10px; padding: 10px; }
+  td { border: none; position: relative; padding-left: 50% !important; }
+  td:before { content: attr(data-label); position: absolute; left: 6px; width: 45%; padding-right: 10px; white-space: nowrap; font-weight: bold; }
+}
+</style>

@@ -1,161 +1,309 @@
 <template>
   <div class="space-y-6">
+    <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-3xl font-bold text-gray-900 ">黑名單案件</h1>
         <p class="text-gray-600 mt-2">顯示黑名單（blacklist）的案件，僅供檢視</p>
       </div>
-      <div class="flex items-center space-x-3">
-        <input
-          v-model="search"
-          type="text"
-          placeholder="搜尋姓名/手機/Email/LINE/網站... (至少2個字符)"
-          class="px-3 py-2 border rounded-lg "
-        />
-        <select v-model="pagination.perPage" class="px-3 py-2 border rounded ">
-          <option v-for="option in PAGINATION_OPTIONS" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-      </div>
     </div>
 
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-        <h3 class="text-lg font-medium text-gray-900 ">案件清單</h3>
-        <div class="text-sm text-gray-500 ">
-          第 <span class="font-medium">{{ startIndex + 1 }}</span> -
-          <span class="font-medium">{{ Math.min(endIndex, pagination.total) }}</span>
-          筆，共 <span class="font-medium">{{ pagination.total }}</span> 筆
+    <!-- DataTable Component -->
+    <DataTable
+      title="黑名單案件列表"
+      :columns="tableColumns"
+      :data="leads"
+      :loading="loading"
+      :error="loadError"
+      :search-query="search"
+      search-placeholder="搜尋姓名/手機/Email/LINE/網站..."
+      :current-page="pagination.currentPage"
+      :items-per-page="pagination.perPage"
+      loading-text="載入中..."
+      empty-text="沒有資料"
+      @search="handleSearch"
+      @refresh="loadLeads"
+      @retry="loadLeads"
+      @page-change="handlePageChange"
+      @page-size-change="handlePageSizeChange"
+    >
+      <!-- Custom Table Cells -->
+      <template #cell-website="{ item }">
+        <div>
+          <div class="text-gray-900 ">{{ extractDomain(item.payload?.['頁面_URL'] || item.source) || '-' }}</div>
+          <div class="text-xs text-gray-500 truncate max-w-[240px]">{{ item.payload?.['頁面_URL'] || item.source }}</div>
         </div>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead class="bg-gray-50 ">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">網站</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">來源管道</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">時間</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">承辦業務</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">LINE ID</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">地區</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">地址</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">需求金額</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">諮詢項目</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">可聯繫時間</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP 位址</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">備註</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">狀態</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200 ">
-            <tr v-if="loading">
-              <td colspan="15" class="px-6 py-6 text-center text-gray-500 ">載入中...</td>
-            </tr>
-            <tr v-for="lead in leads" :key="lead.id" class="hover:bg-gray-50 ">
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">
-                <div class="text-gray-900 ">{{ extractDomain(lead.payload?.['頁面_URL'] || lead.source) || '-' }}</div>
-                <div class="text-sm text-gray-500 ">{{ lead.payload?.['頁面_URL'] || lead.source }}</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.channel || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">
-                <div>{{ formatDate(lead.created_at) }}</div>
-                <div class="text-sm">{{ formatTime(lead.created_at) }}</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.assignee?.name || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.email || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.line_id || lead.payload?.['LINE_ID'] || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.payload?.['房屋地址'] || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.payload?.['資金需求'] || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.payload?.['貸款需求'] || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.payload?.['方便聯絡時間'] || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.ip_address || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">{{ lead.notes || lead.payload?.['備註'] || '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-base font-medium space-x-3">
-                <span :class="['px-2 py-1 rounded text-xs', getStatusClass(lead.status)]">{{ LEAD_STATUS_LABELS[lead.status] || lead.status }}</span>
-              </td>
-            </tr>
-            <tr v-if="!loading && leads.length === 0">
-              <td colspan="15" class="px-6 py-6 text-center text-gray-500 ">沒有資料</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-        <div class="flex space-x-2">
-          <button @click="prevPage" :disabled="pagination.currentPage === 1" class="px-3 py-1 border rounded text-sm disabled:opacity-50 ">上一頁</button>
-          <button @click="nextPage" :disabled="pagination.currentPage === totalPages" class="px-3 py-1 border rounded text-sm disabled:opacity-50 ">下一頁</button>
+      </template>
+      
+      <template #cell-channel="{ item }">
+        {{ item.channel === 'wp' ? '網站表單' : (item.channel === 'lineoa' ? '官方賴' : (item.channel === 'email' ? 'Email' : (item.channel === 'phone' ? '電話' : (item.channel || '-')))) }}
+      </template>
+      
+      <template #cell-time="{ item }">
+        <div>
+          <div>{{ formatDate(item.created_at) }}</div>
+          <div class="text-sm text-gray-500">{{ formatTime(item.created_at) }}</div>
         </div>
-        <div class="text-sm text-gray-500 ">第 {{ pagination.currentPage }} / {{ totalPages }} 頁</div>
-      </div>
-    </div>
+      </template>
+      
+      <template #cell-assignee="{ item }">
+        {{ item.assignee?.name || '-' }}
+      </template>
+      
+      <template #cell-region="{ item }">
+        {{ item.payload?.['房屋區域'] || item.payload?.['所在地區'] || '-' }}
+      </template>
+      
+      <template #cell-address="{ item }">
+        {{ item.payload?.['房屋地址'] || '-' }}
+      </template>
+      
+      <template #cell-amount="{ item }">
+        {{ item.payload?.['資金需求'] || '-' }}
+      </template>
+      
+      <template #cell-purpose="{ item }">
+        {{ item.payload?.['貸款需求'] || '-' }}
+      </template>
+      
+      <template #cell-contact_time="{ item }">
+        {{ item.payload?.['方便聯絡時間'] || '-' }}
+      </template>
+      
+      <template #cell-notes="{ item }">
+        {{ item.notes || item.payload?.['備註'] || item.payload?.notes || '-' }}
+      </template>
+      
+      <template #cell-status="{ item }">
+        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+          黑名單
+        </span>
+      </template>
+    </DataTable>
   </div>
 </template>
 
 <script setup>
+import DataTable from '~/components/DataTable.vue'
+
 definePageMeta({ middleware: 'auth' })
+const authStore = useAuthStore()
 
-const { list, updateOne: updateLead } = useLeads()
+const { list: listLeads } = useLeads()
 const { pagination, totalPages, startIndex, endIndex, nextPage, prevPage, updatePagination } = usePagination(10)
-const { PAGINATION_OPTIONS, SEARCH_CONFIG, LEAD_STATUS_LABELS } = useConstants()
-const auth = useAuthStore()
+const { PAGINATION_OPTIONS, SEARCH_CONFIG } = useConstants()
+const { list: listCustomFields } = useCustomFields()
 
+// state
+const leads = ref([])
 const loading = ref(false)
 const search = ref('')
-const leads = ref([])
+const loadError = ref(null)
 
-const load = async () => {
-  loading.value = true
-  const s = search.value.trim()
-  if (s && s.length < SEARCH_CONFIG.MIN_CHARACTERS) {
-    leads.value = []
-    pagination.total = 0
-    loading.value = false
-    return
-  }
+// 自定義欄位（案件）
+const caseFields = ref([])
+const visibleCaseFields = computed(() => caseFields.value.filter(f => f.is_visible))
 
-  const { items, meta, success: ok } = await list({
-    status: 'blacklist',
-    assigned_to: auth.user?.value?.id || '',
-    search: s,
-    page: pagination.currentPage,
-    per_page: pagination.perPage
+// Table columns configuration
+const tableColumns = computed(() => {
+  const baseColumns = [
+    {
+      key: 'website',
+      title: '網站',
+      sortable: false,
+      width: '200px'
+    },
+    {
+      key: 'channel',
+      title: '來源管道',
+      sortable: false,
+      width: '100px'
+    },
+    {
+      key: 'time',
+      title: '時間',
+      sortable: true,
+      width: '120px'
+    },
+    {
+      key: 'assignee',
+      title: '承辦業務',
+      sortable: false,
+      width: '100px'
+    },
+    {
+      key: 'email',
+      title: 'Email',
+      sortable: false,
+      width: '150px',
+      formatter: (value) => value || '-'
+    },
+    {
+      key: 'line_id',
+      title: 'LINE ID',
+      sortable: false,
+      width: '100px',
+      formatter: (value, item) => item.line_id || item.payload?.['LINE_ID'] || '-'
+    },
+    {
+      key: 'region',
+      title: '地區',
+      sortable: false,
+      width: '100px'
+    },
+    {
+      key: 'address',
+      title: '地址',
+      sortable: false,
+      width: '150px'
+    },
+    {
+      key: 'amount',
+      title: '需求金額',
+      sortable: false,
+      width: '100px'
+    },
+    {
+      key: 'purpose',
+      title: '諮詢項目',
+      sortable: false,
+      width: '120px'
+    },
+    {
+      key: 'contact_time',
+      title: '可聯繫時間',
+      sortable: false,
+      width: '120px'
+    },
+    {
+      key: 'ip_address',
+      title: 'IP 位址',
+      sortable: false,
+      width: '120px',
+      formatter: (value) => value || '-'
+    },
+    {
+      key: 'notes',
+      title: '備註',
+      sortable: false,
+      width: '150px'
+    },
+    {
+      key: 'status',
+      title: '狀態',
+      sortable: false,
+      width: '100px'
+    }
+  ]
+  
+  // Add visible custom fields
+  visibleCaseFields.value.forEach(cf => {
+    baseColumns.push({
+      key: `custom_${cf.key}`,
+      title: cf.label,
+      sortable: false,
+      width: '120px',
+      formatter: (value, item) => formatCustomFieldValue(item.payload?.[cf.key], cf)
+    })
   })
-  if (ok) {
-    leads.value = items
-    updatePagination(meta)
+  
+  return baseColumns
+})
+
+// lifecycle
+const loadLeads = async () => {
+  loading.value = true
+  loadError.value = null
+  
+  try {
+    // 搜尋優化：最少字符限制
+    const searchValue = search.value.trim()
+    if (searchValue && searchValue.length < SEARCH_CONFIG.MIN_CHARACTERS) {
+      leads.value = []
+      pagination.total = 0
+      loading.value = false
+      return
+    }
+    
+    const { items, meta, success: ok, error } = await listLeads({
+      page: pagination.currentPage,
+      per_page: pagination.perPage,
+      search: searchValue,
+      status: 'blacklist'
+    })
+    
+    if (ok) {
+      leads.value = items
+      updatePagination(meta)
+    } else {
+      loadError.value = error?.message || '載入資料失敗'
+    }
+  } catch (err) {
+    loadError.value = '載入資料時發生錯誤'
+    console.error('Load leads error:', err)
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
-onMounted(load)
+// DataTable event handlers
+const handleSearch = (query) => {
+  search.value = query
+}
 
-let timer
-const debounced = () => { clearTimeout(timer); timer = setTimeout(load, SEARCH_CONFIG.DEBOUNCE_DELAY) }
-watch([() => pagination.currentPage, () => pagination.perPage], load)
-watch(search, debounced)
+const handlePageChange = (page) => {
+  pagination.currentPage = page
+}
 
-onUnmounted(() => clearTimeout(timer))
+const handlePageSizeChange = (size) => {
+  pagination.perPage = size
+  pagination.currentPage = 1
+}
 
+const loadCaseFields = async () => {
+  const { success, items } = await listCustomFields('case')
+  if (success) caseFields.value = items
+}
+
+onMounted(async () => {
+  await Promise.all([loadLeads(), loadCaseFields()]);
+})
+
+// 搜尋防抖
+let searchTimer
+const debouncedLoadLeads = () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(loadLeads, SEARCH_CONFIG.DEBOUNCE_DELAY)
+}
+
+watch([() => pagination.currentPage, () => pagination.perPage], loadLeads)
+watch(search, debouncedLoadLeads)
+
+// 組件銷毀時清理
+onUnmounted(() => {
+  clearTimeout(searchTimer)
+})
+
+// helpers
 const extractDomain = (url) => {
-  if (!url) return ''
-  try { return new URL(url).hostname.replace('www.', '') } catch { return url }
+  try { return new URL(url).hostname } catch { return url || '' }
 }
 const formatDate = (d) => new Date(d).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
 const formatTime = (d) => new Date(d).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
 
-const getStatusClass = (status) => {
-  const base = 'px-2 py-1 rounded text-xs '
-  switch (status) {
-    case 'pending': return base + 'bg-gray-100 text-gray-700'
-    case 'intake': return base + 'bg-amber-100 text-amber-700'
-    case 'approved': return base + 'bg-green-100 text-green-700'
-    case 'submitted': return base + 'bg-blue-100 text-blue-700'
-    case 'disbursed': return base + 'bg-purple-100 text-purple-700'
-    case 'blacklist': return base + 'bg-red-100 text-red-700'
-    default: return base + 'bg-gray-100 text-gray-700'
-  }
+const formatCustomFieldValue = (val, cf) => {
+  if (cf.type === 'multiselect') return Array.isArray(val) ? val.join(', ') : (val || '-')
+  if (cf.type === 'boolean') return val ? '是' : '否'
+  return val ?? '-'
 }
 </script>
+
+<style scoped>
+@media (max-width: 768px) {
+  table, thead, tbody, th, td, tr { display: block; }
+  thead tr { position: absolute; top: -9999px; left: -9999px; }
+  tr { border: 1px solid #ccc; margin-bottom: 10px; padding: 10px; }
+  td { border: none; position: relative; padding-left: 50% !important; }
+  td:before { content: attr(data-label); position: absolute; left: 6px; width: 45%; padding-right: 10px; white-space: nowrap; font-weight: bold; }
+}
+</style>
