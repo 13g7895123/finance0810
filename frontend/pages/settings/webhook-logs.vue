@@ -35,7 +35,7 @@
         </div>
       </div>
       <p class="text-gray-600">
-        監控 LINE webhook 執行紀錄，追蹤每個請求的處理步驟和狀態
+        監控 WordPress 與 LINE webhook 執行紀錄，追蹤每個請求的處理步驟和狀態
       </p>
     </div>
 
@@ -127,6 +127,7 @@
           >
             <option value="">全部類型</option>
             <option value="line">LINE Webhook</option>
+            <option value="wp">WordPress Webhook</option>
           </select>
         </div>
 
@@ -372,8 +373,16 @@
                 </div>
               </div>
 
+              <!-- 請求數據 -->
+              <div v-if="selectedLog.request_body" class="mb-6">
+                <h4 class="text-md font-medium text-gray-900 mb-3">請求數據</h4>
+                <div class="bg-gray-50 rounded-lg p-4">
+                  <pre class="text-xs text-gray-600 overflow-x-auto max-h-64">{{ typeof selectedLog.request_body === 'string' ? selectedLog.request_body : JSON.stringify(selectedLog.request_body, null, 2) }}</pre>
+                </div>
+              </div>
+
               <!-- 事件數據 -->
-              <div v-if="selectedLog.events_data && selectedLog.events_data.length > 0" class="mb-6">
+              <div v-if="selectedLog.events_data && (Array.isArray(selectedLog.events_data) ? selectedLog.events_data.length > 0 : Object.keys(selectedLog.events_data).length > 0)" class="mb-6">
                 <h4 class="text-md font-medium text-gray-900 mb-3">事件數據</h4>
                 <div class="bg-gray-50 rounded-lg p-4">
                   <pre class="text-xs text-gray-600 overflow-x-auto max-h-64">{{ JSON.stringify(selectedLog.events_data, null, 2) }}</pre>
@@ -434,7 +443,7 @@ const error = ref(null)
 // 篩選條件
 const filters = ref({
   status: '',
-  type: 'line',
+  type: '',
   days: '7',
   search: '',
   page: 1,
@@ -466,20 +475,37 @@ const fetchLogs = async () => {
     const params = new URLSearchParams()
     Object.entries(filters.value).forEach(([key, value]) => {
       if (value !== '' && value !== null && value !== undefined) {
-        params.append(key, value)
+        // Map frontend filter names to API parameter names
+        const apiKey = key === 'type' ? 'webhook_type' : 
+                       key === 'search' ? 'execution_id' : key
+        if (apiKey !== 'days') { // days is handled separately for date filtering
+          params.append(apiKey, value)
+        }
       }
     })
-
-    const response = await $api(`/webhook-logs?${params.toString()}`)
     
-    if (response.success) {
+    // Handle date filtering based on days
+    if (filters.value.days) {
+      const daysAgo = new Date()
+      daysAgo.setDate(daysAgo.getDate() - parseInt(filters.value.days))
+      params.append('date_from', daysAgo.toISOString().split('T')[0])
+    }
+
+    const response = await $api(`/webhook/execution-logs?${params.toString()}`)
+    
+    if (response.data) {
       logs.value = response.data
-      pagination.value = response.pagination
-    } else if (response.setup_required) {
-      // Show setup required message
+      pagination.value = response.pagination || {
+        current_page: 1,
+        per_page: 20,
+        total: response.data.length,
+        last_page: 1
+      }
+      // Update statistics after loading logs
+      await fetchStatistics()
+    } else {
       logs.value = []
       pagination.value = null
-      error.value = response.message || 'Database setup required for webhook logs'
     }
   } catch (error) {
     console.error('載入 webhook 日誌失敗:', error)
@@ -500,18 +526,21 @@ const fetchLogs = async () => {
 }
 
 const fetchStatistics = async () => {
-  if (!canAccessLogs.value) return
+  if (!canAccessLogs.value || !logs.value.length) return
   
   try {
-    const params = new URLSearchParams({
-      days: filters.value.days,
-      type: filters.value.type || 'line'
-    })
-
-    const response = await $api(`/webhook-logs/statistics?${params.toString()}`)
+    // Calculate statistics from loaded logs
+    const total = logs.value.length
+    const completed = logs.value.filter(log => log.status === 'completed').length
+    const failed = logs.value.filter(log => log.status === 'failed').length
+    const durations = logs.value.filter(log => log.duration_ms).map(log => log.duration_ms)
+    const averageDuration = durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : 0
     
-    if (response.success) {
-      statistics.value = response.data
+    statistics.value = {
+      total_executions: total,
+      successful: completed,
+      failed: failed,
+      average_duration_ms: averageDuration
     }
   } catch (error) {
     console.error('載入統計資料失敗:', error)
@@ -578,7 +607,6 @@ const startAutoRefresh = () => {
   refreshTimer.value = setInterval(() => {
     if (autoRefresh.value) {
       fetchLogs()
-      fetchStatistics()
     }
   }, refreshInterval.value * 1000)
 }
@@ -600,10 +628,10 @@ watch(autoRefresh, (newValue) => {
 })
 
 // 生命週期
-onMounted(() => {
+onMounted(async () => {
   if (canAccessLogs.value) {
-    fetchLogs()
-    fetchStatistics()
+    await fetchLogs()
+    await fetchStatistics()
   }
 })
 

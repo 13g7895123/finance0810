@@ -572,6 +572,10 @@ Route::post('/line/webhook-nosig', [ChatController::class, 'webhookNoSignature']
 Route::post('/line/webhook-simulate', [ChatController::class, 'webhookSimulate']);
 Route::post('/webhook/wp', [WebhookController::class, 'wp']);
 
+// Point 64: Webhook除錯記錄查看API
+Route::get('/webhook/execution-logs', [WebhookController::class, 'getExecutionLogs'])->middleware('auth:api');
+Route::get('/webhook/execution-logs/{executionId}', [WebhookController::class, 'getExecutionLogDetail'])->middleware('auth:api');
+
 // Broadcasting authentication route (needs to be here to use API auth)
 Route::post('/broadcasting/auth', function () {
     return Broadcast::auth(request());
