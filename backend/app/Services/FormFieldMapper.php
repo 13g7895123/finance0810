@@ -258,4 +258,57 @@ class FormFieldMapper
 
         Log::info("Point61 - 為網站 {$websiteId} 建立預設欄位對應");
     }
+
+    /**
+     * Point 62: 檢查系統欄位是否存在
+     */
+    public function systemFieldExists(string $fieldKey): bool
+    {
+        $systemFields = WebsiteFieldMapping::getSystemFields();
+        return array_key_exists($fieldKey, $systemFields);
+    }
+
+    /**
+     * Point 62: 新增自定義系統欄位
+     * 
+     * 注意：這是一個簡化實現，實際上系統欄位應該存在資料庫中
+     * 目前只是將其添加到記憶體中的定義
+     */
+    public function addCustomSystemField(array $fieldData): bool
+    {
+        try {
+            // 由於目前系統欄位是通過常數定義的，
+            // 這裡模擬添加到一個臨時存儲中
+            // 實際上應該考慮將系統欄位存入資料庫
+            
+            $key = $fieldData['key'];
+            $label = $fieldData['label'];
+            $type = $fieldData['type'];
+            $required = $fieldData['required'] ?? false;
+            $description = $fieldData['description'] ?? '';
+
+            // 暫時通過快取或設定檔案存儲自定義欄位
+            // 這是一個簡化的實現，生產環境建議使用資料庫
+            $customFields = cache()->get('custom_system_fields', []);
+            $customFields[$key] = [
+                'label' => $label,
+                'type' => $type,
+                'required' => $required,
+                'description' => $description,
+                'custom' => true
+            ];
+            
+            cache()->put('custom_system_fields', $customFields, 86400); // 快取24小時
+
+            Log::info("Point62 - 新增自定義系統欄位成功", $fieldData);
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error("Point62 - 新增自定義系統欄位失敗", [
+                'field_data' => $fieldData,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
 }

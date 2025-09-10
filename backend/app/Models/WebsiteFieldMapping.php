@@ -104,10 +104,11 @@ class WebsiteFieldMapping extends Model
 
     /**
      * 取得系統標準欄位清單
+     * Point 62: 包含自定義系統欄位
      */
     public static function getSystemFields()
     {
-        return [
+        $standardFields = [
             self::SYSTEM_FIELD_NAME => [
                 'label' => '姓名',
                 'type' => self::FIELD_TYPE_TEXT,
@@ -181,6 +182,10 @@ class WebsiteFieldMapping extends Model
                 'description' => '表單提交的頁面網址'
             ],
         ];
+
+        // Point 62: 合併自定義系統欄位
+        $customFields = cache()->get('custom_system_fields', []);
+        return array_merge($standardFields, $customFields);
     }
 
     /**

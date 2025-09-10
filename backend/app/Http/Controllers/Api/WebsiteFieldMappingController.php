@@ -47,7 +47,7 @@ class WebsiteFieldMappingController extends Controller
             'mappings' => 'required|array|min:1',
             'mappings.*.system_field' => 'required|string|max:50',
             'mappings.*.wp_field_name' => 'required|string|max:100',
-            'mappings.*.display_name' => 'required|string|max:100',
+            'mappings.*.display_name' => 'nullable|string|max:100', // Point 62: 改為可選，會自動使用wp_field_name
             'mappings.*.field_type' => 'required|in:text,email,phone,number,date,time,datetime,url,select,textarea',
             'mappings.*.is_required' => 'boolean',
             'mappings.*.validation_rules' => 'nullable|array',
@@ -86,7 +86,7 @@ class WebsiteFieldMappingController extends Controller
                     'website_id' => $website->id,
                     'system_field' => $mapping['system_field'],
                     'wp_field_name' => $mapping['wp_field_name'],
-                    'display_name' => $mapping['display_name'],
+                    'display_name' => $mapping['display_name'] ?? $mapping['wp_field_name'], // Point 62: 自動使用wp_field_name
                     'field_type' => $mapping['field_type'],
                     'is_required' => $mapping['is_required'] ?? false,
                     'validation_rules' => $mapping['validation_rules'] ?? null,
@@ -251,5 +251,72 @@ class WebsiteFieldMappingController extends Controller
         }
 
         return $errors;
+    }
+
+    /**
+     * Point 62: 新增自定義系統欄位
+     */
+    public function addSystemField(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'key' => 'required|string|max:50|regex:/^[a-zA-Z0-9_]+$/',
+            'label' => 'required|string|max:100',
+            'type' => 'required|string|in:text,email,phone,number,date,textarea,url',
+            'description' => 'nullable|string|max:255',
+            'required' => 'boolean'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => '欄位驗證失敗',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // 檢查欄位代碼是否已存在
+            if ($this->fieldMapper->systemFieldExists($request->key)) {
+                return response()->json([
+                    'error' => '欄位代碼已存在',
+                    'message' => "系統欄位 '{$request->key}' 已存在"
+                ], 409);
+            }
+
+            // 添加新的系統欄位
+            $fieldData = [
+                'key' => $request->key,
+                'label' => $request->label,
+                'type' => $request->type,
+                'description' => $request->description ?? '',
+                'required' => $request->boolean('required', false)
+            ];
+
+            $success = $this->fieldMapper->addCustomSystemField($fieldData);
+
+            if (!$success) {
+                return response()->json([
+                    'error' => '新增失敗',
+                    'message' => '系統欄位新增失敗'
+                ], 500);
+            }
+
+            Log::info("Point62 - 新增自定義系統欄位: {$request->key}", $fieldData);
+
+            return response()->json([
+                'message' => '系統欄位新增成功',
+                'field' => $fieldData
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Point62 - 新增系統欄位失敗", [
+                'key' => $request->key,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'error' => '系統錯誤',
+                'message' => '新增系統欄位時發生錯誤'
+            ], 500);
+        }
     }
 }

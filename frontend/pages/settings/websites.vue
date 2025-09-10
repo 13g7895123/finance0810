@@ -346,9 +346,17 @@
               <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                   <tr>
-                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">系統欄位</th>
+                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">
+                      系統欄位
+                      <button 
+                        @click="openAddSystemFieldModal"
+                        class="ml-2 text-blue-600 hover:text-blue-800"
+                        title="新增系統欄位"
+                      >
+                        <PlusIcon class="w-4 h-4" />
+                      </button>
+                    </th>
                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">WordPress欄位名稱</th>
-                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">顯示名稱</th>
                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">欄位類型</th>
                     <th class="px-4 py-3 text-center text-sm font-medium text-gray-500">必填</th>
                     <th class="px-4 py-3 text-center text-sm font-medium text-gray-500">操作</th>
@@ -374,14 +382,8 @@
                     <td class="px-4 py-3">
                       <input 
                         v-model="mapping.wp_field_name" 
+                        @input="mapping.display_name = mapping.wp_field_name"
                         placeholder="例如：姓名"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </td>
-                    <td class="px-4 py-3">
-                      <input 
-                        v-model="mapping.display_name" 
-                        placeholder="顯示名稱"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </td>
@@ -442,6 +444,101 @@
         </div>
       </div>
     </div>
+
+    <!-- Point 62: Add System Field Modal -->
+    <div v-if="addSystemFieldModalOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeAddSystemFieldModal">
+      <div class="bg-white rounded-lg p-6 w-full max-w-2xl">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-lg font-semibold text-gray-900">
+            新增系統欄位
+          </h3>
+          <button @click="closeAddSystemFieldModal" class="text-gray-500 hover:text-gray-700">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+        <form @submit.prevent="addCustomSystemField" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">欄位代碼</label>
+            <input 
+              v-model="newSystemField.key" 
+              type="text"
+              placeholder="例如：custom_field_1"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+            <p class="text-xs text-gray-500 mt-1">請使用英文字母、數字和底線，系統內部識別用</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">欄位名稱</label>
+            <input 
+              v-model="newSystemField.label" 
+              type="text"
+              placeholder="例如：客戶職業"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+            <p class="text-xs text-gray-500 mt-1">在欄位選擇時顯示的名稱</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">欄位類型</label>
+            <select 
+              v-model="newSystemField.type" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            >
+              <option value="text">文字</option>
+              <option value="email">電子郵件</option>
+              <option value="phone">電話</option>
+              <option value="number">數字</option>
+              <option value="date">日期</option>
+              <option value="textarea">多行文字</option>
+              <option value="url">網址</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">描述（選填）</label>
+            <textarea 
+              v-model="newSystemField.description" 
+              rows="3"
+              placeholder="說明此欄位的用途"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            ></textarea>
+          </div>
+
+          <div class="flex items-center">
+            <input 
+              v-model="newSystemField.required" 
+              type="checkbox"
+              class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label class="ml-2 text-sm font-medium text-gray-700">預設為必填欄位</label>
+          </div>
+
+          <div class="flex justify-end pt-4 border-t space-x-3">
+            <button 
+              @click="closeAddSystemFieldModal" 
+              type="button"
+              class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            >
+              取消
+            </button>
+            <button 
+              type="submit"
+              :disabled="savingSystemField || !newSystemField.key || !newSystemField.label"
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {{ savingSystemField ? '新增中...' : '新增欄位' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -500,6 +597,17 @@ const fieldTypes = ref({})
 const loadingFieldMappings = ref(false)
 const savingFieldMappings = ref(false)
 
+// Point 62: Add System Field data
+const addSystemFieldModalOpen = ref(false)
+const savingSystemField = ref(false)
+const newSystemField = ref({
+  key: '',
+  label: '',
+  type: 'text',
+  description: '',
+  required: false
+})
+
 // Initialize API composable
 const { get, post, put, del } = useApi()
 
@@ -549,7 +657,6 @@ const isValidMappings = computed(() => {
   return fieldMappings.value.every(mapping => 
     mapping.system_field && 
     mapping.wp_field_name && 
-    mapping.display_name &&
     mapping.field_type
   )
 })
@@ -854,7 +961,7 @@ const addFieldMapping = () => {
   fieldMappings.value.push({
     system_field: '',
     wp_field_name: '',
-    display_name: '',
+    display_name: '', // 會自動同步wp_field_name的值
     field_type: 'text',
     is_required: false,
     sort_order: fieldMappings.value.length * 10
@@ -951,6 +1058,68 @@ const testFieldMappings = async () => {
       description: '欄位對應測試失敗',
       color: 'red'
     })
+  }
+}
+
+// Point 62: Add System Field Methods
+const openAddSystemFieldModal = () => {
+  // 重置表單
+  newSystemField.value = {
+    key: '',
+    label: '',
+    type: 'text',
+    description: '',
+    required: false
+  }
+  addSystemFieldModalOpen.value = true
+}
+
+const closeAddSystemFieldModal = () => {
+  addSystemFieldModalOpen.value = false
+}
+
+const addCustomSystemField = async () => {
+  if (!newSystemField.value.key || !newSystemField.value.label) return
+  
+  savingSystemField.value = true
+  try {
+    const { data, error } = await post('/field-mappings/system-fields', newSystemField.value)
+    
+    if (error) {
+      console.error('新增系統欄位失敗:', error)
+      useToast().add({
+        title: '新增失敗',
+        description: error.message || '系統欄位新增失敗',
+        color: 'red'
+      })
+      return
+    }
+    
+    // 更新系統欄位清單
+    systemFields.value[newSystemField.value.key] = {
+      label: newSystemField.value.label,
+      type: newSystemField.value.type,
+      required: newSystemField.value.required,
+      description: newSystemField.value.description
+    }
+    
+    useToast().add({
+      title: '新增成功',
+      description: `系統欄位「${newSystemField.value.label}」已新增`,
+      color: 'green'
+    })
+    
+    closeAddSystemFieldModal()
+    
+  } catch (err) {
+    console.error('新增系統欄位失敗:', err)
+    useToast().add({
+      title: '新增失敗',
+      description: '系統欄位新增失敗',
+      color: 'red'
+    })
+  } finally {
+    savingSystemField.value = false
   }
 }
 

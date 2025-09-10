@@ -730,6 +730,9 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/websites/{website}/field-mappings/defaults', [WebsiteFieldMappingController::class, 'createDefaults']);
         Route::post('/websites/{website}/field-mappings/test', [WebsiteFieldMappingController::class, 'test']);
         Route::get('/field-mappings/system-fields', [WebsiteFieldMappingController::class, 'systemFields']);
+        
+        // Point 62: Custom System Fields Management
+        Route::post('/field-mappings/system-fields', [WebsiteFieldMappingController::class, 'addSystemField']);
     });
     
     // Leads (pending cases)
