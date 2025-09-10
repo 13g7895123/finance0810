@@ -119,6 +119,17 @@
       <template #cell-actions="{ item }">
         <div class="flex items-center space-x-2 justify-end">
           <button 
+            @click="openFieldMappingModal(item)" 
+            class="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200 group relative"
+            title="欄位對應設定"
+          >
+            <AdjustmentsHorizontalIcon class="w-4 h-4" />
+            <span class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+              欄位對應
+            </span>
+          </button>
+          
+          <button 
             @click="editWebsite(item)" 
             class="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-all duration-200 group relative"
             title="編輯網站"
@@ -257,13 +268,187 @@
         </form>
       </div>
     </div>
+
+    <!-- Point 61: Field Mapping Modal -->
+    <div v-if="fieldMappingModalOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeFieldMappingModal">
+      <div class="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-lg font-semibold text-gray-900">
+            {{ currentWebsite?.name }} - 表單欄位對應設定
+          </h3>
+          <button @click="closeFieldMappingModal" class="text-gray-500 hover:text-gray-700">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Loading State -->
+        <div v-if="loadingFieldMappings" class="flex items-center justify-center py-12">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span class="ml-2 text-gray-600">載入欄位對應設定...</span>
+        </div>
+
+        <!-- Field Mappings Content -->
+        <div v-else>
+          <!-- Actions Bar -->
+          <div class="flex items-center justify-between mb-6 p-4 bg-gray-50 rounded-lg">
+            <div class="flex items-center space-x-3">
+              <button 
+                @click="createDefaultMappings"
+                :disabled="fieldMappings.length > 0 || savingFieldMappings"
+                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                建立預設對應
+              </button>
+              
+              <button 
+                @click="testFieldMappings"
+                :disabled="fieldMappings.length === 0 || savingFieldMappings"
+                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                測試對應
+              </button>
+            </div>
+            
+            <div class="text-sm text-gray-600">
+              已設定 {{ fieldMappings.length }} 個欄位對應
+            </div>
+          </div>
+
+          <!-- No Mappings State -->
+          <div v-if="fieldMappings.length === 0" class="text-center py-12">
+            <AdjustmentsHorizontalIcon class="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <h4 class="text-lg font-medium text-gray-900 mb-2">尚未設定欄位對應</h4>
+            <p class="text-gray-600 mb-4">請建立預設對應或手動添加欄位對應設定</p>
+            <button 
+              @click="addFieldMapping"
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              添加欄位對應
+            </button>
+          </div>
+
+          <!-- Field Mappings Table -->
+          <div v-else class="space-y-4">
+            <div class="flex items-center justify-between">
+              <h4 class="text-md font-medium text-gray-900">欄位對應設定</h4>
+              <button 
+                @click="addFieldMapping"
+                class="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <PlusIcon class="w-4 h-4 inline mr-1" />
+                添加對應
+              </button>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">系統欄位</th>
+                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">WordPress欄位名稱</th>
+                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">顯示名稱</th>
+                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">欄位類型</th>
+                    <th class="px-4 py-3 text-center text-sm font-medium text-gray-500">必填</th>
+                    <th class="px-4 py-3 text-center text-sm font-medium text-gray-500">操作</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  <tr v-for="(mapping, index) in fieldMappings" :key="index" class="hover:bg-gray-50">
+                    <td class="px-4 py-3">
+                      <select 
+                        v-model="mapping.system_field" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">請選擇系統欄位</option>
+                        <option 
+                          v-for="(info, field) in systemFields" 
+                          :key="field" 
+                          :value="field"
+                        >
+                          {{ info.label }} ({{ field }})
+                        </option>
+                      </select>
+                    </td>
+                    <td class="px-4 py-3">
+                      <input 
+                        v-model="mapping.wp_field_name" 
+                        placeholder="例如：姓名"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </td>
+                    <td class="px-4 py-3">
+                      <input 
+                        v-model="mapping.display_name" 
+                        placeholder="顯示名稱"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </td>
+                    <td class="px-4 py-3">
+                      <select 
+                        v-model="mapping.field_type" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option 
+                          v-for="(label, type) in fieldTypes" 
+                          :key="type" 
+                          :value="type"
+                        >
+                          {{ label }}
+                        </option>
+                      </select>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                      <input 
+                        type="checkbox" 
+                        v-model="mapping.is_required"
+                        class="rounded"
+                      />
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                      <button 
+                        @click="removeFieldMapping(index)"
+                        class="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                      >
+                        <TrashIcon class="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Save Button -->
+            <div class="flex justify-end pt-4 border-t">
+              <div class="flex space-x-3">
+                <button 
+                  @click="closeFieldMappingModal" 
+                  type="button"
+                  class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  取消
+                </button>
+                <button 
+                  @click="saveFieldMappings" 
+                  :disabled="savingFieldMappings || !isValidMappings"
+                  class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {{ savingFieldMappings ? '儲存中...' : '儲存設定' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import DataTable from '~/components/DataTable.vue'
-import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import { PlusIcon, PencilIcon, TrashIcon, AdjustmentsHorizontalIcon } from '@heroicons/vue/24/outline'
 
 definePageMeta({
   middleware: 'role'
@@ -306,6 +491,15 @@ const form = ref({
   notes: ''
 })
 
+// Point 61: Field Mapping data
+const fieldMappingModalOpen = ref(false)
+const currentWebsite = ref(null)
+const fieldMappings = ref([])
+const systemFields = ref({})
+const fieldTypes = ref({})
+const loadingFieldMappings = ref(false)
+const savingFieldMappings = ref(false)
+
 // Initialize API composable
 const { get, post, put, del } = useApi()
 
@@ -346,6 +540,18 @@ const websiteColumns = [
 // Computed properties
 const websiteData = computed(() => {
   return websites.value.data || []
+})
+
+// Point 61: Computed properties for field mappings
+const isValidMappings = computed(() => {
+  if (fieldMappings.value.length === 0) return false
+  
+  return fieldMappings.value.every(mapping => 
+    mapping.system_field && 
+    mapping.wp_field_name && 
+    mapping.display_name &&
+    mapping.field_type
+  )
 })
 
 // Methods
@@ -564,6 +770,188 @@ const getStatusText = (status) => {
     'maintenance': '維護中'
   }
   return texts[status] || status
+}
+
+// Point 61: Field Mapping Methods
+const openFieldMappingModal = async (website) => {
+  currentWebsite.value = website
+  fieldMappingModalOpen.value = true
+  await loadFieldMappings(website.id)
+}
+
+const closeFieldMappingModal = () => {
+  fieldMappingModalOpen.value = false
+  currentWebsite.value = null
+  fieldMappings.value = []
+}
+
+const loadFieldMappings = async (websiteId) => {
+  loadingFieldMappings.value = true
+  try {
+    const { data, error } = await get(`/websites/${websiteId}/field-mappings`)
+    
+    if (error) {
+      console.error('載入欄位對應失敗:', error)
+      useToast().add({
+        title: '載入失敗',
+        description: error.message || '無法載入欄位對應設定',
+        color: 'red'
+      })
+      return
+    }
+    
+    fieldMappings.value = data.data || []
+    systemFields.value = data.system_fields || {}
+    fieldTypes.value = data.field_types || {}
+    
+  } catch (err) {
+    console.error('載入欄位對應失敗:', err)
+    useToast().add({
+      title: '載入失敗',
+      description: '無法載入欄位對應設定',
+      color: 'red'
+    })
+  } finally {
+    loadingFieldMappings.value = false
+  }
+}
+
+const createDefaultMappings = async () => {
+  if (!currentWebsite.value) return
+  
+  try {
+    const { data, error } = await post(`/websites/${currentWebsite.value.id}/field-mappings/defaults`)
+    
+    if (error) {
+      console.error('建立預設對應失敗:', error)
+      useToast().add({
+        title: '建立失敗',
+        description: error.message || '無法建立預設欄位對應',
+        color: 'red'
+      })
+      return
+    }
+    
+    fieldMappings.value = data.data || []
+    
+    useToast().add({
+      title: '建立成功',
+      description: '預設欄位對應已建立',
+      color: 'green'
+    })
+    
+  } catch (err) {
+    console.error('建立預設對應失敗:', err)
+    useToast().add({
+      title: '建立失敗',
+      description: '無法建立預設欄位對應',
+      color: 'red'
+    })
+  }
+}
+
+const addFieldMapping = () => {
+  fieldMappings.value.push({
+    system_field: '',
+    wp_field_name: '',
+    display_name: '',
+    field_type: 'text',
+    is_required: false,
+    sort_order: fieldMappings.value.length * 10
+  })
+}
+
+const removeFieldMapping = (index) => {
+  fieldMappings.value.splice(index, 1)
+}
+
+const saveFieldMappings = async () => {
+  if (!currentWebsite.value || !isValidMappings.value) return
+  
+  savingFieldMappings.value = true
+  try {
+    const { data, error } = await post(`/websites/${currentWebsite.value.id}/field-mappings`, {
+      mappings: fieldMappings.value
+    })
+    
+    if (error) {
+      console.error('儲存欄位對應失敗:', error)
+      useToast().add({
+        title: '儲存失敗',
+        description: error.message || '欄位對應設定儲存失敗',
+        color: 'red'
+      })
+      return
+    }
+    
+    useToast().add({
+      title: '儲存成功',
+      description: '欄位對應設定已更新',
+      color: 'green'
+    })
+    
+    closeFieldMappingModal()
+    
+  } catch (err) {
+    console.error('儲存欄位對應失敗:', err)
+    useToast().add({
+      title: '儲存失敗',
+      description: '欄位對應設定儲存失敗',
+      color: 'red'
+    })
+  } finally {
+    savingFieldMappings.value = false
+  }
+}
+
+const testFieldMappings = async () => {
+  if (!currentWebsite.value) return
+  
+  // 建立測試資料
+  const testData = {
+    '姓名': '測試客戶',
+    '手機號碼': '0912345678',
+    'Email': 'test@example.com',
+    'LINE_ID': 'test_line_id',
+    '方便聯絡時間': '上午9:00-12:00',
+    '資金需求': '50萬以下',
+    '頁面 URL': 'https://example.com/contact/'
+  }
+  
+  try {
+    const { data, error } = await post(`/websites/${currentWebsite.value.id}/field-mappings/test`, {
+      test_data: testData
+    })
+    
+    if (error) {
+      console.error('測試欄位對應失敗:', error)
+      useToast().add({
+        title: '測試失敗',
+        description: error.message || '欄位對應測試失敗',
+        color: 'red'
+      })
+      return
+    }
+    
+    // 顯示測試結果
+    const message = `測試完成！對應了 ${data.mapped_fields_count} 個欄位，${data.unmapped_fields_count} 個欄位未對應`
+    
+    useToast().add({
+      title: '測試完成',
+      description: message,
+      color: 'green'
+    })
+    
+    console.log('測試結果:', data)
+    
+  } catch (err) {
+    console.error('測試欄位對應失敗:', err)
+    useToast().add({
+      title: '測試失敗',
+      description: '欄位對應測試失敗',
+      color: 'red'
+    })
+  }
 }
 
 // Debounce utility

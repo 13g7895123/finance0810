@@ -217,4 +217,39 @@ class Website extends Model
             ], $attributes)
         );
     }
+
+    /**
+     * Point 61: Get field mappings for this website
+     */
+    public function fieldMappings()
+    {
+        return $this->hasMany(WebsiteFieldMapping::class);
+    }
+
+    /**
+     * Point 61: Get active field mappings for this website
+     */
+    public function activeFieldMappings()
+    {
+        return $this->fieldMappings()->active()->ordered();
+    }
+
+    /**
+     * Point 61: Check if website has field mappings configured
+     */
+    public function hasFieldMappings()
+    {
+        return $this->fieldMappings()->active()->exists();
+    }
+
+    /**
+     * Point 61: Get field mapping by system field
+     */
+    public function getFieldMapping($systemField)
+    {
+        return $this->fieldMappings()
+            ->active()
+            ->where('system_field', $systemField)
+            ->first();
+    }
 }

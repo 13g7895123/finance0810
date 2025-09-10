@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\DebugController;
 use App\Http\Controllers\Api\WebhookLogController;
 use App\Http\Controllers\Api\LineUserTestController;
 use App\Http\Controllers\Api\WebsiteController;
+use App\Http\Controllers\Api\WebsiteFieldMappingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -722,6 +723,13 @@ Route::middleware(['auth:api'])->group(function () {
         Route::apiResource('websites', WebsiteController::class);
         Route::put('/websites/{website}/statistics', [WebsiteController::class, 'updateStatistics']);
         Route::get('/websites-statistics', [WebsiteController::class, 'statistics']);
+        
+        // Point 61: Website Field Mapping Management
+        Route::get('/websites/{website}/field-mappings', [WebsiteFieldMappingController::class, 'index']);
+        Route::post('/websites/{website}/field-mappings', [WebsiteFieldMappingController::class, 'store']);
+        Route::post('/websites/{website}/field-mappings/defaults', [WebsiteFieldMappingController::class, 'createDefaults']);
+        Route::post('/websites/{website}/field-mappings/test', [WebsiteFieldMappingController::class, 'test']);
+        Route::get('/field-mappings/system-fields', [WebsiteFieldMappingController::class, 'systemFields']);
     });
     
     // Leads (pending cases)

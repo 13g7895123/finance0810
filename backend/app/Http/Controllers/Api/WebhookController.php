@@ -5,16 +5,27 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Models\Customer;
 use App\Models\CustomerLead;
 use App\Models\CustomerIdentifier;
 use App\Models\CustomerActivity;
+use App\Services\FormFieldMapper;
 
 class WebhookController extends Controller
 {
+    protected FormFieldMapper $fieldMapper;
+
+    public function __construct(FormFieldMapper $fieldMapper)
+    {
+        $this->fieldMapper = $fieldMapper;
+    }
+
     public function wp(Request $request)
     {
         /**
+         * Point 61: WordPress表單webhook處理，支援動態欄位對應
+         * 
          * mock curl -X POST "http://localhost:8000/api/webhook/wp" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "姓名=我你媽" \
@@ -29,33 +40,83 @@ class WebhookController extends Controller
   --data-urlencode "時間=12:32 上午" \
   --data-urlencode "頁面 URL=https://easypay-life.com.tw/contact/"
         */
-        // 1) 取出表單欄位（中文鍵名），以彈性 mapping
-        $payload = $request->all();
 
-        // 將未識別鍵映射到自訂欄位（lead 層級），若已有對應 custom_field 則寫值
-        // 約定：custom_fields.entity_type = 'lead' 且 key 與 webhook 鍵一致（或之後可做 mapping 表）
-        $customFieldInput = $payload;
+        // 記錄接收到的原始資料
+        Log::info('Point61 - 接收到WordPress表單資料', [
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'raw_data_keys' => array_keys($request->all())
+        ]);
 
-        $name = $payload['姓名'] ?? null;
-        $phone = $payload['手機號碼'] ?? null;
-        $contactTime = $payload['方便聯絡時間'] ?? null;
-        $capitalNeed = $payload['資金需求'] ?? null;
-        $loanNeed = $payload['貸款需求'] ?? null;
-        $lineId = $payload['LINE_ID'] ?? null;
-        $region = $payload['房屋區域'] ?? null;
-        $address = $payload['房屋地址'] ?? null;
-        $date = $payload['日期'] ?? null;
-        $time = $payload['時間'] ?? null;
-        $pageUrl = $payload['頁面 URL'] ?? null;
-        $userAgent = $payload['使用者代理'] ?? $request->userAgent();
-        $remoteIp = $payload['遠端 IP'] ?? $request->ip();
-        $poweredBy = $payload['Powered by'] ?? null;
-        $formId = $payload['form_id'] ?? null;
-        $formName = $payload['form_name'] ?? null;
-        $email = $payload['Email'] ?? ($payload['email'] ?? null);
+        try {
+            // 1) 取出原始表單資料
+            $rawFormData = $request->all();
 
-        // 2) 黑名單偵測：同一 IP 但姓名不同，或同一 IP + LINE_ID/手機號碼但姓名不同
-        $ipDifferentNames = CustomerLead::where('ip_address', $remoteIp)
+            // 2) 從頁面URL提取網站域名
+            $pageUrl = $rawFormData['頁面 URL'] ?? $rawFormData['page_url'] ?? null;
+            $websiteDomain = null;
+            
+            if ($pageUrl) {
+                $websiteDomain = $this->fieldMapper->extractDomainFromUrl($pageUrl);
+            }
+            
+            if (!$websiteDomain) {
+                Log::warning('Point61 - 無法從表單資料中確定網站域名', ['raw_data' => $rawFormData]);
+                // 使用預設域名或從 HTTP_HOST 取得
+                $websiteDomain = $request->getHost() ?: 'default';
+            }
+
+            // 3) 使用FormFieldMapper進行欄位對應
+            try {
+                $mappedData = $this->fieldMapper->mapFields($websiteDomain, $rawFormData);
+            } catch (\Exception $fieldMappingException) {
+                // 如果欄位對應失敗，記錄錯誤並回退到預設對應
+                Log::error('Point61 - 欄位對應失敗，回退到預設對應', [
+                    'website_domain' => $websiteDomain,
+                    'error' => $fieldMappingException->getMessage(),
+                    'trace' => $fieldMappingException->getTraceAsString()
+                ]);
+                
+                // 使用預設硬編碼對應作為回退
+                $mappedData = $this->getDefaultFieldMapping($rawFormData);
+            }
+            
+            // 4) 提取標準化的欄位值
+            $name = $mappedData['name'] ?? null;
+            $phone = $mappedData['phone'] ?? null;
+            $email = $mappedData['email'] ?? null;
+            $lineId = $mappedData['line_id'] ?? null;
+            $contactTime = $mappedData['contact_time'] ?? null;
+            $capitalNeed = $mappedData['capital_need'] ?? null;
+            $loanNeed = $mappedData['loan_need'] ?? null;
+            $region = $mappedData['region'] ?? null;
+            $address = $mappedData['address'] ?? null;
+            $date = $mappedData['date'] ?? null;
+            $time = $mappedData['time'] ?? null;
+            
+            // 5) 系統欄位
+            $userAgent = $request->userAgent();
+            $remoteIp = $request->ip();
+            $pageUrl = $mappedData['page_url'] ?? $pageUrl;
+            
+            // 6) 保存完整的payload資料
+            $payload = $mappedData['_original_payload'] ?? $rawFormData;
+            $unmappedFields = $mappedData['_unmapped_fields'] ?? [];
+            
+            // 記錄映射結果
+            Log::info('Point61 - 欄位映射完成', [
+                'website_domain' => $websiteDomain,
+                'mapped_fields' => array_filter([
+                    'name' => $name,
+                    'phone' => $phone,
+                    'email' => $email,
+                    'line_id' => $lineId
+                ]),
+                'unmapped_count' => count($unmappedFields)
+            ]);
+
+            // 7) 黑名單偵測：同一 IP 但姓名不同，或同一 IP + LINE_ID/手機號碼但姓名不同
+            $ipDifferentNames = CustomerLead::where('ip_address', $remoteIp)
             ->whereNotNull('name')
             ->when($name, fn($q) => $q->where('name', '!=', $name))
             ->exists();
@@ -261,5 +322,63 @@ class WebhookController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Point 61: 預設欄位對應 (回退機制)
+     * 當動態欄位對應失敗時使用
+     */
+    protected function getDefaultFieldMapping(array $rawFormData): array
+    {
+        // 使用原本的硬編碼對應作為回退
+        $defaultMapping = [
+            '姓名' => 'name',
+            '手機號碼' => 'phone',
+            'Email' => 'email',
+            'email' => 'email',
+            'LINE_ID' => 'line_id',
+            '方便聯絡時間' => 'contact_time',
+            '資金需求' => 'capital_need',
+            '貸款需求' => 'loan_need',
+            '房屋區域' => 'region',
+            '房屋地址' => 'address',
+            '日期' => 'date',
+            '時間' => 'time',
+            '頁面 URL' => 'page_url',
+        ];
+
+        $mappedData = [];
+        $unmappedFields = [];
+
+        foreach ($rawFormData as $wpFieldName => $value) {
+            if (isset($defaultMapping[$wpFieldName])) {
+                $systemField = $defaultMapping[$wpFieldName];
+                
+                // 基本的資料轉換
+                switch ($systemField) {
+                    case 'phone':
+                        $mappedData[$systemField] = preg_replace('/\D+/', '', $value);
+                        break;
+                    case 'email':
+                        $mappedData[$systemField] = strtolower(trim($value));
+                        break;
+                    default:
+                        $mappedData[$systemField] = $value;
+                        break;
+                }
+            } else {
+                $unmappedFields[$wpFieldName] = $value;
+            }
+        }
+
+        $mappedData['_original_payload'] = $rawFormData;
+        $mappedData['_unmapped_fields'] = $unmappedFields;
+
+        Log::info('Point61 - 使用預設欄位對應', [
+            'mapped_fields' => array_keys($mappedData),
+            'unmapped_count' => count($unmappedFields)
+        ]);
+
+        return $mappedData;
     }
 }
