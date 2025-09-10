@@ -357,8 +357,6 @@
                       </button>
                     </th>
                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">WordPress欄位名稱</th>
-                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">欄位類型</th>
-                    <th class="px-4 py-3 text-center text-sm font-medium text-gray-500">必填</th>
                     <th class="px-4 py-3 text-center text-sm font-medium text-gray-500">操作</th>
                   </tr>
                 </thead>
@@ -385,27 +383,6 @@
                         @input="mapping.display_name = mapping.wp_field_name"
                         placeholder="例如：姓名"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </td>
-                    <td class="px-4 py-3">
-                      <select 
-                        v-model="mapping.field_type" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option 
-                          v-for="(label, type) in fieldTypes" 
-                          :key="type" 
-                          :value="type"
-                        >
-                          {{ label }}
-                        </option>
-                      </select>
-                    </td>
-                    <td class="px-4 py-3 text-center">
-                      <input 
-                        type="checkbox" 
-                        v-model="mapping.is_required"
-                        class="rounded"
                       />
                     </td>
                     <td class="px-4 py-3 text-center">
@@ -484,22 +461,6 @@
             <p class="text-xs text-gray-500 mt-1">在欄位選擇時顯示的名稱</p>
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">欄位類型</label>
-            <select 
-              v-model="newSystemField.type" 
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              required
-            >
-              <option value="text">文字</option>
-              <option value="email">電子郵件</option>
-              <option value="phone">電話</option>
-              <option value="number">數字</option>
-              <option value="date">日期</option>
-              <option value="textarea">多行文字</option>
-              <option value="url">網址</option>
-            </select>
-          </div>
 
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">描述（選填）</label>
@@ -511,14 +472,6 @@
             ></textarea>
           </div>
 
-          <div class="flex items-center">
-            <input 
-              v-model="newSystemField.required" 
-              type="checkbox"
-              class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label class="ml-2 text-sm font-medium text-gray-700">預設為必填欄位</label>
-          </div>
 
           <div class="flex justify-end pt-4 border-t space-x-3">
             <button 
@@ -603,9 +556,7 @@ const savingSystemField = ref(false)
 const newSystemField = ref({
   key: '',
   label: '',
-  type: 'text',
-  description: '',
-  required: false
+  description: ''
 })
 
 // Initialize API composable
@@ -656,8 +607,7 @@ const isValidMappings = computed(() => {
   
   return fieldMappings.value.every(mapping => 
     mapping.system_field && 
-    mapping.wp_field_name && 
-    mapping.field_type
+    mapping.wp_field_name
   )
 })
 
@@ -962,8 +912,6 @@ const addFieldMapping = () => {
     system_field: '',
     wp_field_name: '',
     display_name: '', // 會自動同步wp_field_name的值
-    field_type: 'text',
-    is_required: false,
     sort_order: fieldMappings.value.length * 10
   })
 }
@@ -1067,9 +1015,7 @@ const openAddSystemFieldModal = () => {
   newSystemField.value = {
     key: '',
     label: '',
-    type: 'text',
-    description: '',
-    required: false
+    description: ''
   }
   addSystemFieldModalOpen.value = true
 }
@@ -1098,8 +1044,6 @@ const addCustomSystemField = async () => {
     // 更新系統欄位清單
     systemFields.value[newSystemField.value.key] = {
       label: newSystemField.value.label,
-      type: newSystemField.value.type,
-      required: newSystemField.value.required,
       description: newSystemField.value.description
     }
     

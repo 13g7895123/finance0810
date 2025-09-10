@@ -139,19 +139,21 @@ class FormFieldMapper
 
     /**
      * 驗證必填欄位
+     * Point 63: 由於移除必填功能，註釋掉驗證邏輯
      */
     protected function validateRequiredFields(int $websiteId, array &$mappedData): void
     {
-        $requiredMappings = WebsiteFieldMapping::active()
-            ->forWebsite($websiteId)
-            ->where('is_required', true)
-            ->get();
+        // Point 63: 移除必填驗證功能
+        // $requiredMappings = WebsiteFieldMapping::active()
+        //     ->forWebsite($websiteId)
+        //     ->where('is_required', true)
+        //     ->get();
 
-        foreach ($requiredMappings as $mapping) {
-            if (empty($mappedData[$mapping->system_field])) {
-                Log::warning("Point61 - 必填欄位缺失: {$mapping->system_field} ({$mapping->wp_field_name})");
-            }
-        }
+        // foreach ($requiredMappings as $mapping) {
+        //     if (empty($mappedData[$mapping->system_field])) {
+        //         Log::warning("Point61 - 必填欄位缺失: {$mapping->system_field} ({$mapping->wp_field_name})");
+        //     }
+        // }
     }
 
     /**
@@ -231,16 +233,16 @@ class FormFieldMapper
     public function createDefaultMappings(int $websiteId): void
     {
         $defaultMappings = [
-            ['system_field' => 'name', 'wp_field_name' => '姓名', 'is_required' => true],
-            ['system_field' => 'phone', 'wp_field_name' => '手機號碼', 'is_required' => true],
-            ['system_field' => 'email', 'wp_field_name' => 'Email', 'is_required' => false],
-            ['system_field' => 'line_id', 'wp_field_name' => 'LINE_ID', 'is_required' => false],
-            ['system_field' => 'contact_time', 'wp_field_name' => '方便聯絡時間', 'is_required' => false],
-            ['system_field' => 'capital_need', 'wp_field_name' => '資金需求', 'is_required' => false],
-            ['system_field' => 'loan_need', 'wp_field_name' => '貸款需求', 'is_required' => false],
-            ['system_field' => 'region', 'wp_field_name' => '房屋區域', 'is_required' => false],
-            ['system_field' => 'address', 'wp_field_name' => '房屋地址', 'is_required' => false],
-            ['system_field' => 'page_url', 'wp_field_name' => '頁面 URL', 'is_required' => false],
+            ['system_field' => 'name', 'wp_field_name' => '姓名'],
+            ['system_field' => 'phone', 'wp_field_name' => '手機號碼'],
+            ['system_field' => 'email', 'wp_field_name' => 'Email'],
+            ['system_field' => 'line_id', 'wp_field_name' => 'LINE_ID'],
+            ['system_field' => 'contact_time', 'wp_field_name' => '方便聯絡時間'],
+            ['system_field' => 'capital_need', 'wp_field_name' => '資金需求'],
+            ['system_field' => 'loan_need', 'wp_field_name' => '貸款需求'],
+            ['system_field' => 'region', 'wp_field_name' => '房屋區域'],
+            ['system_field' => 'address', 'wp_field_name' => '房屋地址'],
+            ['system_field' => 'page_url', 'wp_field_name' => '頁面 URL'],
         ];
 
         foreach ($defaultMappings as $index => $mapping) {
@@ -250,7 +252,8 @@ class FormFieldMapper
             WebsiteFieldMapping::create(array_merge($mapping, [
                 'website_id' => $websiteId,
                 'display_name' => $systemFieldInfo['label'] ?? $mapping['wp_field_name'],
-                'field_type' => $systemFieldInfo['type'] ?? 'text',
+                'field_type' => 'text', // Point 63: 使用預設值
+                'is_required' => false, // Point 63: 使用預設值
                 'sort_order' => $index * 10,
                 'is_active' => true,
             ]));
@@ -283,8 +286,8 @@ class FormFieldMapper
             
             $key = $fieldData['key'];
             $label = $fieldData['label'];
-            $type = $fieldData['type'];
-            $required = $fieldData['required'] ?? false;
+            $type = $fieldData['type'] ?? 'text'; // Point 63: 使用預設值
+            $required = $fieldData['required'] ?? false; // Point 63: 使用預設值
             $description = $fieldData['description'] ?? '';
 
             // 暫時通過快取或設定檔案存儲自定義欄位

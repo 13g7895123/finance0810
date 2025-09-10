@@ -48,8 +48,7 @@ class WebsiteFieldMappingController extends Controller
             'mappings.*.system_field' => 'required|string|max:50',
             'mappings.*.wp_field_name' => 'required|string|max:100',
             'mappings.*.display_name' => 'nullable|string|max:100', // Point 62: 改為可選，會自動使用wp_field_name
-            'mappings.*.field_type' => 'required|in:text,email,phone,number,date,time,datetime,url,select,textarea',
-            'mappings.*.is_required' => 'boolean',
+            // Point 63: 移除 field_type 和 is_required 驗證
             'mappings.*.validation_rules' => 'nullable|array',
             'mappings.*.transform_rules' => 'nullable|array',
             'mappings.*.default_value' => 'nullable|string|max:255',
@@ -87,8 +86,8 @@ class WebsiteFieldMappingController extends Controller
                     'system_field' => $mapping['system_field'],
                     'wp_field_name' => $mapping['wp_field_name'],
                     'display_name' => $mapping['display_name'] ?? $mapping['wp_field_name'], // Point 62: 自動使用wp_field_name
-                    'field_type' => $mapping['field_type'],
-                    'is_required' => $mapping['is_required'] ?? false,
+                    'field_type' => 'text', // Point 63: 使用預設值
+                    'is_required' => false, // Point 63: 使用預設值
                     'validation_rules' => $mapping['validation_rules'] ?? null,
                     'transform_rules' => $mapping['transform_rules'] ?? null,
                     'default_value' => $mapping['default_value'] ?? null,
@@ -261,9 +260,8 @@ class WebsiteFieldMappingController extends Controller
         $validator = Validator::make($request->all(), [
             'key' => 'required|string|max:50|regex:/^[a-zA-Z0-9_]+$/',
             'label' => 'required|string|max:100',
-            'type' => 'required|string|in:text,email,phone,number,date,textarea,url',
-            'description' => 'nullable|string|max:255',
-            'required' => 'boolean'
+            // Point 63: 移除 type 和 required 驗證
+            'description' => 'nullable|string|max:255'
         ]);
 
         if ($validator->fails()) {
@@ -286,9 +284,10 @@ class WebsiteFieldMappingController extends Controller
             $fieldData = [
                 'key' => $request->key,
                 'label' => $request->label,
-                'type' => $request->type,
                 'description' => $request->description ?? '',
-                'required' => $request->boolean('required', false)
+                // Point 63: 移除 type 和 required，使用預設值
+                'type' => 'text',
+                'required' => false
             ];
 
             $success = $this->fieldMapper->addCustomSystemField($fieldData);
