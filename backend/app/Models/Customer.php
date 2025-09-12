@@ -38,6 +38,7 @@ class Customer extends Model
         'disbursement_status',
         'next_contact_date',
         'priority_level',
+        'customer_level',
         'invalid_reason',
         'is_blacklisted',
         'blacklist_status',
@@ -99,6 +100,13 @@ class Customer extends Model
     const CASE_APPROVED = 'approved';
     const CASE_REJECTED = 'rejected';
     const CASE_DISBURSED = 'disbursed';
+
+    /**
+     * Customer level constants
+     */
+    const LEVEL_A = 'A';
+    const LEVEL_B = 'B';
+    const LEVEL_C = 'C';
 
     /**
      * Get the user assigned to this customer
@@ -209,6 +217,24 @@ class Customer extends Model
     }
 
     /**
+     * Scope for tracking management - excludes invalid customers and blacklisted customers
+     */
+    public function scopeForTrackingManagement($query)
+    {
+        return $query->where('status', '!=', self::STATUS_INVALID)
+            ->where('is_blacklisted', '!=', true)
+            ->whereNotIn('blacklist_status', ['blacklisted']);
+    }
+
+    /**
+     * Scope to filter by customer level
+     */
+    public function scopeByCustomerLevel($query, $level)
+    {
+        return $query->where('customer_level', $level);
+    }
+
+    /**
      * Get status options with Chinese labels
      */
     public static function getStatusOptions(): array
@@ -248,6 +274,18 @@ class Customer extends Model
             self::CASE_APPROVED => '已核准',
             self::CASE_REJECTED => '已婉拒',
             self::CASE_DISBURSED => '已撥款',
+        ];
+    }
+
+    /**
+     * Get customer level options with Chinese labels
+     */
+    public static function getCustomerLevelOptions(): array
+    {
+        return [
+            self::LEVEL_A => 'A級客戶',
+            self::LEVEL_B => 'B級客戶',
+            self::LEVEL_C => 'C級客戶',
         ];
     }
 

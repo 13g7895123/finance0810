@@ -179,6 +179,7 @@ class CustomerController extends Controller
             'channel' => 'nullable|string|max:50',
             'status' => 'sometimes|in:' . implode(',', array_keys(Customer::getStatusOptions())),
             'tracking_status' => 'sometimes|in:' . implode(',', array_keys(Customer::getTrackingStatusOptions())),
+            'customer_level' => 'sometimes|in:A,B,C',
             'notes' => 'nullable|string|max:1000',
             'assigned_to' => 'nullable|exists:users,id',
             'next_contact_date' => 'nullable|date|after:today',
@@ -597,5 +598,102 @@ class CustomerController extends Controller
                 'message' => '檢查好友狀態時發生錯誤: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Get customers for tracking management (excludes invalid customers and blacklisted customers)
+     */
+    public function trackingList(Request $request)
+    {
+        $user = Auth::user();
+        $query = Customer::with(['assignedUser', 'creator'])
+            ->forTrackingManagement(); // Use the scope we created in the model
+
+        // Staff can only see their assigned customers
+        if ($user->isStaff()) {
+            $query->where('assigned_to', $user->id);
+        }
+
+        // Apply filters
+        if ($request->has('customer_level')) {
+            $query->byCustomerLevel($request->customer_level);
+        }
+
+        if ($request->has('region')) {
+            $query->where('region', $request->region);
+        }
+
+        if ($request->has('assigned_to')) {
+            $assignedTo = $request->assigned_to;
+            if ($assignedTo === 'null' || $assignedTo === null) {
+                $query->whereNull('assigned_to');
+            } else {
+                $query->where('assigned_to', $assignedTo);
+            }
+        }
+
+        if ($request->has('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+
+        if ($request->has('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        // Sorting: newest case first, fallback to created_at
+        $perPage = $request->get('per_page', 15);
+        $customers = $query
+            ->orderByRaw('CASE WHEN latest_case_at IS NOT NULL THEN 0 ELSE 1 END')
+            ->orderByDesc('latest_case_at')
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
+
+        return response()->json($customers);
+    }
+
+    /**
+     * Update customer level
+     */
+    public function updateCustomerLevel(Request $request, Customer $customer)
+    {
+        $validator = Validator::make($request->all(), [
+            'customer_level' => 'required|in:A,B,C',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $user = Auth::user();
+        $oldLevel = $customer->customer_level;
+        $newLevel = $request->customer_level;
+
+        // Update customer level
+        $customer->update([
+            'customer_level' => $newLevel
+        ]);
+
+        // Log activity
+        CustomerActivity::create([
+            'customer_id' => $customer->id,
+            'user_id' => $user->id,
+            'activity_type' => CustomerActivity::TYPE_UPDATED,
+            'description' => "客戶等級從 {$oldLevel} 變更為 {$newLevel}",
+            'ip_address' => request()->ip(),
+        ]);
+
+        return response()->json([
+            'message' => '客戶等級已更新',
+            'customer' => $customer->fresh(['assignedUser', 'creator'])
+        ]);
     }
 }

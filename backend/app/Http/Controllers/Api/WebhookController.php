@@ -83,19 +83,19 @@ class WebhookController extends Controller
          * Point 61: WordPress表單webhook處理，支援動態欄位對應
          * Point 64: 加入除錯記錄功能
          * 
-         * mock curl -X POST "http://localhost:8000/api/webhook/wp" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  --data-urlencode "姓名=我你媽" \
-  --data-urlencode "手機號碼=0908121645" \
-  --data-urlencode "方便聯絡時間=上午9:00-12:00" \
-  --data-urlencode "資金需求=30萬以下" \
-  --data-urlencode "貸款需求=二胎房貸" \
-  --data-urlencode "LINE_ID=as1234" \
-  --data-urlencode "房屋區域=臺北市" \
-  --data-urlencode "房屋地址=測試地址" \
-  --data-urlencode "日期=12 8 月, 2025" \
-  --data-urlencode "時間=12:32 上午" \
-  --data-urlencode "頁面 URL=https://easypay-life.com.tw/contact/"
+         * mock curl -X POST "http://localhost:8000/api/webhook/wp" \        
+         * -H "Content-Type: application/x-www-form-urlencoded" \
+         * --data-urlencode "姓名=我你媽" \
+         * --data-urlencode "手機號碼=0908121645" \
+         * --data-urlencode "方便聯絡時間=上午9:00-12:00" \
+         * --data-urlencode "資金需求=30萬以下" \
+         * --data-urlencode "貸款需求=二胎房貸" \
+         * --data-urlencode "LINE_ID=as1234" \
+         * --data-urlencode "房屋區域=臺北市" \
+         * --data-urlencode "房屋地址=測試地址" \
+         * --data-urlencode "日期=12 8 月, 2025" \
+         * --data-urlencode "時間=12:32 上午" \
+         * --data-urlencode "頁面 URL=https://easypay-life.com.tw/contact/"
         */
 
         // Point 64: 建立除錯記錄

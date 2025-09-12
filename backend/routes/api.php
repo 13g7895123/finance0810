@@ -602,6 +602,10 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('/customers/{customer}/history', [CustomerController::class, 'getHistory']);
     Route::get('/customers/submittable', [CustomerController::class, 'submittable']);
     
+    // Tracking Management - Point 66
+    Route::get('/tracking/customers', [CustomerController::class, 'trackingList']);
+    Route::patch('/customers/{customer}/level', [CustomerController::class, 'updateCustomerLevel']);
+    
     // LINE Integration for Customers
     Route::post('/customers/{customer}/line/link', [CustomerController::class, 'linkLineUser']);
     Route::delete('/customers/{customer}/line/unlink', [CustomerController::class, 'unlinkLineUser']);

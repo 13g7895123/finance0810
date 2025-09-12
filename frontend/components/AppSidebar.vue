@@ -148,6 +148,7 @@ const getBadgeCount = (item) => {
     '/cases/intake': 'intake',
     '/cases/disbursed': 'disbursed',
     '/cases/tracking': 'tracking',
+    '/cases/customer-tracking': 'tracking',
     '/cases/blacklist': 'blacklist',
     '/cases/negotiated': 'negotiated'
   }
