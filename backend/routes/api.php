@@ -605,6 +605,7 @@ Route::middleware(['auth:api'])->group(function () {
     // Tracking Management - Point 66
     Route::get('/tracking/customers', [CustomerController::class, 'trackingList']);
     Route::patch('/customers/{customer}/level', [CustomerController::class, 'updateCustomerLevel']);
+    Route::get('/tracking/sales-users', [CustomerController::class, 'getSalesUsers']);
     
     // LINE Integration for Customers
     Route::post('/customers/{customer}/line/link', [CustomerController::class, 'linkLineUser']);

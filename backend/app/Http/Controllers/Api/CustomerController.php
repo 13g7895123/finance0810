@@ -696,4 +696,33 @@ class CustomerController extends Controller
             'customer' => $customer->fresh(['assignedUser', 'creator'])
         ]);
     }
+
+    /**
+     * Get sales users for tracking management (accessible by all authenticated users)
+     */
+    public function getSalesUsers()
+    {
+        try {
+            $salesUsers = User::whereHas('roles', function($query) {
+                $query->where('name', 'staff');
+            })
+            ->select(['id', 'name', 'username', 'email'])
+            ->get();
+
+            return response()->json([
+                'data' => $salesUsers,
+                'message' => '業務人員列表獲取成功'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('獲取業務人員列表失敗:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => '獲取業務人員列表失敗',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

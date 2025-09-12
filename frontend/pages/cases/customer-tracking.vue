@@ -247,7 +247,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { 
   PencilIcon, 
   EyeIcon, 
@@ -375,12 +375,11 @@ const loadTrackingCustomers = async () => {
 
 const loadSalesUsers = async () => {
   try {
-    const response = await $fetch('/api/users', {
-      query: { role: 'sales' }
-    })
-    salesUsers.value = response.data || response
+    const response = await $fetch('/api/tracking/sales-users')
+    salesUsers.value = response.data || []
   } catch (error) {
     console.error('載入業務清單失敗:', error)
+    salesUsers.value = []
   }
 }
 
