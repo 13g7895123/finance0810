@@ -258,11 +258,11 @@ import {
   UserGroupIcon
 } from '@heroicons/vue/24/outline'
 import { useAuthStore } from '~/stores/auth'
-import { useNotificationStore } from '~/stores/notifications'
+import { useNotificationsStore } from '~/stores/notifications'
 
 // Stores
 const authStore = useAuthStore()
-const notificationStore = useNotificationStore()
+const notificationStore = useNotificationsStore()
 
 // Data
 const loading = ref(true)
@@ -363,10 +363,10 @@ const loadTrackingCustomers = async () => {
   } catch (error) {
     console.error('載入追蹤客戶失敗:', error)
     loadError.value = '載入客戶資料失敗'
-    notificationStore.add({
+    notificationStore.addNotification({
       type: 'error',
-      message: '載入客戶資料失敗',
-      description: error.message
+      title: '載入客戶資料失敗',
+      message: error.message
     })
   } finally {
     loading.value = false
@@ -414,19 +414,19 @@ const saveCustomerLevel = async () => {
       trackingCustomers.value[customerIndex].customer_level = levelEditModal.level
     }
 
-    notificationStore.add({
+    notificationStore.addNotification({
       type: 'success',
-      message: '客戶等級已更新',
-      description: `${levelEditModal.customer.name} 的等級已更新為 ${levelEditModal.level}級`
+      title: '客戶等級已更新',
+      message: `${levelEditModal.customer.name} 的等級已更新為 ${levelEditModal.level}級`
     })
 
     closeLevelEditModal()
   } catch (error) {
     console.error('更新客戶等級失敗:', error)
-    notificationStore.add({
+    notificationStore.addNotification({
       type: 'error',
-      message: '更新失敗',
-      description: error.message || '無法更新客戶等級'
+      title: '更新失敗',
+      message: error.message || '無法更新客戶等級'
     })
   } finally {
     levelEditModal.saving = false
