@@ -17,7 +17,7 @@ node_modules
 .fleet
 .idea
 
-# Local env files
-.env
-.env.*
+# Local env files - allow specific env files for gitflow
+# .env
+# .env.*
 !.env.example
