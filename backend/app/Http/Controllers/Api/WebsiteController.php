@@ -18,8 +18,13 @@ class WebsiteController extends Controller
      */
     public function index(Request $request)
     {
-        // Point 49: Fixed version with safe filtering
+        // Point 75: Simplified version to avoid relation loading issues
         try {
+            // First check if table exists
+            if (!\Schema::hasTable('websites')) {
+                throw new \Exception('Websites table does not exist');
+            }
+
             $query = Website::query();
 
             // Safe filtering - only apply filters if values are not empty
@@ -47,21 +52,22 @@ class WebsiteController extends Controller
             $query->orderBy($sortField, $sortDirection);
 
             $perPage = $request->get('per_page', 15);
+
+            // Don't load relations to avoid potential issues
             $websites = $query->paginate($perPage);
-            
+
             return response()->json($websites);
-            
+
         } catch (\Exception $e) {
-            \Log::error('Point 49 - Website index error', [
+            \Log::error('Point 75 - Website index error', [
                 'error' => $e->getMessage(),
                 'line' => $e->getLine(),
-                'file' => $e->getFile()
+                'file' => $e->getFile(),
+                'trace' => $e->getTraceAsString()
             ]);
-            
-            return response()->json([
-                'error' => 'Failed to load websites',
-                'message' => $e->getMessage()
-            ], 500);
+
+            // Re-throw the exception to let global exception handler add CORS headers
+            throw $e;
         }
     }
 
@@ -131,9 +137,8 @@ class WebsiteController extends Controller
                 'name' => $request->name,
             ]);
 
-            return response()->json([
-                'error' => '網站建立失敗：' . $e->getMessage()
-            ], 500);
+            // Re-throw the exception to let global exception handler add CORS headers
+            throw $e;
         }
     }
 
@@ -217,9 +222,8 @@ class WebsiteController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return response()->json([
-                'error' => '網站更新失敗：' . $e->getMessage()
-            ], 500);
+            // Re-throw the exception to let global exception handler add CORS headers
+            throw $e;
         }
     }
 
@@ -248,9 +252,8 @@ class WebsiteController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return response()->json([
-                'error' => '網站刪除失敗：' . $e->getMessage()
-            ], 500);
+            // Re-throw the exception to let global exception handler add CORS headers
+            throw $e;
         }
     }
 
@@ -273,9 +276,8 @@ class WebsiteController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return response()->json([
-                'error' => '統計資料更新失敗：' . $e->getMessage()
-            ], 500);
+            // Re-throw the exception to let global exception handler add CORS headers
+            throw $e;
         }
     }
 
@@ -315,9 +317,8 @@ class WebsiteController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return response()->json([
-                'error' => '統計資料取得失敗：' . $e->getMessage()
-            ], 500);
+            // Re-throw the exception to let global exception handler add CORS headers
+            throw $e;
         }
     }
 

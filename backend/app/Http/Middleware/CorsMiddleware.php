@@ -30,11 +30,17 @@ class CorsMiddleware
 
         try {
             $response = $next($request);
-        } catch (\Exception $e) {
-            // Create error response with CORS headers
+        } catch (\Throwable $e) {
+            // Create error response with CORS headers for all types of errors
             $response = response()->json([
+                'success' => false,
                 'error' => 'Internal Server Error',
-                'message' => app()->environment('local') ? $e->getMessage() : 'An error occurred'
+                'message' => app()->environment('local') ? $e->getMessage() : 'An error occurred',
+                'debug' => app()->environment('local') ? [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => explode("\n", $e->getTraceAsString())
+                ] : null
             ], 500);
 
             // Add CORS headers to error response
@@ -45,18 +51,29 @@ class CorsMiddleware
             $response->headers->set('Access-Control-Expose-Headers', 'Authorization, Content-Disposition');
 
             // Log the error for debugging
-            \Log::error('CORS Middleware caught exception', [
+            \Log::error('CORS Middleware caught throwable', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'url' => $request->url(),
-                'method' => $request->method()
+                'method' => $request->method(),
+                'type' => get_class($e)
             ]);
 
             return $response;
         }
 
-        // Add CORS headers to successful responses
+        // Check if response is actually a Response object
+        if (!$response instanceof \Symfony\Component\HttpFoundation\Response) {
+            // If we get here somehow without a proper response, create one with CORS
+            $response = response()->json([
+                'success' => false,
+                'error' => 'Invalid Response',
+                'message' => 'Server returned invalid response'
+            ], 500);
+        }
+
+        // Add CORS headers to all responses
         $response->headers->set('Access-Control-Allow-Origin', $allowedOrigin);
         $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
         $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-TOKEN, X-XSRF-TOKEN');
