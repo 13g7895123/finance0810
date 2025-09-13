@@ -15,24 +15,29 @@ class CorsMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
+        $allowedOrigin = $this->getAllowedOrigin($request);
+
         // Handle preflight OPTIONS request
         if ($request->getMethod() === "OPTIONS") {
-            return response('', 200)
-                ->header('Access-Control-Allow-Origin', $this->getAllowedOrigin($request))
+            return response('')
+                ->header('Access-Control-Allow-Origin', $allowedOrigin)
                 ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
-                ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin')
+                ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-TOKEN, X-XSRF-TOKEN')
                 ->header('Access-Control-Allow-Credentials', 'true')
-                ->header('Access-Control-Max-Age', '3600');
+                ->header('Access-Control-Max-Age', '86400') // 24 hours
+                ->setStatusCode(204); // Use 204 No Content for OPTIONS
         }
 
         $response = $next($request);
 
         // Add CORS headers to actual requests
-        return $response
-            ->header('Access-Control-Allow-Origin', $this->getAllowedOrigin($request))
-            ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
-            ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin')
-            ->header('Access-Control-Allow-Credentials', 'true');
+        $response->headers->set('Access-Control-Allow-Origin', $allowedOrigin);
+        $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+        $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-TOKEN, X-XSRF-TOKEN');
+        $response->headers->set('Access-Control-Allow-Credentials', 'true');
+        $response->headers->set('Access-Control-Expose-Headers', 'Authorization, Content-Disposition');
+
+        return $response;
     }
 
     private function getAllowedOrigin(Request $request): string
