@@ -23,6 +23,8 @@ return [
         'http://finance.local',
         'http://localhost:3000',
         'http://127.0.0.1:3000',
+        'http://localhost:3301',
+        'http://127.0.0.1:3301',
         'http://localhost:9121',
         'http://127.0.0.1:9121',
         'https://dev-finance.mercylife.cc',
