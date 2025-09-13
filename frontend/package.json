@@ -5,7 +5,7 @@
   "scripts": {
     "build": "nuxt build",
     "dev": "cross-env NODE_ENV=development nuxt dev --port 3301 --host 0.0.0.0",
-    "dev:local": "cross-env NODE_ENV=development NUXT_PUBLIC_API_BASE_URL=http://finance.local/api nuxt dev --port 3301 --host localhost",
+    "dev:local": "cross-env NODE_ENV=development NUXT_PUBLIC_API_BASE_URL=http://localhost:9221/api nuxt dev --port 3301 --host localhost",
     "dev:prod-api": "cross-env NODE_ENV=development NUXT_PUBLIC_API_BASE_URL=https://dev-finance.mercylife.cc/api nuxt dev --port 3301 --host localhost",
     "build:prod": "cross-env NODE_ENV=production nuxt build",
     "generate": "nuxt generate",
