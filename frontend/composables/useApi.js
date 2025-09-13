@@ -9,25 +9,23 @@ export const useApi = () => {
   
   // 智能環境檢測
   const getApiBaseUrl = () => {
-    // 優先使用環境變數設定
+    // Point 80: 修復 vite proxy 被繞過的問題
+    // 在開發環境下使用相對路徑以利用 vite proxy
+    // 這樣可以避免 CORS 問題
+    if (process.dev && process.env.NODE_ENV === 'development') {
+      // 開發環境使用相對路徑，讓 vite proxy 處理
+      return ''  // 使用空字串，讓 endpoint 直接作為相對路徑
+    }
+
+    // 優先使用環境變數設定（生產環境）
     if (config.public.apiBaseUrl) {
       return config.public.apiBaseUrl
     }
-    
-    // 開發環境自動檢測
-    if (process.dev) {
-      // 檢查是否在本地 Docker 環境 (finance.local)
-      if (process.client && window.location.hostname === 'finance.local') {
-        return 'http://finance.local/api'
-      }
-      // 開發環境預設使用本地 Docker API
-      return 'http://finance.local/api'
-    }
-    
+
     // 生產環境預設
     return 'https://dev-finance.mercylife.cc/api'
   }
-  
+
   const baseURL = getApiBaseUrl()
 
   /**
@@ -71,16 +69,22 @@ export const useApi = () => {
         endpoint += `?${params.toString()}`
       }
 
-      const response = await $fetch(endpoint, requestOptions)
+      // Point 80: 處理相對路徑和完整 URL
+      // 如果 baseURL 是空字串（開發環境），使用相對路徑
+      // 否則使用完整 URL
+      const fetchUrl = baseURL ? endpoint : `/api${endpoint}`
+      const response = await $fetch(fetchUrl, requestOptions)
       return { data: response, error: null }
 
     } catch (error) {
+      // Point 80: 修正錯誤日誌的 URL 顯示
+      const actualUrl = baseURL ? `${baseURL}${endpoint}` : `/api${endpoint}`
       console.error(`API Request Error [${method} ${endpoint}]:`, {
         status: error.status,
         message: error.message,
         data: error.data,
-        baseURL: baseURL,
-        fullURL: `${baseURL}${endpoint}`,
+        baseURL: baseURL || '(using proxy)',
+        fullURL: actualUrl,
         headers: requestOptions.headers,
         credentials: requestOptions.credentials
       })
@@ -116,8 +120,8 @@ export const useApi = () => {
           errors: error.data?.errors || null,
           debug_info: error.data?.debug_info || null,
           debug: process.dev ? {
-            baseURL,
-            fullURL: `${baseURL}${endpoint}`,
+            baseURL: baseURL || '(using proxy)',
+            fullURL: actualUrl,
             method: requestOptions.method,
             error_response: error.data
           } : null
