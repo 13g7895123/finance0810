@@ -7,6 +7,7 @@ use App\Models\Website;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Point 40: Website Controller for WordPress site management
@@ -21,7 +22,7 @@ class WebsiteController extends Controller
         // Point 75: Simplified version to avoid relation loading issues
         try {
             // First check if table exists
-            if (!\Schema::hasTable('websites')) {
+            if (!Schema::hasTable('websites')) {
                 throw new \Exception('Websites table does not exist');
             }
 
@@ -59,7 +60,7 @@ class WebsiteController extends Controller
             return response()->json($websites);
 
         } catch (\Exception $e) {
-            \Log::error('Point 75 - Website index error', [
+            Log::error('Point 81 - Website index error', [
                 'error' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => $e->getFile(),
