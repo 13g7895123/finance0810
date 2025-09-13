@@ -50,39 +50,6 @@ Route::get('/webhook/status', [ChatController::class, 'webhookStatus']);
 // Simple test route
 Route::get('/test/simple', function() { return ['status' => 'ok', 'timestamp' => now()->format('c')]; });
 
-// Point 76: Test websites endpoint CORS issue - Public access for CORS testing
-Route::get('/test/websites-public', function(Request $request) {
-    try {
-        $controller = new \App\Http\Controllers\Api\WebsiteController();
-        return $controller->index($request);
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => 'error',
-            'error' => $e->getMessage(),
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-            'timestamp' => now()->format('c')
-        ], 500);
-    }
-});
-
-// Point 76: Direct test of website model access without controller
-Route::get('/test/websites-model', function() {
-    try {
-        $count = \App\Models\Website::count();
-        return response()->json([
-            'status' => 'ok',
-            'count' => $count,
-            'timestamp' => now()->format('c')
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => 'error',
-            'error' => $e->getMessage(),
-            'timestamp' => now()->format('c')
-        ], 500);
-    }
-});
 
 // Test routes (public - for debugging)
 Route::get('/test/system', [TestController::class, 'systemTest']);

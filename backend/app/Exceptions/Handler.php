@@ -110,15 +110,8 @@ class Handler extends ExceptionHandler
                 ], 500);
             }
 
-            // Add CORS headers to all API error responses
+            // Point 77: Removed CORS headers - now handled by Laravel's native CORS middleware
             if ($response) {
-                $allowedOrigin = $this->getAllowedOrigin($request);
-                $response->headers->set('Access-Control-Allow-Origin', $allowedOrigin);
-                $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-                $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-TOKEN, X-XSRF-TOKEN');
-                $response->headers->set('Access-Control-Allow-Credentials', 'true');
-                $response->headers->set('Access-Control-Expose-Headers', 'Authorization, Content-Disposition');
-
                 return $response;
             }
         }
@@ -126,34 +119,4 @@ class Handler extends ExceptionHandler
         return parent::render($request, $exception);
     }
 
-    /**
-     * Get allowed origin for CORS headers
-     */
-    private function getAllowedOrigin($request): string
-    {
-        $origin = $request->header('Origin');
-
-        $allowedOrigins = [
-            'http://localhost:3301',
-            'http://127.0.0.1:3301',
-            'http://localhost:3000',
-            'http://127.0.0.1:3000',
-            'http://localhost:9121',
-            'http://127.0.0.1:9121',
-            'http://finance.local',
-            'https://dev-finance.mercylife.cc',
-            'https://finance.mercylife.cc',
-        ];
-
-        if (in_array($origin, $allowedOrigins)) {
-            return $origin;
-        }
-
-        // For development, allow localhost with any port
-        if (preg_match('/^http:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/', $origin)) {
-            return $origin;
-        }
-
-        return 'http://localhost:3301'; // Default fallback
-    }
 }

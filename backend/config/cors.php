@@ -27,6 +27,8 @@ return [
         'http://127.0.0.1:3301',
         'http://localhost:9121',
         'http://127.0.0.1:9121',
+        'http://localhost:9221',
+        'http://127.0.0.1:9221',
         'https://dev-finance.mercylife.cc',
         'https://finance.mercylife.cc',
     ],
@@ -36,11 +38,22 @@ return [
         '/^http:\/\/127\.0\.0\.1(:[0-9]+)?$/',
     ],
 
-    'allowed_headers' => ['*'],
+    'allowed_headers' => [
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+        'Accept',
+        'Origin',
+        'X-CSRF-TOKEN',
+        'X-XSRF-TOKEN'
+    ],
 
-    'exposed_headers' => [],
+    'exposed_headers' => [
+        'Authorization',
+        'Content-Disposition'
+    ],
 
-    'max_age' => 0,
+    'max_age' => 86400,
 
     'supports_credentials' => true,
 
