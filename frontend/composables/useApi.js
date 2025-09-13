@@ -79,36 +79,51 @@ export const useApi = () => {
     } catch (error) {
       // Point 80: 修正錯誤日誌的 URL 顯示
       const actualUrl = baseURL ? `${baseURL}${endpoint}` : `/api${endpoint}`
-      console.error(`API Request Error [${method} ${endpoint}]:`, {
-        status: error.status,
-        message: error.message,
-        data: error.data,
-        baseURL: baseURL || '(using proxy)',
-        fullURL: actualUrl,
-        headers: requestOptions.headers,
-        credentials: requestOptions.credentials
-      })
+
+      // Point 81: Suppress error logging for specific endpoints that may fail for unauthenticated users
+      const silentEndpoints = [
+        '/contact-schedules/reminders/list',
+        '/contact-schedules/overdue/list',
+        '/contact-schedules/today/list'
+      ]
+
+      const shouldSilence = silentEndpoints.some(path => endpoint.includes(path)) && error.status === 401
+
+      if (!shouldSilence) {
+        console.error(`API Request Error [${method} ${endpoint}]:`, {
+          status: error.status,
+          message: error.message,
+          data: error.data,
+          baseURL: baseURL || '(using proxy)',
+          fullURL: actualUrl,
+          headers: requestOptions.headers,
+          credentials: requestOptions.credentials
+        })
+      }
 
       // 處理認證錯誤
       if (error.status === 401) {
-        console.warn('Authentication failed - clearing session and redirecting to login')
-        
-        // Token過期，清除 sessionStorage 並重導向到登入頁
-        if (process.client) {
-          sessionStorage.removeItem('user-profile')
-          // 清除舊的 localStorage 資料（向後相容）
-          localStorage.removeItem('auth-token')
-          localStorage.removeItem('admin-template-user')
-          
-          // 在生產環境下，檢查cookie狀況
-          if (document.cookie.includes('auth-token')) {
-            console.warn('Auth token cookie still exists but API returned 401')
-          } else {
-            console.warn('No auth token cookie found')
+        // Only redirect to login for endpoints that are not expected to fail for unauthenticated users
+        if (!shouldSilence) {
+          console.warn('Authentication failed - clearing session and redirecting to login')
+
+          // Token過期，清除 sessionStorage 並重導向到登入頁
+          if (process.client) {
+            sessionStorage.removeItem('user-profile')
+            // 清除舊的 localStorage 資料（向後相容）
+            localStorage.removeItem('auth-token')
+            localStorage.removeItem('admin-template-user')
+
+            // 在生產環境下，檢查cookie狀況
+            if (document.cookie.includes('auth-token')) {
+              console.warn('Auth token cookie still exists but API returned 401')
+            } else {
+              console.warn('No auth token cookie found')
+            }
           }
+
+          await router.push('/auth/login')
         }
-        
-        await router.push('/auth/login')
       }
 
       return { 

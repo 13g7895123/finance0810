@@ -46,19 +46,26 @@ export const useSidebarBadges = () => {
         get('/contact-schedules/overdue/list'),
         get('/contact-schedules/reminders/list')
       ])
-      
+
       let count = 0
-      if (overdueRes.data && overdueRes.success) {
-        count += overdueRes.data.length
+      // Check for successful responses and handle 401 gracefully
+      if (overdueRes && !overdueRes.error && overdueRes.data) {
+        if (Array.isArray(overdueRes.data)) {
+          count += overdueRes.data.length
+        }
       }
-      if (reminderRes.data && reminderRes.success) {
-        count += reminderRes.data.length
+      if (reminderRes && !reminderRes.error && reminderRes.data) {
+        if (Array.isArray(reminderRes.data)) {
+          count += reminderRes.data.length
+        }
       }
-      
+
       badges.value.contact_reminders = count
       return count
     } catch (err) {
-      console.warn('Failed to get contact reminders count:', err)
+      // Silently handle errors - these APIs require authentication
+      // and may fail if user is not logged in
+      badges.value.contact_reminders = 0
       return 0
     }
   }
