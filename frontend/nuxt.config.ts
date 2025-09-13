@@ -14,7 +14,10 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
-      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || 'http://localhost:9221/api',
+      // Point 78: Use vite proxy in local development to avoid CORS issues
+      // Local development (NODE_ENV=development): use proxy '/api'
+      // Develop/Production environments: use direct API URL
+      apiBaseUrl: process.env.NODE_ENV === 'development' ? '/api' : (process.env.NUXT_PUBLIC_API_BASE_URL || 'https://dev-finance.mercylife.cc/api'),
       // Firebase configuration
       firebaseApiKey: process.env.NUXT_FIREBASE_API_KEY,
       firebaseDatabaseUrl: process.env.NUXT_FIREBASE_DATABASE_URL || 'https://finance0810new-default-rtdb.asia-southeast1.firebasedatabase.app/',
@@ -31,7 +34,25 @@ export default defineNuxtConfig({
   // Development configuration
   vite: {
     server: {
-      allowedHosts: ['finance.local', 'localhost']
+      allowedHosts: ['finance.local', 'localhost'],
+      // Point 78: Vite proxy configuration for local development CORS solution
+      // This proxy forwards '/api/*' requests to backend server at localhost:9221
+      // Only active in development mode (NODE_ENV=development)
+      // Develop/Production environments bypass this proxy and use direct API calls
+      proxy: {
+        '/api': {
+          target: 'http://localhost:9221',
+          changeOrigin: true,
+          secure: false,
+          ws: true, // Support WebSocket
+          configure: (proxy, options) => {
+            // Log proxy requests for debugging
+            proxy.on('proxyReq', (proxyReq, req, res) => {
+              console.log(`[Vite Proxy] ${req.method} ${req.url} -> ${options.target}${req.url}`)
+            })
+          }
+        }
+      }
     },
     build: {
       rollupOptions: {
