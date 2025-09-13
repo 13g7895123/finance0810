@@ -35,28 +35,28 @@ class Handler extends ExceptionHandler
     {
         // For API routes, provide detailed error information
         if ($request->is('api/*')) {
+            $response = null;
+
             // Handle authentication exceptions
             if ($exception instanceof \Illuminate\Auth\AuthenticationException) {
-                return response()->json([
+                $response = response()->json([
                     'success' => false,
                     'message' => 'Unauthenticated.',
                     'error' => 'Authentication required'
                 ], 401);
             }
-            
             // Handle validation exceptions
-            if ($exception instanceof \Illuminate\Validation\ValidationException) {
-                return response()->json([
+            elseif ($exception instanceof \Illuminate\Validation\ValidationException) {
+                $response = response()->json([
                     'success' => false,
                     'message' => 'Validation failed',
                     'error' => 'Invalid input data',
                     'errors' => $exception->errors()
                 ], 422);
             }
-            
             // Handle model not found exceptions
-            if ($exception instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
-                return response()->json([
+            elseif ($exception instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
+                $response = response()->json([
                     'success' => false,
                     'message' => 'Resource not found',
                     'error' => 'The requested resource could not be found',
@@ -66,17 +66,16 @@ class Handler extends ExceptionHandler
                     ] : null
                 ], 404);
             }
-            
             // Handle database exceptions
-            if ($exception instanceof \Illuminate\Database\QueryException) {
+            elseif ($exception instanceof \Illuminate\Database\QueryException) {
                 \Log::error('Database Query Error', [
                     'message' => $exception->getMessage(),
                     'sql' => $exception->getSql(),
                     'bindings' => $exception->getBindings(),
                     'code' => $exception->getCode()
                 ]);
-                
-                return response()->json([
+
+                $response = response()->json([
                     'success' => false,
                     'message' => '資料庫操作失敗',
                     'error' => 'Database operation failed',
@@ -87,30 +86,74 @@ class Handler extends ExceptionHandler
                     ] : null
                 ], 500);
             }
-            
             // Handle general exceptions for API routes
-            \Log::error('API Exception', [
-                'message' => $exception->getMessage(),
-                'file' => $exception->getFile(),
-                'line' => $exception->getLine(),
-                'trace' => $exception->getTraceAsString(),
-                'request_url' => $request->url(),
-                'request_method' => $request->method(),
-                'request_data' => $request->all()
-            ]);
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Internal server error',
-                'error' => config('app.debug') ? $exception->getMessage() : 'An unexpected error occurred',
-                'debug_info' => config('app.debug') ? [
+            else {
+                \Log::error('API Exception', [
+                    'message' => $exception->getMessage(),
                     'file' => $exception->getFile(),
                     'line' => $exception->getLine(),
-                    'trace' => explode("\n", $exception->getTraceAsString())
-                ] : null
-            ], 500);
+                    'trace' => $exception->getTraceAsString(),
+                    'request_url' => $request->url(),
+                    'request_method' => $request->method(),
+                    'request_data' => $request->all()
+                ]);
+
+                $response = response()->json([
+                    'success' => false,
+                    'message' => 'Internal server error',
+                    'error' => config('app.debug') ? $exception->getMessage() : 'An unexpected error occurred',
+                    'debug_info' => config('app.debug') ? [
+                        'file' => $exception->getFile(),
+                        'line' => $exception->getLine(),
+                        'trace' => explode("\n", $exception->getTraceAsString())
+                    ] : null
+                ], 500);
+            }
+
+            // Add CORS headers to all API error responses
+            if ($response) {
+                $allowedOrigin = $this->getAllowedOrigin($request);
+                $response->headers->set('Access-Control-Allow-Origin', $allowedOrigin);
+                $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+                $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-TOKEN, X-XSRF-TOKEN');
+                $response->headers->set('Access-Control-Allow-Credentials', 'true');
+                $response->headers->set('Access-Control-Expose-Headers', 'Authorization, Content-Disposition');
+
+                return $response;
+            }
         }
 
         return parent::render($request, $exception);
+    }
+
+    /**
+     * Get allowed origin for CORS headers
+     */
+    private function getAllowedOrigin($request): string
+    {
+        $origin = $request->header('Origin');
+
+        $allowedOrigins = [
+            'http://localhost:3301',
+            'http://127.0.0.1:3301',
+            'http://localhost:3000',
+            'http://127.0.0.1:3000',
+            'http://localhost:9121',
+            'http://127.0.0.1:9121',
+            'http://finance.local',
+            'https://dev-finance.mercylife.cc',
+            'https://finance.mercylife.cc',
+        ];
+
+        if (in_array($origin, $allowedOrigins)) {
+            return $origin;
+        }
+
+        // For development, allow localhost with any port
+        if (preg_match('/^http:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/', $origin)) {
+            return $origin;
+        }
+
+        return 'http://localhost:3301'; // Default fallback
     }
 }

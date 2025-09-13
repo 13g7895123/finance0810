@@ -28,9 +28,35 @@ class CorsMiddleware
                 ->setStatusCode(204); // Use 204 No Content for OPTIONS
         }
 
-        $response = $next($request);
+        try {
+            $response = $next($request);
+        } catch (\Exception $e) {
+            // Create error response with CORS headers
+            $response = response()->json([
+                'error' => 'Internal Server Error',
+                'message' => app()->environment('local') ? $e->getMessage() : 'An error occurred'
+            ], 500);
 
-        // Add CORS headers to actual requests
+            // Add CORS headers to error response
+            $response->headers->set('Access-Control-Allow-Origin', $allowedOrigin);
+            $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+            $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-TOKEN, X-XSRF-TOKEN');
+            $response->headers->set('Access-Control-Allow-Credentials', 'true');
+            $response->headers->set('Access-Control-Expose-Headers', 'Authorization, Content-Disposition');
+
+            // Log the error for debugging
+            \Log::error('CORS Middleware caught exception', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'url' => $request->url(),
+                'method' => $request->method()
+            ]);
+
+            return $response;
+        }
+
+        // Add CORS headers to successful responses
         $response->headers->set('Access-Control-Allow-Origin', $allowedOrigin);
         $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
         $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-TOKEN, X-XSRF-TOKEN');
