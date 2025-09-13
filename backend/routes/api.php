@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\WebhookLogController;
 use App\Http\Controllers\Api\LineUserTestController;
 use App\Http\Controllers\Api\WebsiteController;
 use App\Http\Controllers\Api\WebsiteFieldMappingController;
+use App\Http\Controllers\Api\CustomerContactScheduleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -606,6 +607,19 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('/tracking/customers', [CustomerController::class, 'trackingList']);
     Route::patch('/customers/{customer}/level', [CustomerController::class, 'updateCustomerLevel']);
     Route::get('/tracking/sales-users', [CustomerController::class, 'getSalesUsers']);
+    
+    // Contact Schedule Management - Point 69
+    Route::get('/contact-schedules', [CustomerContactScheduleController::class, 'index']);
+    Route::post('/contact-schedules', [CustomerContactScheduleController::class, 'store']);
+    Route::get('/contact-schedules/{id}', [CustomerContactScheduleController::class, 'show']);
+    Route::put('/contact-schedules/{id}', [CustomerContactScheduleController::class, 'update']);
+    Route::delete('/contact-schedules/{id}', [CustomerContactScheduleController::class, 'destroy']);
+    Route::post('/contact-schedules/{id}/contacted', [CustomerContactScheduleController::class, 'markAsContacted']);
+    Route::post('/contact-schedules/{id}/reschedule', [CustomerContactScheduleController::class, 'reschedule']);
+    Route::get('/contact-schedules/overdue/list', [CustomerContactScheduleController::class, 'getOverdue']);
+    Route::get('/contact-schedules/today/list', [CustomerContactScheduleController::class, 'getToday']);
+    Route::get('/contact-schedules/reminders/list', [CustomerContactScheduleController::class, 'getNeedingReminder']);
+    Route::get('/contact-schedules/calendar/data', [CustomerContactScheduleController::class, 'getCalendarData']);
     
     // LINE Integration for Customers
     Route::post('/customers/{customer}/line/link', [CustomerController::class, 'linkLineUser']);
