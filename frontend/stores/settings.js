@@ -42,6 +42,7 @@ export const useSettingsStore = defineStore('settings', () => {
       children: [
         { name: '客戶資料', href: '/sales/customers', permissions: ['customer_management', 'personal_customers', 'all_access'] },
         { name: '追蹤管理', href: '/cases/customer-tracking', permissions: ['customer_management', 'personal_customers', 'all_access'] },
+        { name: '追蹤行事曆', href: '/sales/contact-calendar', permissions: ['customer_management', 'personal_customers', 'all_access'] },
         { name: '進件資料', href: '/sales/applications', permissions: ['customer_management', 'all_access'] },
         { name: '銷售報表', href: '/sales/reports', permissions: ['reports', 'all_access'] },
         { name: '業績統計', href: '/sales/statistics', permissions: ['reports', 'all_access'] }

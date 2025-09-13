@@ -150,7 +150,8 @@ const getBadgeCount = (item) => {
     '/cases/tracking': 'tracking',
     '/cases/customer-tracking': 'tracking',
     '/cases/blacklist': 'blacklist',
-    '/cases/negotiated': 'negotiated'
+    '/cases/negotiated': 'negotiated',
+    '/sales/contact-calendar': 'contact_reminders'
   }
   
   const badgeKey = badgeMapping[item.href]

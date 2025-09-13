@@ -8,7 +8,8 @@ export const useSidebarBadges = () => {
     disbursed: 0,
     tracking: 0,
     blacklist: 0,
-    negotiated: 0
+    negotiated: 0,
+    contact_reminders: 0
   })
   
   const loading = ref(false)
@@ -37,6 +38,30 @@ export const useSidebarBadges = () => {
     badges.value.pending = count
     return count
   }
+
+  // Get contact reminders count (overdue + need reminder)
+  const getContactRemindersCount = async () => {
+    try {
+      const [overdueRes, reminderRes] = await Promise.all([
+        get('/contact-schedules/overdue/list'),
+        get('/contact-schedules/reminders/list')
+      ])
+      
+      let count = 0
+      if (overdueRes.data && overdueRes.success) {
+        count += overdueRes.data.length
+      }
+      if (reminderRes.data && reminderRes.success) {
+        count += reminderRes.data.length
+      }
+      
+      badges.value.contact_reminders = count
+      return count
+    } catch (err) {
+      console.warn('Failed to get contact reminders count:', err)
+      return 0
+    }
+  }
   
   // Get all badge counts
   const refreshAllBadges = async () => {
@@ -44,13 +69,14 @@ export const useSidebarBadges = () => {
     
     loading.value = true
     try {
-      const [pending, intake, disbursed, tracking, blacklist, negotiated] = await Promise.all([
+      const [pending, intake, disbursed, tracking, blacklist, negotiated, contactReminders] = await Promise.all([
         getCount('pending'),
         getCount('intake'),
         getCount('disbursed'),
         getCount('tracking'),
         getCount('blacklist'),
-        getCount('negotiated')
+        getCount('negotiated'),
+        getContactRemindersCount()
       ])
       
       badges.value = {
@@ -59,7 +85,8 @@ export const useSidebarBadges = () => {
         disbursed,
         tracking,
         blacklist,
-        negotiated
+        negotiated,
+        contact_reminders: contactReminders
       }
     } catch (err) {
       console.error('Failed to refresh badges:', err)
