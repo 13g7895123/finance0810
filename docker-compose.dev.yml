@@ -1,0 +1,77 @@
+# Docker Compose override for development environment
+# This file uses volumes to mount local code for hot-reload development
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      # Mount frontend source code for hot-reload
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.nuxt
+    environment:
+      - NODE_ENV=development
+      - NUXT_PUBLIC_API_BASE_URL=http://localhost:9221
+    command: npm run dev
+    ports:
+      - "3301:3000"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      # Mount entire backend code for development
+      - ./backend:/var/www/html
+      # Exclude vendor directory to use container's dependencies
+      - /var/www/html/vendor
+      # Persistent storage
+      - ./backend/storage:/var/www/html/storage
+      - backend_bootstrap_cache:/var/www/html/bootstrap/cache
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - APP_URL=http://localhost:9221
+      # Add CORS settings for local development
+      - CORS_ALLOWED_ORIGINS=http://localhost:3301,http://localhost:3000,http://localhost:9221
+    ports:
+      - "9221:8000"
+    command: |
+      sh -c "
+        # Ensure permissions are correct
+        chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+        chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
+        # Clear Laravel caches for development
+        php artisan config:clear
+        php artisan route:clear
+        php artisan cache:clear
+        php artisan view:clear
+
+        # Start the application
+        /startup.sh
+      "
+
+  mysql:
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password_2024
+      - MYSQL_DATABASE=${DB_DATABASE}
+      - MYSQL_USER=${DB_USERNAME}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  phpmyadmin:
+    ports:
+      - "8080:80"
+
+volumes:
+  backend_bootstrap_cache:
+    driver: local
