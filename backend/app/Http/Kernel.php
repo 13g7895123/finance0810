@@ -14,8 +14,11 @@ class Kernel extends HttpKernel
      * @var array<int, class-string|string>
      */
     protected $middleware = [
+        // Point 76: Add early CORS middleware as the very first middleware
+        \App\Http\Middleware\EarlyCorsMiddleware::class,
         // \App\Http\Middleware\TrustHosts::class,
         \App\Http\Middleware\TrustProxies::class,
+        // Keep regular CORS middleware as backup
         \App\Http\Middleware\CorsMiddleware::class,
         // \Illuminate\Http\Middleware\HandleCors::class,
         \App\Http\Middleware\PreventRequestsDuringMaintenance::class,

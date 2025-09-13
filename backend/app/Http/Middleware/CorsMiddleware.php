@@ -31,17 +31,33 @@ class CorsMiddleware
         try {
             $response = $next($request);
         } catch (\Throwable $e) {
+            // Determine appropriate error status code and message
+            $statusCode = 500;
+            $errorType = 'Internal Server Error';
+
+            // Handle specific exception types
+            if ($e instanceof \Illuminate\Auth\AuthenticationException) {
+                $statusCode = 401;
+                $errorType = 'Authentication Required';
+            } elseif ($e instanceof \Illuminate\Validation\ValidationException) {
+                $statusCode = 422;
+                $errorType = 'Validation Failed';
+            } elseif ($e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
+                $statusCode = 404;
+                $errorType = 'Resource Not Found';
+            }
+
             // Create error response with CORS headers for all types of errors
             $response = response()->json([
                 'success' => false,
-                'error' => 'Internal Server Error',
-                'message' => app()->environment('local') ? $e->getMessage() : 'An error occurred',
-                'debug' => app()->environment('local') ? [
+                'error' => $errorType,
+                'message' => app()->environment(['local', 'development']) ? $e->getMessage() : 'An error occurred',
+                'debug' => app()->environment(['local', 'development']) ? [
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
                     'trace' => explode("\n", $e->getTraceAsString())
                 ] : null
-            ], 500);
+            ], $statusCode);
 
             // Add CORS headers to error response
             $response->headers->set('Access-Control-Allow-Origin', $allowedOrigin);
@@ -57,7 +73,8 @@ class CorsMiddleware
                 'line' => $e->getLine(),
                 'url' => $request->url(),
                 'method' => $request->method(),
-                'type' => get_class($e)
+                'type' => get_class($e),
+                'status_code' => $statusCode
             ]);
 
             return $response;
