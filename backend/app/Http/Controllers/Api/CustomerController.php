@@ -17,7 +17,11 @@ class CustomerController extends Controller
     public function __construct()
     {
         $this->middleware('auth:api');
-        $this->middleware('customer.ownership');
+        $this->middleware('customer.ownership')->except([
+            'trackingList',
+            'submittable',
+            'getSalesUsers'
+        ]);
     }
 
     /**
