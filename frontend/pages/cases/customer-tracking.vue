@@ -243,6 +243,85 @@
         </div>
       </div>
     </div>
+
+    <!-- 客戶詳情模態窗口 -->
+    <div
+      v-if="showViewModal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      @click.self="closeViewModal"
+    >
+      <div class="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-900">客戶詳情</h3>
+          <button
+            @click="closeViewModal"
+            class="text-gray-400 hover:text-gray-600"
+          >
+            <XMarkIcon class="w-6 h-6" />
+          </button>
+        </div>
+
+        <div v-if="selectedCustomer" class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">客戶姓名</label>
+              <p class="text-gray-900">{{ selectedCustomer.name }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">電話</label>
+              <p class="text-gray-900">{{ selectedCustomer.phone }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">電子郵件</label>
+              <p class="text-gray-900">{{ selectedCustomer.email || '未提供' }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">地區</label>
+              <p class="text-gray-900">{{ selectedCustomer.region || '未填寫' }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">狀態</label>
+              <span
+                class="inline-flex px-2 py-1 text-sm font-semibold rounded-full"
+                :class="getStatusClass(selectedCustomer.status)"
+              >
+                {{ getStatusLabel(selectedCustomer.status) }}
+              </span>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">客戶等級</label>
+              <span
+                :class="{
+                  'bg-yellow-100 text-yellow-800': selectedCustomer.customer_level === 'A',
+                  'bg-green-100 text-green-800': selectedCustomer.customer_level === 'B',
+                  'bg-gray-100 text-gray-800': selectedCustomer.customer_level === 'C'
+                }"
+                class="px-2 py-1 text-sm font-medium rounded-full"
+              >
+                {{ selectedCustomer.customer_level }}級
+              </span>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">負責業務</label>
+              <p class="text-gray-900">{{ selectedCustomer.assigned_user?.name || '未分配' }}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">建立時間</label>
+              <p class="text-gray-900">{{ formatDate(selectedCustomer.created_at) }}</p>
+            </div>
+            <div v-if="selectedCustomer.next_contact_date">
+              <label class="block text-sm font-medium text-gray-700">下次聯絡日期</label>
+              <p class="text-gray-900">{{ formatDate(selectedCustomer.next_contact_date) }}</p>
+            </div>
+          </div>
+
+          <div v-if="selectedCustomer.notes">
+            <label class="block text-sm font-medium text-gray-700">備註</label>
+            <p class="text-gray-900 whitespace-pre-wrap">{{ selectedCustomer.notes }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -290,6 +369,8 @@ const levelEditModal = reactive({
   level: 'B',
   saving: false
 })
+const showViewModal = ref(false)
+const selectedCustomer = ref(null)
 
 // Statistics
 const trackingStats = computed(() => {
@@ -442,8 +523,14 @@ const saveCustomerLevel = async () => {
 }
 
 const viewCustomerDetails = (customer) => {
-  // Navigate to customer details page
-  navigateTo(`/sales/customers/${customer.id}`)
+  // Open customer details modal instead of navigating
+  selectedCustomer.value = customer
+  showViewModal.value = true
+}
+
+const closeViewModal = () => {
+  showViewModal.value = false
+  selectedCustomer.value = null
 }
 
 // Utility functions
