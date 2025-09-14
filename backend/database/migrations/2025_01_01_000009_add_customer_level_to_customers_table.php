@@ -12,10 +12,29 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('customers', function (Blueprint $table) {
-            $table->enum('customer_level', ['A', 'B', 'C'])->default('B')->after('priority_level');
-            
-            // Add index for customer level for performance
-            $table->index(['customer_level', 'assigned_to']);
+            // 檢查欄位是否已存在
+            if (!Schema::hasColumn('customers', 'customer_level')) {
+                $table->enum('customer_level', ['A', 'B', 'C'])->default('B')->after('priority_level');
+            }
+
+            // 檢查索引是否已存在
+            $hasIndex = false;
+            $indexes = Schema::getConnection()->getDoctrineSchemaManager()->listTableIndexes('customers');
+            foreach ($indexes as $index) {
+                $columns = $index->getColumns();
+                if ($columns === ['customer_level', 'assigned_to']) {
+                    $hasIndex = true;
+                    break;
+                }
+            }
+
+            if (!$hasIndex) {
+                try {
+                    $table->index(['customer_level', 'assigned_to']);
+                } catch (\Exception $e) {
+                    // Index may already exist, ignore
+                }
+            }
         });
     }
 
