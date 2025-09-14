@@ -52,8 +52,28 @@ services:
       - FIREBASE_DATABASE_URL=${FIREBASE_DATABASE_URL}
       - FIREBASE_CREDENTIALS=${FIREBASE_CREDENTIALS}
     volumes:
+      # Mount entire backend code for live updates
+      - ./backend:/var/www/html
+      # Exclude vendor directory to use container's dependencies
+      - /var/www/html/vendor
+      # Persistent storage
       - ./backend/storage:/var/www/html/storage
       - backend_bootstrap_cache:/var/www/html/bootstrap/cache
+    command: |
+      sh -c "
+        # Ensure permissions are correct
+        chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+        chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
+        # Clear Laravel caches for fresh start
+        php artisan config:clear || true
+        php artisan route:clear || true
+        php artisan cache:clear || true
+        php artisan view:clear || true
+
+        # Start the application
+        /startup.sh
+      "
     depends_on:
       - mysql
       - redis
