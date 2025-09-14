@@ -51,13 +51,16 @@ services:
         php artisan cache:clear
         php artisan view:clear
 
-        # Start the application
-        /startup.sh
+        # Run migrations
+        php artisan migrate --force
+
+        # Start supervisord to run nginx and php-fpm
+        exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
       "
 
   mysql:
     ports:
-      - "3306:3306"
+      - "${DATABASE_PORT}:3306"
     environment:
       - MYSQL_ROOT_PASSWORD=root_password_2024
       - MYSQL_DATABASE=${DB_DATABASE}
@@ -66,11 +69,11 @@ services:
 
   redis:
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT}:6379"
 
   phpmyadmin:
     ports:
-      - "8080:80"
+      - "${PHPMYADMIN_PORT}:80"
 
 volumes:
   backend_bootstrap_cache:
