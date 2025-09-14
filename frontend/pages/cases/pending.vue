@@ -169,10 +169,10 @@
               <span class="text-xs font-medium text-gray-900 truncate">
                 {{ item.line_user_info.display_name || '未設定名稱' }}
               </span>
-              <button 
+              <button
                 @click="openLineNameModal(item)"
                 class="text-blue-500 hover:text-blue-700 text-xs"
-                title="編輯業務名稱"
+                title="編輯LINE名稱"
               >
                 ✏️
               </button>
