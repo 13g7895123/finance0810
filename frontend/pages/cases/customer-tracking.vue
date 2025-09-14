@@ -259,10 +259,12 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useAuthStore } from '~/stores/auth'
 import { useNotificationsStore } from '~/stores/notifications'
+import { useApi } from '~/composables/useApi'
 
 // Stores
 const authStore = useAuthStore()
 const notificationsStore = useNotificationsStore()
+const { get, patch } = useApi()
 
 // Data
 const loading = ref(true)
@@ -353,11 +355,14 @@ const loadTrackingCustomers = async () => {
       params.append('assigned_to', assigneeFilter.value)
     }
 
-    const { data } = await $fetch(`/api/tracking/customers?${params}`)
-    trackingCustomers.value = data.data
+    const result = await get('/tracking/customers', Object.fromEntries(params))
+    if (result.error) {
+      throw new Error(result.error.message || result.error.error || '載入客戶資料失敗')
+    }
+    trackingCustomers.value = result.data.data
     
     // Extract unique regions
-    const uniqueRegions = [...new Set(data.data.map(c => c.region).filter(Boolean))]
+    const uniqueRegions = [...new Set(result.data.data.map(c => c.region).filter(Boolean))]
     regions.value = uniqueRegions
     
   } catch (error) {
@@ -375,8 +380,11 @@ const loadTrackingCustomers = async () => {
 
 const loadSalesUsers = async () => {
   try {
-    const response = await $fetch('/api/tracking/sales-users')
-    salesUsers.value = response.data || []
+    const result = await get('/tracking/sales-users')
+    if (result.error) {
+      throw new Error(result.error.message || result.error.error || '載入業務清單失敗')
+    }
+    salesUsers.value = result.data.data || result.data || []
   } catch (error) {
     console.error('載入業務清單失敗:', error)
     salesUsers.value = []
@@ -400,12 +408,13 @@ const saveCustomerLevel = async () => {
   try {
     levelEditModal.saving = true
 
-    await $fetch(`/api/customers/${levelEditModal.customer.id}/level`, {
-      method: 'PATCH',
-      body: {
-        customer_level: levelEditModal.level
-      }
+    const result = await patch(`/customers/${levelEditModal.customer.id}/level`, {
+      customer_level: levelEditModal.level
     })
+
+    if (result.error) {
+      throw new Error(result.error.message || result.error.error || '更新客戶等級失敗')
+    }
 
     // Update local data
     const customerIndex = trackingCustomers.value.findIndex(c => c.id === levelEditModal.customer.id)
