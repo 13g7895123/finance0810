@@ -262,7 +262,7 @@ import { useNotificationsStore } from '~/stores/notifications'
 
 // Stores
 const authStore = useAuthStore()
-const notificationStore = useNotificationsStore()
+const notificationsStore = useNotificationsStore()
 
 // Data
 const loading = ref(true)
@@ -363,7 +363,7 @@ const loadTrackingCustomers = async () => {
   } catch (error) {
     console.error('載入追蹤客戶失敗:', error)
     loadError.value = '載入客戶資料失敗'
-    notificationStore.addNotification({
+    notificationsStore.addNotification({
       type: 'error',
       title: '載入客戶資料失敗',
       message: error.message
@@ -413,7 +413,7 @@ const saveCustomerLevel = async () => {
       trackingCustomers.value[customerIndex].customer_level = levelEditModal.level
     }
 
-    notificationStore.addNotification({
+    notificationsStore.addNotification({
       type: 'success',
       title: '客戶等級已更新',
       message: `${levelEditModal.customer.name} 的等級已更新為 ${levelEditModal.level}級`
@@ -422,7 +422,7 @@ const saveCustomerLevel = async () => {
     closeLevelEditModal()
   } catch (error) {
     console.error('更新客戶等級失敗:', error)
-    notificationStore.addNotification({
+    notificationsStore.addNotification({
       type: 'error',
       title: '更新失敗',
       message: error.message || '無法更新客戶等級'
