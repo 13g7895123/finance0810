@@ -43,13 +43,27 @@ class WebhookExecutionLog extends Model
     public function addExecutionStep($step_name, $details = null, $status = 'completed')
     {
         $steps = $this->execution_steps ?? [];
+
+        // Ensure UTF-8 safe encoding for Chinese characters
+        $safeDetails = null;
+        if ($details !== null) {
+            // Convert to UTF-8 safe format
+            $jsonString = json_encode($details, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE);
+            $safeDetails = json_decode($jsonString, true);
+        }
+
         $steps[] = [
             'step' => $step_name,
             'status' => $status,
             'timestamp' => now()->toISOString(),
-            'details' => $details
+            'details' => $safeDetails
         ];
-        $this->update(['execution_steps' => $steps]);
+
+        // Ensure UTF-8 safe encoding for the entire steps array
+        $jsonString = json_encode($steps, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE);
+        $safeSteps = json_decode($jsonString, true);
+
+        $this->update(['execution_steps' => $safeSteps]);
     }
 
     public function markCompleted($results = null)

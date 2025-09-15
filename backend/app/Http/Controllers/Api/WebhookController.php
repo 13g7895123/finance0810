@@ -110,10 +110,10 @@ class WebhookController extends Controller
             'user_agent' => $request->userAgent(),
             'status' => 'processing',
             'started_at' => now(),
-            'events_data' => [
+            'events_data' => json_decode(json_encode([
                 'field_names' => array_keys($request->all()),
                 'field_count' => count($request->all())
-            ]
+            ], JSON_UNESCAPED_UNICODE), true)
         ]);
 
         $executionLog->addExecutionStep('webhook_received', [
@@ -560,6 +560,22 @@ class WebhookController extends Controller
                 'message' => 'Webhook failed',
                 'error' => $e->getMessage(),
                 'execution_id' => $executionLog->execution_id, // Point 64: 回傳執行ID供除錯用
+            ], 500);
+        }
+        } catch (\Throwable $outerException) {
+            // Point 91: 處理最外層異常（在執行記錄建立之前的錯誤）
+            Log::error('Point 91 - WordPress Webhook 處理失敗 (外層錯誤)', [
+                'error' => $outerException->getMessage(),
+                'trace' => $outerException->getTraceAsString(),
+                'request_data' => $request->all(),
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'timestamp' => now()->format('Y-m-d H:i:s')
+            ]);
+
+            return response()->json([
+                'message' => 'Webhook processing failed',
+                'error' => $outerException->getMessage(),
             ], 500);
         }
     }
