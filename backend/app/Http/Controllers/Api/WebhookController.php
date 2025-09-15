@@ -131,6 +131,26 @@ class WebhookController extends Controller
             'raw_data' => $request->all()
         ]);
 
+        // Point 91: 為 mrmoney.com.tw 網站加入詳細的除錯記錄
+        Log::info('Point 91 - mrmoney.com.tw Webhook 資料記錄', [
+            'execution_id' => $executionLog->execution_id,
+            'timestamp' => now()->format('Y-m-d H:i:s'),
+            'source_ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'request_method' => $request->method(),
+            'request_url' => $request->fullUrl(),
+            'all_headers' => $request->headers->all(),
+            'post_data' => $request->all(),
+            'post_data_count' => count($request->all()),
+            'raw_body' => $request->getContent(),
+            'field_summary' => collect($request->all())->map(function($value, $key) {
+                return sprintf('%s: %s (%s)', $key,
+                    is_string($value) ? substr($value, 0, 100) . (strlen($value) > 100 ? '...' : '') : json_encode($value),
+                    gettype($value)
+                );
+            })->toArray()
+        ]);
+
         try {
             // 1) 取出原始表單資料
             $rawFormData = $request->all();
@@ -541,18 +561,6 @@ class WebhookController extends Controller
                 'error' => $e->getMessage(),
                 'execution_id' => $executionLog->execution_id, // Point 64: 回傳執行ID供除錯用
             ], 500);
-        } catch (\Throwable $outerException) {
-            // Point 64: 處理最外層異常（在執行記錄建立之前的錯誤）
-            Log::error('Point64 - WordPress Webhook執行失敗', [
-                'error' => $outerException->getMessage(),
-                'trace' => $outerException->getTraceAsString(),
-                'request_data' => $request->all()
-            ]);
-            
-            return response()->json([
-                'message' => 'Webhook processing failed',
-                'error' => $outerException->getMessage(),
-            ], 500);
         }
     }
 
@@ -614,3 +622,4 @@ class WebhookController extends Controller
         return $mappedData;
     }
 }
+
