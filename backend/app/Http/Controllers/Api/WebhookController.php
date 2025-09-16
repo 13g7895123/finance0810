@@ -186,11 +186,13 @@ class WebhookController extends Controller
             // 1) 取出表單資料（已經過結構化格式處理）
             // $rawFormData 已在上面處理過
 
-            // 2) 從頁面URL提取網站域名
+            // 2) 從頁面URL和User-Agent提取網站域名
             $pageUrl = $rawFormData['頁面 URL'] ?? $rawFormData['page_url'] ?? null;
+            $userAgent = $request->userAgent();
             $websiteDomain = null;
+            $extractionMethod = null;
 
-            // Point 6: 詳細記錄網站URL提取過程，協助除錯
+            // Point 6 & 7: 詳細記錄網站URL提取過程，協助除錯
             Log::channel('wp')->info('WordPress Webhook - 網站URL提取開始', [
                 'execution_id' => $executionLog->execution_id,
                 'available_url_fields' => [
@@ -200,34 +202,59 @@ class WebhookController extends Controller
                     '頁面_URL' => $rawFormData['頁面_URL'] ?? null,
                 ],
                 'selected_page_url' => $pageUrl,
+                'user_agent' => $userAgent,
                 'request_host' => $request->getHost(),
                 'request_url' => $request->fullUrl(),
                 'user_agent_from_form' => $rawFormData['使用者代理'] ?? $rawFormData['user_agent'] ?? null
             ]);
 
+            // 方法1: 優先從表單的頁面URL提取域名
             if ($pageUrl) {
                 $websiteDomain = $this->fieldMapper->extractDomainFromUrl($pageUrl);
+                if ($websiteDomain) {
+                    $extractionMethod = 'from_page_url';
 
-                // Point 6: 記錄域名提取結果
-                Log::channel('wp')->info('WordPress Webhook - 域名提取成功', [
-                    'execution_id' => $executionLog->execution_id,
-                    'original_page_url' => $pageUrl,
-                    'extracted_domain' => $websiteDomain,
-                    'extraction_method' => 'from_page_url'
-                ]);
+                    // Point 6: 記錄域名提取結果
+                    Log::channel('wp')->info('WordPress Webhook - 域名提取成功 (頁面URL)', [
+                        'execution_id' => $executionLog->execution_id,
+                        'original_page_url' => $pageUrl,
+                        'extracted_domain' => $websiteDomain,
+                        'extraction_method' => $extractionMethod
+                    ]);
+                }
             }
 
+            // 方法2: Point 7 - 如果頁面URL無法提取域名，嘗試從User-Agent提取
+            if (!$websiteDomain && $userAgent) {
+                $websiteDomain = $this->extractDomainFromUserAgent($userAgent);
+                if ($websiteDomain) {
+                    $extractionMethod = 'from_user_agent';
+
+                    // Point 7: 記錄User-Agent域名提取結果
+                    Log::channel('wp')->info('WordPress Webhook - 域名提取成功 (User-Agent)', [
+                        'execution_id' => $executionLog->execution_id,
+                        'user_agent' => $userAgent,
+                        'extracted_domain' => $websiteDomain,
+                        'extraction_method' => $extractionMethod
+                    ]);
+                }
+            }
+
+            // 方法3: 最後回退到請求主機
             if (!$websiteDomain) {
                 $fallbackDomain = $request->getHost() ?: 'default';
+                $extractionMethod = 'fallback_host';
 
-                // Point 6: 記錄回退域名的詳細資訊
+                // Point 6 & 7: 記錄回退域名的詳細資訊
                 Log::channel('wp')->warning('WordPress Webhook - 使用回退域名', [
                     'execution_id' => $executionLog->execution_id,
-                    'reason' => '無法從表單資料中提取網站域名',
+                    'reason' => '無法從表單資料和User-Agent中提取網站域名',
                     'page_url_found' => !empty($pageUrl),
                     'page_url_value' => $pageUrl,
+                    'user_agent_checked' => !empty($userAgent),
+                    'user_agent_value' => $userAgent,
                     'fallback_domain' => $fallbackDomain,
-                    'extraction_method' => 'fallback_host',
+                    'extraction_method' => $extractionMethod,
                     'all_form_keys' => array_keys($rawFormData)
                 ]);
 
@@ -642,14 +669,16 @@ class WebhookController extends Controller
                 'is_suspected_blacklist' => $isSuspectedBlacklist,
                 'processing_duration' => now()->diffInSeconds($executionLog->started_at) . 's',
                 'total_sql_queries' => count($queries),
-                // Point 6: 詳細網站URL除錯資訊
+                // Point 6 & 7: 詳細網站URL除錯資訊
                 'website_url_summary' => [
                     'original_page_url' => $pageUrl,
                     'extracted_domain' => $websiteDomain,
+                    'extraction_method' => $extractionMethod,
                     'request_host' => $request->getHost(),
                     'customer_website_source' => $existingCustomer->website_source,
-                    'url_extraction_successful' => !empty($pageUrl) && !empty($websiteDomain),
-                    'used_fallback_domain' => $websiteDomain === $request->getHost() || $websiteDomain === 'default'
+                    'url_extraction_successful' => !empty($websiteDomain) && $extractionMethod !== 'fallback_host',
+                    'used_fallback_domain' => $extractionMethod === 'fallback_host',
+                    'used_user_agent_extraction' => $extractionMethod === 'from_user_agent'
                 ],
                 'ip_tracking_info' => [
                     'client_ip' => $remoteIp,
@@ -870,6 +899,38 @@ class WebhookController extends Controller
         ]);
 
         return $mappedData;
+    }
+
+    /**
+     * Point 7: 從User-Agent提取網站域名
+     *
+     * WordPress User-Agent格式: "WordPress/{version}; {url}"
+     * 例如: "WordPress/6.8.2; https://mrmoney.com.tw"
+     */
+    protected function extractDomainFromUserAgent(string $userAgent): ?string
+    {
+        // 檢查是否為WordPress User-Agent格式
+        if (!str_contains($userAgent, 'WordPress/')) {
+            return null;
+        }
+
+        // 嘗試匹配 WordPress/{version}; {url} 格式
+        if (preg_match('/WordPress\/[^;]+;\s*(.+)$/', $userAgent, $matches)) {
+            $url = trim($matches[1]);
+
+            // 如果URL不包含協議，添加https://
+            if (!str_starts_with($url, 'http://') && !str_starts_with($url, 'https://')) {
+                $url = 'https://' . $url;
+            }
+
+            // 使用parse_url提取域名
+            $parsed = parse_url($url);
+            if ($parsed && isset($parsed['host'])) {
+                return $parsed['host'];
+            }
+        }
+
+        return null;
     }
 }
 
