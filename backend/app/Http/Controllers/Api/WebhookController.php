@@ -643,7 +643,7 @@ class WebhookController extends Controller
                 'customer_id' => $existingCustomer->id,
                 'assigned_to' => $existingCustomer->assigned_to, // 若客戶已有承辦則沿用，否則為 null
                 'channel' => 'wp_form',
-                'source' => $pageUrl,
+                'source' => "https://{$websiteDomain}/",
                 'name' => $name,
                 'phone' => $phone,
                 'email' => $email,
