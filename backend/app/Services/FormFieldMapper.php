@@ -22,13 +22,39 @@ class FormFieldMapper
      */
     public function mapFields(string $websiteDomain, array $rawFormData): array
     {
-        // 1. 查找網站記錄
-        $website = Website::where('domain', $websiteDomain)->first();
-        
+        // Point 7: 詳細記錄網站資料庫查詢過程，協助生產環境除錯
+        Log::channel('wp')->info('FormFieldMapper - 開始網站資料庫查詢', [
+            'website_domain' => $websiteDomain,
+            'lookup_query' => "SELECT * FROM websites WHERE domain = '{$websiteDomain}'",
+            'raw_form_data_keys' => array_keys($rawFormData)
+        ]);
+
+        // 1. 查找網站記錄 - Point 7: 使用增強的域名查詢scope
+        $website = Website::forDomain($websiteDomain)->first();
+
         if (!$website) {
+            // Point 7: 加強網站未找到的除錯日誌
+            Log::channel('wp')->warning('FormFieldMapper - 網站記錄未找到，使用預設對應', [
+                'website_domain' => $websiteDomain,
+                'searched_domain' => $websiteDomain,
+                'fallback_method' => 'default_mapping',
+                'reason' => '資料庫中無對應網站記錄',
+                'suggestion' => '請檢查 websites 表中是否存在該域名記錄'
+            ]);
+
             Log::warning("Point61 - 未找到網站記錄: {$websiteDomain}，使用預設對應");
             return $this->useDefaultMapping($rawFormData);
         }
+
+        // Point 7: 記錄找到的網站資料
+        Log::channel('wp')->info('FormFieldMapper - 網站記錄查詢成功', [
+            'website_domain' => $websiteDomain,
+            'website_id' => $website->id,
+            'website_name' => $website->name,
+            'website_status' => $website->status,
+            'website_type' => $website->type,
+            'found_in_database' => true
+        ]);
 
         // 2. 取得該網站的欄位對應設定
         $fieldMappings = WebsiteFieldMapping::active()
@@ -36,7 +62,26 @@ class FormFieldMapper
             ->get()
             ->keyBy('wp_field_name');
 
+        // Point 7: 記錄欄位對應設定查詢結果
+        Log::channel('wp')->info('FormFieldMapper - 欄位對應設定查詢', [
+            'website_domain' => $websiteDomain,
+            'website_id' => $website->id,
+            'website_name' => $website->name,
+            'field_mappings_count' => $fieldMappings->count(),
+            'field_mappings_empty' => $fieldMappings->isEmpty(),
+            'available_mappings' => $fieldMappings->keys()->toArray()
+        ]);
+
         if ($fieldMappings->isEmpty()) {
+            Log::channel('wp')->warning('FormFieldMapper - 欄位對應設定為空，使用預設對應', [
+                'website_domain' => $websiteDomain,
+                'website_id' => $website->id,
+                'website_name' => $website->name,
+                'fallback_method' => 'default_mapping',
+                'reason' => '網站存在但未設定欄位對應',
+                'suggestion' => '請在網站管理中為此網站配置欄位對應'
+            ]);
+
             Log::info("Point61 - 網站 {$websiteDomain} 未設定欄位對應，使用預設對應");
             return $this->useDefaultMapping($rawFormData);
         }
@@ -210,15 +255,28 @@ class FormFieldMapper
 
     /**
      * 從頁面URL提取網站域名
+     * Point 7: 增強域名提取除錯日誌
      */
     public function extractDomainFromUrl(string $url): ?string
     {
         if (empty($url)) {
+            Log::channel('wp')->debug('FormFieldMapper - URL為空，無法提取域名', [
+                'input_url' => $url
+            ]);
             return null;
         }
 
         $parsedUrl = parse_url($url);
-        return $parsedUrl['host'] ?? null;
+        $extractedDomain = $parsedUrl['host'] ?? null;
+
+        Log::channel('wp')->info('FormFieldMapper - 域名提取結果', [
+            'input_url' => $url,
+            'parsed_url' => $parsedUrl,
+            'extracted_domain' => $extractedDomain,
+            'parse_successful' => !empty($extractedDomain)
+        ]);
+
+        return $extractedDomain;
     }
 
     /**
@@ -231,41 +289,84 @@ class FormFieldMapper
 
     /**
      * 驗證欄位對應設定
+     * Point 7: 增強欄位對應驗證除錯日誌
      */
     public function validateMapping(int $websiteId): array
     {
+        Log::channel('wp')->info('FormFieldMapper - 開始驗證欄位對應設定', [
+            'website_id' => $websiteId
+        ]);
+
         $errors = [];
-        
+
         // 檢查是否有重複的系統欄位對應
         $systemFields = WebsiteFieldMapping::active()
             ->forWebsite($websiteId)
             ->pluck('system_field')
             ->toArray();
-            
+
+        Log::channel('wp')->debug('FormFieldMapper - 查詢到的系統欄位', [
+            'website_id' => $websiteId,
+            'system_fields' => $systemFields,
+            'system_fields_count' => count($systemFields)
+        ]);
+
         $duplicates = array_diff_assoc($systemFields, array_unique($systemFields));
-        
+
         if (!empty($duplicates)) {
-            $errors[] = "系統欄位重複對應: " . implode(', ', array_unique($duplicates));
+            $duplicateError = "系統欄位重複對應: " . implode(', ', array_unique($duplicates));
+            $errors[] = $duplicateError;
+
+            Log::channel('wp')->warning('FormFieldMapper - 發現重複的系統欄位對應', [
+                'website_id' => $websiteId,
+                'duplicates' => array_unique($duplicates),
+                'error_message' => $duplicateError
+            ]);
         }
 
         // 檢查必填欄位是否已設定
         $requiredFields = ['name', 'phone']; // 基本必填欄位
         $mappedSystemFields = array_unique($systemFields);
-        
+
+        Log::channel('wp')->debug('FormFieldMapper - 檢查必填欄位對應', [
+            'website_id' => $websiteId,
+            'required_fields' => $requiredFields,
+            'mapped_system_fields' => $mappedSystemFields
+        ]);
+
         foreach ($requiredFields as $field) {
             if (!in_array($field, $mappedSystemFields)) {
-                $errors[] = "缺少必填欄位對應: {$field}";
+                $missingError = "缺少必填欄位對應: {$field}";
+                $errors[] = $missingError;
+
+                Log::channel('wp')->warning('FormFieldMapper - 缺少必填欄位對應', [
+                    'website_id' => $websiteId,
+                    'missing_field' => $field,
+                    'error_message' => $missingError
+                ]);
             }
         }
+
+        Log::channel('wp')->info('FormFieldMapper - 欄位對應驗證完成', [
+            'website_id' => $websiteId,
+            'validation_errors' => $errors,
+            'error_count' => count($errors),
+            'validation_passed' => empty($errors)
+        ]);
 
         return $errors;
     }
 
     /**
      * 為網站建立預設欄位對應
+     * Point 7: 增強預設對應建立除錯日誌
      */
     public function createDefaultMappings(int $websiteId): void
     {
+        Log::channel('wp')->info('FormFieldMapper - 開始為網站建立預設欄位對應', [
+            'website_id' => $websiteId
+        ]);
+
         $defaultMappings = [
             ['system_field' => 'name', 'wp_field_name' => '姓名'],
             ['system_field' => 'phone', 'wp_field_name' => '手機號碼'],
@@ -279,19 +380,41 @@ class FormFieldMapper
             ['system_field' => 'page_url', 'wp_field_name' => '頁面 URL'],
         ];
 
+        Log::channel('wp')->debug('FormFieldMapper - 預設對應清單', [
+            'website_id' => $websiteId,
+            'default_mappings' => $defaultMappings,
+            'mapping_count' => count($defaultMappings)
+        ]);
+
+        $createdMappings = [];
         foreach ($defaultMappings as $index => $mapping) {
             $systemFields = WebsiteFieldMapping::getSystemFields();
             $systemFieldInfo = $systemFields[$mapping['system_field']] ?? [];
 
-            WebsiteFieldMapping::create(array_merge($mapping, [
+            $mappingData = array_merge($mapping, [
                 'website_id' => $websiteId,
                 'display_name' => $systemFieldInfo['label'] ?? $mapping['wp_field_name'],
                 'field_type' => 'text', // Point 63: 使用預設值
                 'is_required' => false, // Point 63: 使用預設值
                 'sort_order' => $index * 10,
                 'is_active' => true,
-            ]));
+            ]);
+
+            Log::channel('wp')->debug('FormFieldMapper - 建立欄位對應', [
+                'website_id' => $websiteId,
+                'mapping_index' => $index,
+                'mapping_data' => $mappingData
+            ]);
+
+            $createdMapping = WebsiteFieldMapping::create($mappingData);
+            $createdMappings[] = $createdMapping->id;
         }
+
+        Log::channel('wp')->info('FormFieldMapper - 預設欄位對應建立完成', [
+            'website_id' => $websiteId,
+            'created_mapping_ids' => $createdMappings,
+            'created_count' => count($createdMappings)
+        ]);
 
         Log::info("Point61 - 為網站 {$websiteId} 建立預設欄位對應");
     }

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Point 40: Website Model for WordPress site management
@@ -126,6 +127,24 @@ class Website extends Model
     public function scopeWebhookEnabled($query)
     {
         return $query->where('webhook_enabled', true);
+    }
+
+    /**
+     * Scope: Find website by domain
+     * Point 7: 增強網站域名查詢除錯日誌
+     */
+    public function scopeForDomain($query, $domain)
+    {
+        Log::channel('wp')->info('Website - ForDomain scope查詢', [
+            'scope' => 'forDomain',
+            'requested_domain' => $domain,
+            'condition' => "domain = '{$domain}'",
+            'model' => 'Website',
+            'is_mrmoney' => $domain === 'mrmoney.com.tw',
+            'lookup_type' => 'website_domain_lookup'
+        ]);
+
+        return $query->where('domain', $domain);
     }
 
     /**

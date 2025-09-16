@@ -208,8 +208,26 @@ class WebhookController extends Controller
                 'user_agent_from_form' => $rawFormData['使用者代理'] ?? $rawFormData['user_agent'] ?? null
             ]);
 
+            // Point 7: 三階段域名提取策略除錯日誌
+            Log::channel('wp')->info('WordPress Webhook - 開始三階段域名提取策略', [
+                'execution_id' => $executionLog->execution_id,
+                'page_url_available' => !empty($pageUrl),
+                'page_url_value' => $pageUrl,
+                'user_agent_available' => !empty($userAgent),
+                'user_agent_value' => $userAgent,
+                'request_host' => $request->getHost(),
+                'is_mrmoney_request' => str_contains($userAgent ?? '', 'mrmoney.com.tw'),
+                'strategy' => 'three_tier_domain_extraction'
+            ]);
+
             // 方法1: 優先從表單的頁面URL提取域名
             if ($pageUrl) {
+                Log::channel('wp')->info('WordPress Webhook - 嘗試方法1: 頁面URL域名提取', [
+                    'execution_id' => $executionLog->execution_id,
+                    'page_url' => $pageUrl,
+                    'method' => 'page_url_extraction'
+                ]);
+
                 $websiteDomain = $this->fieldMapper->extractDomainFromUrl($pageUrl);
                 if ($websiteDomain) {
                     $extractionMethod = 'from_page_url';
@@ -219,13 +237,35 @@ class WebhookController extends Controller
                         'execution_id' => $executionLog->execution_id,
                         'original_page_url' => $pageUrl,
                         'extracted_domain' => $websiteDomain,
-                        'extraction_method' => $extractionMethod
+                        'extraction_method' => $extractionMethod,
+                        'is_mrmoney' => $websiteDomain === 'mrmoney.com.tw',
+                        'method_1_success' => true
+                    ]);
+                } else {
+                    Log::channel('wp')->warning('WordPress Webhook - 方法1失敗: 無法從頁面URL提取域名', [
+                        'execution_id' => $executionLog->execution_id,
+                        'page_url' => $pageUrl,
+                        'extraction_failed' => true,
+                        'fallback_to_method_2' => true
                     ]);
                 }
+            } else {
+                Log::channel('wp')->info('WordPress Webhook - 跳過方法1: 無頁面URL', [
+                    'execution_id' => $executionLog->execution_id,
+                    'page_url' => null,
+                    'skip_method_1' => true
+                ]);
             }
 
             // 方法2: Point 7 - 如果頁面URL無法提取域名，嘗試從User-Agent提取
             if (!$websiteDomain && $userAgent) {
+                Log::channel('wp')->info('WordPress Webhook - 嘗試方法2: User-Agent域名提取', [
+                    'execution_id' => $executionLog->execution_id,
+                    'user_agent' => $userAgent,
+                    'method' => 'user_agent_extraction',
+                    'contains_mrmoney' => str_contains($userAgent, 'mrmoney.com.tw')
+                ]);
+
                 $websiteDomain = $this->extractDomainFromUserAgent($userAgent);
                 if ($websiteDomain) {
                     $extractionMethod = 'from_user_agent';
@@ -235,13 +275,37 @@ class WebhookController extends Controller
                         'execution_id' => $executionLog->execution_id,
                         'user_agent' => $userAgent,
                         'extracted_domain' => $websiteDomain,
-                        'extraction_method' => $extractionMethod
+                        'extraction_method' => $extractionMethod,
+                        'is_mrmoney' => $websiteDomain === 'mrmoney.com.tw',
+                        'method_2_success' => true
+                    ]);
+                } else {
+                    Log::channel('wp')->warning('WordPress Webhook - 方法2失敗: 無法從User-Agent提取域名', [
+                        'execution_id' => $executionLog->execution_id,
+                        'user_agent' => $userAgent,
+                        'extraction_failed' => true,
+                        'fallback_to_method_3' => true
                     ]);
                 }
+            } else {
+                Log::channel('wp')->info('WordPress Webhook - 跳過方法2', [
+                    'execution_id' => $executionLog->execution_id,
+                    'domain_already_found' => !empty($websiteDomain),
+                    'user_agent_available' => !empty($userAgent),
+                    'current_domain' => $websiteDomain,
+                    'skip_method_2' => true
+                ]);
             }
 
             // 方法3: 最後回退到請求主機
             if (!$websiteDomain) {
+                Log::channel('wp')->warning('WordPress Webhook - 進入方法3: 使用回退域名', [
+                    'execution_id' => $executionLog->execution_id,
+                    'method_1_failed' => true,
+                    'method_2_failed' => true,
+                    'using_fallback' => true
+                ]);
+
                 $fallbackDomain = $request->getHost() ?: 'default';
                 $extractionMethod = 'fallback_host';
 
@@ -255,11 +319,23 @@ class WebhookController extends Controller
                     'user_agent_value' => $userAgent,
                     'fallback_domain' => $fallbackDomain,
                     'extraction_method' => $extractionMethod,
-                    'all_form_keys' => array_keys($rawFormData)
+                    'all_form_keys' => array_keys($rawFormData),
+                    'is_mrmoney_ua' => str_contains($userAgent ?? '', 'mrmoney.com.tw'),
+                    'method_3_fallback' => true
                 ]);
 
                 $websiteDomain = $fallbackDomain;
             }
+
+            // Point 7: 最終域名提取結果總結
+            Log::channel('wp')->info('WordPress Webhook - 域名提取策略完成', [
+                'execution_id' => $executionLog->execution_id,
+                'final_domain' => $websiteDomain,
+                'extraction_method' => $extractionMethod,
+                'is_mrmoney_domain' => $websiteDomain === 'mrmoney.com.tw',
+                'strategy_completed' => true,
+                'next_step' => 'field_mapping'
+            ]);
 
             // 3) 使用FormFieldMapper進行欄位對應
             $executionLog->addExecutionStep('field_mapping_start', [
@@ -645,17 +721,17 @@ class WebhookController extends Controller
 
             // Point 5: 記錄所有執行的 SQL 查詢
             $queries = DB::getQueryLog();
-            Log::channel('wp')->info('WordPress Webhook - SQL 查詢記錄', [
-                'execution_id' => $executionLog->execution_id,
-                'total_queries' => count($queries),
-                'queries' => array_map(function($query) {
-                    return [
-                        'sql' => $query['query'],
-                        'bindings' => $query['bindings'],
-                        'time' => $query['time'] . 'ms'
-                    ];
-                }, $queries)
-            ]);
+            // Log::channel('wp')->info('WordPress Webhook - SQL 查詢記錄', [
+            //     'execution_id' => $executionLog->execution_id,
+            //     'total_queries' => count($queries),
+            //     'queries' => array_map(function($query) {
+            //         return [
+            //             'sql' => $query['query'],
+            //             'bindings' => $query['bindings'],
+            //             'time' => $query['time'] . 'ms'
+            //         ];
+            //     }, $queries)
+            // ]);
 
             // Point 1 & Point 6: 記錄成功處理到wp.log，包含詳細網站URL資訊
             Log::channel('wp')->info('WordPress Webhook - 處理成功', [
@@ -903,14 +979,25 @@ class WebhookController extends Controller
 
     /**
      * Point 7: 從User-Agent提取網站域名
+     * Point 7: 增強mrmoney.com.tw域名提取除錯日誌
      *
      * WordPress User-Agent格式: "WordPress/{version}; {url}"
      * 例如: "WordPress/6.8.2; https://mrmoney.com.tw"
      */
     protected function extractDomainFromUserAgent(string $userAgent): ?string
     {
+        Log::channel('wp')->info('WebhookController - 開始User-Agent域名提取', [
+            'user_agent' => $userAgent,
+            'contains_wordpress' => str_contains($userAgent, 'WordPress/'),
+            'method' => 'extractDomainFromUserAgent'
+        ]);
+
         // 檢查是否為WordPress User-Agent格式
         if (!str_contains($userAgent, 'WordPress/')) {
+            Log::channel('wp')->warning('WebhookController - User-Agent不包含WordPress格式', [
+                'user_agent' => $userAgent,
+                'expected_format' => 'WordPress/{version}; {url}'
+            ]);
             return null;
         }
 
@@ -918,18 +1005,58 @@ class WebhookController extends Controller
         if (preg_match('/WordPress\/[^;]+;\s*(.+)$/', $userAgent, $matches)) {
             $url = trim($matches[1]);
 
+            Log::channel('wp')->info('WebhookController - 成功匹配WordPress格式', [
+                'user_agent' => $userAgent,
+                'extracted_url' => $url,
+                'regex_matches' => $matches
+            ]);
+
             // 如果URL不包含協議，添加https://
             if (!str_starts_with($url, 'http://') && !str_starts_with($url, 'https://')) {
                 $url = 'https://' . $url;
+                Log::channel('wp')->debug('WebhookController - 自動添加https協議', [
+                    'original_url' => trim($matches[1]),
+                    'modified_url' => $url
+                ]);
             }
 
             // 使用parse_url提取域名
             $parsed = parse_url($url);
+            Log::channel('wp')->info('WebhookController - URL解析結果', [
+                'url' => $url,
+                'parsed_result' => $parsed,
+                'has_host' => isset($parsed['host']),
+                'extracted_host' => $parsed['host'] ?? null
+            ]);
+
             if ($parsed && isset($parsed['host'])) {
-                return $parsed['host'];
+                $extractedDomain = $parsed['host'];
+                Log::channel('wp')->info('WebhookController - User-Agent域名提取成功', [
+                    'user_agent' => $userAgent,
+                    'extracted_domain' => $extractedDomain,
+                    'is_mrmoney' => $extractedDomain === 'mrmoney.com.tw',
+                    'extraction_successful' => true
+                ]);
+                return $extractedDomain;
+            } else {
+                Log::channel('wp')->warning('WebhookController - URL解析失敗', [
+                    'url' => $url,
+                    'parsed_result' => $parsed,
+                    'parse_url_error' => 'parse_url failed or no host found'
+                ]);
             }
+        } else {
+            Log::channel('wp')->warning('WebhookController - WordPress格式匹配失敗', [
+                'user_agent' => $userAgent,
+                'regex_pattern' => '/WordPress\/[^;]+;\s*(.+)$/',
+                'match_failed' => true
+            ]);
         }
 
+        Log::channel('wp')->warning('WebhookController - User-Agent域名提取失敗', [
+            'user_agent' => $userAgent,
+            'extraction_failed' => true
+        ]);
         return null;
     }
 }

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Point 61: WordPress網站表單欄位對應模型
@@ -72,25 +73,49 @@ class WebsiteFieldMapping extends Model
 
     /**
      * 範圍查詢：只取得啟用的對應
+     * Point 7: 增強網站管理資料查詢日誌
      */
     public function scopeActive($query)
     {
+        Log::channel('wp')->debug('WebsiteFieldMapping - Active scope查詢', [
+            'scope' => 'active',
+            'condition' => 'is_active = true',
+            'model' => 'WebsiteFieldMapping'
+        ]);
+
         return $query->where('is_active', true);
     }
 
     /**
      * 範圍查詢：依網站ID查詢
+     * Point 7: 增強網站管理資料查詢日誌
      */
     public function scopeForWebsite($query, $websiteId)
     {
+        Log::channel('wp')->info('WebsiteFieldMapping - ForWebsite scope查詢', [
+            'scope' => 'forWebsite',
+            'website_id' => $websiteId,
+            'condition' => "website_id = {$websiteId}",
+            'model' => 'WebsiteFieldMapping',
+            'is_mrmoney_debug' => true
+        ]);
+
         return $query->where('website_id', $websiteId);
     }
 
     /**
      * 範圍查詢：依系統欄位查詢
+     * Point 7: 增強網站管理資料查詢日誌
      */
     public function scopeForSystemField($query, $systemField)
     {
+        Log::channel('wp')->debug('WebsiteFieldMapping - ForSystemField scope查詢', [
+            'scope' => 'forSystemField',
+            'system_field' => $systemField,
+            'condition' => "system_field = '{$systemField}'",
+            'model' => 'WebsiteFieldMapping'
+        ]);
+
         return $query->where('system_field', $systemField);
     }
 
