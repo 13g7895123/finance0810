@@ -189,15 +189,49 @@ class WebhookController extends Controller
             // 2) 從頁面URL提取網站域名
             $pageUrl = $rawFormData['頁面 URL'] ?? $rawFormData['page_url'] ?? null;
             $websiteDomain = null;
-            
+
+            // Point 6: 詳細記錄網站URL提取過程，協助除錯
+            Log::channel('wp')->info('WordPress Webhook - 網站URL提取開始', [
+                'execution_id' => $executionLog->execution_id,
+                'available_url_fields' => [
+                    '頁面 URL' => $rawFormData['頁面 URL'] ?? null,
+                    'page_url' => $rawFormData['page_url'] ?? null,
+                    'url' => $rawFormData['url'] ?? null,
+                    '頁面_URL' => $rawFormData['頁面_URL'] ?? null,
+                ],
+                'selected_page_url' => $pageUrl,
+                'request_host' => $request->getHost(),
+                'request_url' => $request->fullUrl(),
+                'user_agent_from_form' => $rawFormData['使用者代理'] ?? $rawFormData['user_agent'] ?? null
+            ]);
+
             if ($pageUrl) {
                 $websiteDomain = $this->fieldMapper->extractDomainFromUrl($pageUrl);
+
+                // Point 6: 記錄域名提取結果
+                Log::channel('wp')->info('WordPress Webhook - 域名提取成功', [
+                    'execution_id' => $executionLog->execution_id,
+                    'original_page_url' => $pageUrl,
+                    'extracted_domain' => $websiteDomain,
+                    'extraction_method' => 'from_page_url'
+                ]);
             }
-            
+
             if (!$websiteDomain) {
-                Log::warning('Point61 - 無法從表單資料中確定網站域名', ['raw_data' => $rawFormData]);
-                // 使用預設域名或從 HTTP_HOST 取得
-                $websiteDomain = $request->getHost() ?: 'default';
+                $fallbackDomain = $request->getHost() ?: 'default';
+
+                // Point 6: 記錄回退域名的詳細資訊
+                Log::channel('wp')->warning('WordPress Webhook - 使用回退域名', [
+                    'execution_id' => $executionLog->execution_id,
+                    'reason' => '無法從表單資料中提取網站域名',
+                    'page_url_found' => !empty($pageUrl),
+                    'page_url_value' => $pageUrl,
+                    'fallback_domain' => $fallbackDomain,
+                    'extraction_method' => 'fallback_host',
+                    'all_form_keys' => array_keys($rawFormData)
+                ]);
+
+                $websiteDomain = $fallbackDomain;
             }
 
             // 3) 使用FormFieldMapper進行欄位對應
@@ -401,6 +435,26 @@ class WebhookController extends Controller
                     'customer_email' => $existingCustomer->email
                 ]);
 
+                // Point 6: 詳細記錄客戶創建時的網站資訊
+                Log::channel('wp')->info('WordPress Webhook - 客戶建立完成，網站資訊記錄', [
+                    'execution_id' => $executionLog->execution_id,
+                    'customer_id' => $existingCustomer->id,
+                    'customer_name' => $existingCustomer->name,
+                    'website_info' => [
+                        'original_page_url' => $pageUrl,
+                        'extracted_website_domain' => $websiteDomain,
+                        'customer_website_source' => $existingCustomer->website_source,
+                        'stored_page_url' => $existingCustomer->source_data['page_url'] ?? null,
+                        'stored_website_domain' => $existingCustomer->source_data['website_domain'] ?? null,
+                        'submit_datetime' => $existingCustomer->source_data['submit_datetime'] ?? null,
+                    ],
+                    'ip_info' => [
+                        'remote_ip' => $remoteIp,
+                        'user_agent' => $userAgent,
+                        'request_host' => $request->getHost(),
+                    ]
+                ]);
+
                 // 建立活動記錄：created
                 CustomerActivity::create([
                     'customer_id' => $existingCustomer->id,
@@ -576,7 +630,7 @@ class WebhookController extends Controller
                 }, $queries)
             ]);
 
-            // Point 1: 記錄成功處理到wp.log
+            // Point 1 & Point 6: 記錄成功處理到wp.log，包含詳細網站URL資訊
             Log::channel('wp')->info('WordPress Webhook - 處理成功', [
                 'execution_id' => $executionLog->execution_id,
                 'timestamp' => now()->format('Y-m-d H:i:s'),
@@ -587,7 +641,22 @@ class WebhookController extends Controller
                 'website_domain' => $websiteDomain,
                 'is_suspected_blacklist' => $isSuspectedBlacklist,
                 'processing_duration' => now()->diffInSeconds($executionLog->started_at) . 's',
-                'total_sql_queries' => count($queries)
+                'total_sql_queries' => count($queries),
+                // Point 6: 詳細網站URL除錯資訊
+                'website_url_summary' => [
+                    'original_page_url' => $pageUrl,
+                    'extracted_domain' => $websiteDomain,
+                    'request_host' => $request->getHost(),
+                    'customer_website_source' => $existingCustomer->website_source,
+                    'url_extraction_successful' => !empty($pageUrl) && !empty($websiteDomain),
+                    'used_fallback_domain' => $websiteDomain === $request->getHost() || $websiteDomain === 'default'
+                ],
+                'ip_tracking_info' => [
+                    'client_ip' => $remoteIp,
+                    'forwarded_ip' => $request->header('X-Forwarded-For'),
+                    'real_ip' => $request->header('X-Real-IP'),
+                    'user_agent' => substr($userAgent, 0, 100) // 限制長度避免日誌過長
+                ]
             ]);
 
             // Point 64: 標記執行完成
@@ -604,7 +673,7 @@ class WebhookController extends Controller
                 'lead_id' => $lead->id,
                 'suspected_blacklist' => $isSuspectedBlacklist,
                 'execution_id' => $executionLog->execution_id, // Point 64: 回傳執行ID供除錯用
-            ], 201);
+            ], 200); // Point 6: 修改為200狀態碼
         } catch (\Throwable $e) {
             DB::rollBack();
             $executionLog->addExecutionStep('database_transaction_rollback', [
