@@ -136,10 +136,55 @@ class WebhookController extends Controller
             'field_count' => count($request->all())
         ]);
 
+        // Point 5: 檢測並處理結構化表單資料格式
+        $rawFormData = $request->all();
+
+        // 處理 JSON 請求
+        if (empty($rawFormData) && $request->isJson()) {
+            $jsonContent = $request->getContent();
+            $decodedData = json_decode($jsonContent, true);
+
+            if ($decodedData !== null) {
+                $rawFormData = $decodedData;
+                Log::channel('wp')->info('WordPress Webhook - 檢測到JSON格式', [
+                    'execution_id' => $executionLog->execution_id,
+                    'json_data_keys' => array_keys($rawFormData),
+                    'json_valid' => true
+                ]);
+            } else {
+                Log::channel('wp')->error('WordPress Webhook - JSON解析失敗', [
+                    'execution_id' => $executionLog->execution_id,
+                    'json_error' => json_last_error_msg(),
+                    'raw_content_preview' => substr($jsonContent, 0, 200)
+                ]);
+            }
+        }
+
+        $isStructuredFormat = $this->isStructuredFormat($rawFormData);
+
+        Log::channel('wp')->info('WordPress Webhook - 資料格式檢測', [
+            'execution_id' => $executionLog->execution_id,
+            'is_structured_format' => $isStructuredFormat,
+            'has_fields_key' => isset($rawFormData['fields']),
+            'has_form_key' => isset($rawFormData['form']),
+            'data_keys' => array_keys($rawFormData),
+            'is_json_request' => $request->isJson()
+        ]);
+
+        // 如果是結構化格式，先進行資料轉換
+        if ($isStructuredFormat) {
+            $rawFormData = $this->extractStructuredData($rawFormData, $executionLog);
+            Log::channel('wp')->info('WordPress Webhook - 結構化資料轉換完成', [
+                'execution_id' => $executionLog->execution_id,
+                'extracted_fields' => array_keys($rawFormData),
+                'extracted_data' => $rawFormData
+            ]);
+        }
+
 
         try {
-            // 1) 取出原始表單資料
-            $rawFormData = $request->all();
+            // 1) 取出表單資料（已經過結構化格式處理）
+            // $rawFormData 已在上面處理過
 
             // 2) 從頁面URL提取網站域名
             $pageUrl = $rawFormData['頁面 URL'] ?? $rawFormData['page_url'] ?? null;
@@ -292,9 +337,12 @@ class WebhookController extends Controller
             'identifier_count' => count($identifierValues)
         ]);
 
+        // Point 5: 啟用 SQL 查詢日誌記錄
+        DB::enableQueryLog();
+
         DB::beginTransaction();
         $executionLog->addExecutionStep('database_transaction_start');
-        
+
         try {
             // 找出是否已有客戶（任一識別符合即可）
             $existingCustomer = null;
@@ -514,6 +562,20 @@ class WebhookController extends Controller
             DB::commit();
             $executionLog->addExecutionStep('database_transaction_committed');
 
+            // Point 5: 記錄所有執行的 SQL 查詢
+            $queries = DB::getQueryLog();
+            Log::channel('wp')->info('WordPress Webhook - SQL 查詢記錄', [
+                'execution_id' => $executionLog->execution_id,
+                'total_queries' => count($queries),
+                'queries' => array_map(function($query) {
+                    return [
+                        'sql' => $query['query'],
+                        'bindings' => $query['bindings'],
+                        'time' => $query['time'] . 'ms'
+                    ];
+                }, $queries)
+            ]);
+
             // Point 1: 記錄成功處理到wp.log
             Log::channel('wp')->info('WordPress Webhook - 處理成功', [
                 'execution_id' => $executionLog->execution_id,
@@ -524,7 +586,8 @@ class WebhookController extends Controller
                 'customer_phone' => $existingCustomer->phone,
                 'website_domain' => $websiteDomain,
                 'is_suspected_blacklist' => $isSuspectedBlacklist,
-                'processing_duration' => now()->diffInSeconds($executionLog->started_at) . 's'
+                'processing_duration' => now()->diffInSeconds($executionLog->started_at) . 's',
+                'total_sql_queries' => count($queries)
             ]);
 
             // Point 64: 標記執行完成
@@ -548,6 +611,20 @@ class WebhookController extends Controller
                 'error' => $e->getMessage()
             ], 'failed');
 
+            // Point 5: 記錄錯誤時的 SQL 查詢
+            $queries = DB::getQueryLog();
+            Log::channel('wp')->error('WordPress Webhook - 錯誤時的 SQL 查詢記錄', [
+                'execution_id' => $executionLog->execution_id,
+                'total_queries' => count($queries),
+                'queries' => array_map(function($query) {
+                    return [
+                        'sql' => $query['query'],
+                        'bindings' => $query['bindings'],
+                        'time' => $query['time'] . 'ms'
+                    ];
+                }, $queries)
+            ]);
+
             // Point 1: 記錄處理錯誤到wp.log
             Log::channel('wp')->error('WordPress Webhook - 處理錯誤', [
                 'execution_id' => $executionLog->execution_id,
@@ -558,7 +635,8 @@ class WebhookController extends Controller
                 'error_line' => $e->getLine(),
                 'request_data' => $request->all(),
                 'ip_address' => $request->ip(),
-                'user_agent' => $request->userAgent()
+                'user_agent' => $request->userAgent(),
+                'total_sql_queries' => count($queries)
             ]);
 
             // Point 64: 標記執行失敗
@@ -594,6 +672,77 @@ class WebhookController extends Controller
                 'error' => $outerException->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Point 5: 檢測是否為結構化表單資料格式
+     */
+    protected function isStructuredFormat(array $data): bool
+    {
+        // 檢查是否包含 fields 和 form 鍵，這是結構化格式的標誌
+        return isset($data['fields']) && isset($data['form']) && is_array($data['fields']);
+    }
+
+    /**
+     * Point 5: 從結構化資料中提取表單欄位
+     */
+    protected function extractStructuredData(array $structuredData, $executionLog): array
+    {
+        $extractedData = [];
+        $fields = $structuredData['fields'] ?? [];
+        $meta = $structuredData['meta'] ?? [];
+        $form = $structuredData['form'] ?? [];
+
+        $executionLog->addExecutionStep('structured_data_extraction_start', [
+            'fields_count' => count($fields),
+            'meta_count' => count($meta),
+            'form_info' => $form
+        ]);
+
+        // 從 fields 中提取資料，使用 title 作為鍵名
+        foreach ($fields as $fieldId => $fieldData) {
+            if (isset($fieldData['title']) && isset($fieldData['value'])) {
+                $title = $fieldData['title'];
+                $value = $fieldData['value'];
+
+                // 如果值為 null，跳過
+                if ($value !== null) {
+                    $extractedData[$title] = $value;
+                }
+
+                Log::channel('wp')->debug('WordPress Webhook - 欄位提取', [
+                    'execution_id' => $executionLog->execution_id,
+                    'field_id' => $fieldId,
+                    'title' => $title,
+                    'value' => $value,
+                    'type' => $fieldData['type'] ?? 'unknown'
+                ]);
+            }
+        }
+
+        // 處理 meta 資訊
+        foreach ($meta as $metaKey => $metaData) {
+            if (isset($metaData['title']) && isset($metaData['value'])) {
+                $title = $metaData['title'];
+                $value = $metaData['value'];
+                $extractedData[$title] = $value;
+            }
+        }
+
+        // 加入表單資訊作為特殊欄位
+        if (!empty($form['name'])) {
+            $extractedData['表單名稱'] = $form['name'];
+        }
+        if (!empty($form['id'])) {
+            $extractedData['表單ID'] = $form['id'];
+        }
+
+        $executionLog->addExecutionStep('structured_data_extraction_completed', [
+            'extracted_fields_count' => count($extractedData),
+            'extracted_fields' => array_keys($extractedData)
+        ]);
+
+        return $extractedData;
     }
 
     /**

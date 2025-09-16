@@ -85,10 +85,12 @@ class FormFieldMapper
 
     /**
      * 使用預設的硬編碼對應（向後兼容）
+     * Point 5: 增強支援結構化表單的 title 欄位對應
      */
     protected function useDefaultMapping(array $rawFormData): array
     {
         $defaultMapping = [
+            // Point 3 格式的對應（原始）
             '姓名' => 'name',
             '手機號碼' => 'phone',
             'Email' => 'email',
@@ -102,6 +104,29 @@ class FormFieldMapper
             '日期' => 'date',
             '時間' => 'time',
             '頁面 URL' => 'page_url',
+            '頁面_URL' => 'page_url',
+
+            // Point 5: 結構化格式的 title 對應
+            'LINE ID' => 'line_id',
+            '手機' => 'phone',
+            '需求金額' => 'capital_need',
+            '諮詢項目' => 'loan_need',
+            '所在區域' => 'region',
+            '可連繫時間' => 'contact_time',
+            'E-mail' => 'email',
+            '遠端 IP' => 'remote_ip',
+            '使用者代理' => 'user_agent',
+            '表單名稱' => 'form_name',
+            '表單ID' => 'form_id',
+
+            // 其他可能的變體
+            '聯絡時間' => 'contact_time',
+            '手機號' => 'phone',
+            '電話' => 'phone',
+            '區域' => 'region',
+            '地址' => 'address',
+            '房屋坪數' => 'property_size',
+            '貸款金額' => 'capital_need',
         ];
 
         $mappedData = [];
@@ -111,13 +136,22 @@ class FormFieldMapper
             if (isset($defaultMapping[$wpFieldName])) {
                 $systemField = $defaultMapping[$wpFieldName];
                 $mappedData[$systemField] = $this->basicTransform($systemField, $value);
+
+                Log::debug("Point5 - 欄位對應成功: {$wpFieldName} -> {$systemField} = " . ($value ?? 'null'));
             } else {
                 $unmappedFields[$wpFieldName] = $value;
+                Log::debug("Point5 - 未對應欄位: {$wpFieldName} = " . ($value ?? 'null'));
             }
         }
 
         $mappedData['_original_payload'] = $rawFormData;
         $mappedData['_unmapped_fields'] = $unmappedFields;
+
+        Log::info("Point5 - 預設欄位對應完成", [
+            'mapped_fields' => array_keys($mappedData),
+            'mapped_count' => count($mappedData) - 2, // 扣除 _original_payload 和 _unmapped_fields
+            'unmapped_count' => count($unmappedFields)
+        ]);
 
         return $mappedData;
     }
