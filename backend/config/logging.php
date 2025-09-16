@@ -140,6 +140,14 @@ return [
             'ignore_exceptions' => false,
         ],
 
+        // WordPress Webhook 專用日誌頻道
+        'wp' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/wp.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+        ],
+
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
         ],

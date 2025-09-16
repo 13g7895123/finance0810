@@ -122,34 +122,20 @@ class WebhookController extends Controller
             'user_agent' => $request->userAgent()
         ]);
 
-        // 記錄接收到的原始資料
-        Log::info('Point64 - WordPress Webhook除錯記錄', [
-            'execution_id' => $executionLog->execution_id,
-            'ip' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'raw_data_keys' => array_keys($request->all()),
-            'raw_data' => $request->all()
-        ]);
-
-        // Point 91: 為 mrmoney.com.tw 網站加入詳細的除錯記錄
-        Log::info('Point 91 - mrmoney.com.tw Webhook 資料記錄', [
+        // Point 1: 記錄完整POST資料到wp.log
+        Log::channel('wp')->info('WordPress Webhook - 接收資料', [
             'execution_id' => $executionLog->execution_id,
             'timestamp' => now()->format('Y-m-d H:i:s'),
-            'source_ip' => $request->ip(),
+            'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
             'request_method' => $request->method(),
             'request_url' => $request->fullUrl(),
-            'all_headers' => $request->headers->all(),
+            'headers' => $request->headers->all(),
             'post_data' => $request->all(),
-            'post_data_count' => count($request->all()),
             'raw_body' => $request->getContent(),
-            'field_summary' => collect($request->all())->map(function($value, $key) {
-                return sprintf('%s: %s (%s)', $key,
-                    is_string($value) ? substr($value, 0, 100) . (strlen($value) > 100 ? '...' : '') : json_encode($value),
-                    gettype($value)
-                );
-            })->toArray()
+            'field_count' => count($request->all())
         ]);
+
 
         try {
             // 1) 取出原始表單資料
@@ -528,6 +514,19 @@ class WebhookController extends Controller
             DB::commit();
             $executionLog->addExecutionStep('database_transaction_committed');
 
+            // Point 1: 記錄成功處理到wp.log
+            Log::channel('wp')->info('WordPress Webhook - 處理成功', [
+                'execution_id' => $executionLog->execution_id,
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+                'customer_id' => $existingCustomer->id,
+                'lead_id' => $lead->id,
+                'customer_name' => $existingCustomer->name,
+                'customer_phone' => $existingCustomer->phone,
+                'website_domain' => $websiteDomain,
+                'is_suspected_blacklist' => $isSuspectedBlacklist,
+                'processing_duration' => now()->diffInSeconds($executionLog->started_at) . 's'
+            ]);
+
             // Point 64: 標記執行完成
             $executionLog->markCompleted([
                 'customer_id' => $existingCustomer->id,
@@ -548,7 +547,20 @@ class WebhookController extends Controller
             $executionLog->addExecutionStep('database_transaction_rollback', [
                 'error' => $e->getMessage()
             ], 'failed');
-            
+
+            // Point 1: 記錄處理錯誤到wp.log
+            Log::channel('wp')->error('WordPress Webhook - 處理錯誤', [
+                'execution_id' => $executionLog->execution_id,
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+                'error_message' => $e->getMessage(),
+                'error_trace' => $e->getTraceAsString(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'request_data' => $request->all(),
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent()
+            ]);
+
             // Point 64: 標記執行失敗
             $executionLog->markFailed($e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
@@ -563,14 +575,18 @@ class WebhookController extends Controller
             ], 500);
         }
         } catch (\Throwable $outerException) {
-            // Point 91: 處理最外層異常（在執行記錄建立之前的錯誤）
-            Log::error('Point 91 - WordPress Webhook 處理失敗 (外層錯誤)', [
-                'error' => $outerException->getMessage(),
-                'trace' => $outerException->getTraceAsString(),
+            // Point 1: 記錄最外層異常到wp.log
+            Log::channel('wp')->error('WordPress Webhook - 處理失敗', [
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+                'error_message' => $outerException->getMessage(),
+                'error_trace' => $outerException->getTraceAsString(),
+                'error_file' => $outerException->getFile(),
+                'error_line' => $outerException->getLine(),
                 'request_data' => $request->all(),
-                'ip' => $request->ip(),
+                'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
-                'timestamp' => now()->format('Y-m-d H:i:s')
+                'request_method' => $request->method(),
+                'request_url' => $request->fullUrl()
             ]);
 
             return response()->json([
