@@ -176,13 +176,14 @@ class LeadController extends Controller
             'notes' => 'sometimes|nullable|string|max:1000',
             'payload' => 'sometimes|array',
             'status' => ['sometimes', Rule::in(LeadStatus::values())],
+            'case_status' => 'sometimes|nullable|in:unassigned,valid_customer,invalid_customer,customer_service,blacklist,approved_disbursed,conditional,declined,follow_up',
         ]);
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
         // 只填入模型存在的欄位
         $data = collect($validator->validated())
-            ->only(['customer_id','assigned_to','channel','email','line_id','ip_address','status'])
+            ->only(['customer_id','assigned_to','channel','email','line_id','ip_address','status','case_status'])
             ->toArray();
         $lead->fill($data);
 
@@ -279,5 +280,48 @@ class LeadController extends Controller
             'success' => false,
             'message' => '無法更新：此不是有效的LINE用戶'
         ], 400);
+    }
+
+    /**
+     * PATCH /api/leads/{lead}/case-status
+     * Update case status for a lead
+     */
+    public function updateCaseStatus(Request $request, CustomerLead $lead)
+    {
+        $user = Auth::user();
+        $isPrivileged = $user && $user->hasAnyRole(['admin', 'executive', 'manager']);
+        if (!$isPrivileged && $lead->assigned_to !== $user->id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'case_status' => 'required|in:unassigned,valid_customer,invalid_customer,customer_service,blacklist,approved_disbursed,conditional,declined,follow_up',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $oldStatus = $lead->case_status;
+        $lead->case_status = $request->case_status;
+        $lead->save();
+
+        return response()->json([
+            'message' => 'Case status updated successfully',
+            'case_status' => $lead->case_status,
+            'case_status_label' => $lead->case_status_label,
+            'old_status' => $oldStatus
+        ]);
+    }
+
+    /**
+     * GET /api/leads/case-status-options
+     * Get available case status options
+     */
+    public function getCaseStatusOptions()
+    {
+        return response()->json([
+            'options' => CustomerLead::getCaseStatusOptions()
+        ]);
     }
 }

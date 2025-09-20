@@ -763,10 +763,12 @@ Route::middleware(['auth:api'])->group(function () {
     // Leads (pending cases)
     Route::get('/leads', [LeadController::class, 'index']);
     Route::get('/leads/submittable', [LeadController::class, 'submittable']);
+    Route::get('/leads/case-status-options', [LeadController::class, 'getCaseStatusOptions']);
     Route::get('/leads/{lead}', [LeadController::class, 'show']);
     Route::put('/leads/{lead}', [LeadController::class, 'update']);
+    Route::patch('/leads/{lead}/case-status', [LeadController::class, 'updateCaseStatus']);
     Route::delete('/leads/{lead}', [LeadController::class, 'destroy']);
-    
+
     // Point 37: LINE user name update for leads
     Route::put('/leads/{lead}/line-name', [LeadController::class, 'updateLineUserName']);
 

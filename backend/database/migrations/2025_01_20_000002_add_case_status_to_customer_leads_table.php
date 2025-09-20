@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('customer_cases', function (Blueprint $table) {
-            if (!Schema::hasColumn('customer_cases', 'case_status')) {
+        Schema::table('customer_leads', function (Blueprint $table) {
+            if (!Schema::hasColumn('customer_leads', 'case_status')) {
                 $table->enum('case_status', [
                     'unassigned',      // 未指派
                     'valid_customer',  // 有效客
@@ -23,7 +23,7 @@ return new class extends Migration
                     'conditional',     // 附條件
                     'declined',        // 婉拒
                     'follow_up'        // 追蹤管理
-                ])->default('unassigned')->after('case_number');
+                ])->default('unassigned')->after('suspected_reason');
 
                 $table->index(['case_status']);
             }
@@ -35,8 +35,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('customer_cases', function (Blueprint $table) {
-            if (Schema::hasColumn('customer_cases', 'case_status')) {
+        Schema::table('customer_leads', function (Blueprint $table) {
+            if (Schema::hasColumn('customer_leads', 'case_status')) {
                 $table->dropIndex(['case_status']);
                 $table->dropColumn('case_status');
             }

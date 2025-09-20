@@ -1209,58 +1209,14 @@ const updateCaseStatus = async (item, newStatus) => {
   try {
     const { $api } = useNuxtApp()
 
-    // 假設我們需要創建案件才能更新狀態，因為這個頁面處理的是leads
-    // 首先檢查是否有關聯的案件
-    if (!item.customer_id) {
-      showError('此進件尚未綁定客戶，無法設定案件狀態')
+    // 直接更新lead的case_status，不需要先轉換為案件
+    const { data, error } = await $api.patch(`/leads/${item.id}/case-status`, {
+      case_status: newStatus
+    })
+
+    if (error) {
+      showError('更新案件狀態失敗')
       return
-    }
-
-    // 創建案件（如果還沒有）然後更新狀態
-    // 這裡需要調用 convertToCase 如果還沒有案件
-    if (!item.case_id) {
-      // 自動轉換為案件
-      const convertData = {
-        loan_amount: item.payload?.['資金需求'] || 0,
-        loan_type: item.payload?.['貸款需求'] || '',
-        notes: `自動轉換案件，設定狀態為 ${CASE_STATUS_OPTIONS.find(opt => opt.value === newStatus)?.label}`
-      }
-
-      const { error: convertError } = await convertToCase(item.id, convertData)
-      if (convertError) {
-        showError('轉換案件失敗，無法設定狀態')
-        return
-      }
-
-      // 重新載入數據以獲取新的case_id
-      await loadLeads()
-
-      // 找到更新後的項目
-      const updatedItem = leads.value.find(lead => lead.id === item.id)
-      if (!updatedItem?.case_id) {
-        showError('案件創建失敗')
-        return
-      }
-
-      // 更新案件狀態
-      const { error: statusError } = await $api.patch(`/cases/${updatedItem.case_id}/status`, {
-        case_status: newStatus
-      })
-
-      if (statusError) {
-        showError('更新案件狀態失敗')
-        return
-      }
-    } else {
-      // 直接更新現有案件的狀態
-      const { error } = await $api.patch(`/cases/${item.case_id}/status`, {
-        case_status: newStatus
-      })
-
-      if (error) {
-        showError('更新案件狀態失敗')
-        return
-      }
     }
 
     // 更新本地數據
