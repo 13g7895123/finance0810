@@ -10,6 +10,17 @@ class CustomerCase extends Model
 {
     use HasFactory, SoftDeletes;
 
+    // Case status constants
+    public const CASE_STATUS_UNASSIGNED = 'unassigned';
+    public const CASE_STATUS_VALID_CUSTOMER = 'valid_customer';
+    public const CASE_STATUS_INVALID_CUSTOMER = 'invalid_customer';
+    public const CASE_STATUS_CUSTOMER_SERVICE = 'customer_service';
+    public const CASE_STATUS_BLACKLIST = 'blacklist';
+    public const CASE_STATUS_APPROVED_DISBURSED = 'approved_disbursed';
+    public const CASE_STATUS_CONDITIONAL = 'conditional';
+    public const CASE_STATUS_DECLINED = 'declined';
+    public const CASE_STATUS_FOLLOW_UP = 'follow_up';
+
     /**
      * The attributes that are mass assignable.
      */
@@ -17,6 +28,7 @@ class CustomerCase extends Model
         'customer_id',
         'lead_id',
         'case_number',
+        'case_status',
         'loan_amount',
         'loan_type',
         'loan_term',
@@ -83,7 +95,34 @@ class CustomerCase extends Model
         $sequence = static::whereYear('created_at', $year)
             ->whereMonth('created_at', $month)
             ->count() + 1;
-        
+
         return sprintf('%s%s%04d', $year, $month, $sequence);
+    }
+
+    /**
+     * Get case status options with Chinese labels
+     */
+    public static function getCaseStatusOptions(): array
+    {
+        return [
+            self::CASE_STATUS_UNASSIGNED => '未指派',
+            self::CASE_STATUS_VALID_CUSTOMER => '有效客',
+            self::CASE_STATUS_INVALID_CUSTOMER => '無效客',
+            self::CASE_STATUS_CUSTOMER_SERVICE => '客服',
+            self::CASE_STATUS_BLACKLIST => '黑名單',
+            self::CASE_STATUS_APPROVED_DISBURSED => '核准撥款',
+            self::CASE_STATUS_CONDITIONAL => '附條件',
+            self::CASE_STATUS_DECLINED => '婉拒',
+            self::CASE_STATUS_FOLLOW_UP => '追蹤管理',
+        ];
+    }
+
+    /**
+     * Get case status label
+     */
+    public function getCaseStatusLabelAttribute(): ?string
+    {
+        $options = self::getCaseStatusOptions();
+        return $options[$this->case_status] ?? null;
     }
 }

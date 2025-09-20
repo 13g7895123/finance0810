@@ -86,13 +86,26 @@
         <!-- 可以在這裡添加新增案件等按鈕 -->
       </template>
       
+      <!-- Case Status Cell -->
+      <template #cell-case_status="{ item }">
+        <select
+          :value="item.case_status || 'unassigned'"
+          @change="updateCaseStatus(item, $event.target.value)"
+          class="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option v-for="option in CASE_STATUS_OPTIONS" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </template>
+
       <!-- Case Number Cell -->
       <template #cell-case_number="{ item }">
         <div class="text-sm font-medium text-gray-900">
           {{ generateCaseNumber(item) }}
         </div>
       </template>
-      
+
       <!-- Website Cell -->
       <template #cell-website="{ item }">
         <div>
@@ -688,6 +701,18 @@ const STATUS_OPTIONS = [
   { value: 'blacklist', label: '黑名單' }
 ]
 
+const CASE_STATUS_OPTIONS = [
+  { value: 'unassigned', label: '未指派' },
+  { value: 'valid_customer', label: '有效客' },
+  { value: 'invalid_customer', label: '無效客' },
+  { value: 'customer_service', label: '客服' },
+  { value: 'blacklist', label: '黑名單' },
+  { value: 'approved_disbursed', label: '核准撥款' },
+  { value: 'conditional', label: '附條件' },
+  { value: 'declined', label: '婉拒' },
+  { value: 'follow_up', label: '追蹤管理' }
+]
+
 // 表單數據
 const form = reactive({
   page_url: '',
@@ -725,6 +750,12 @@ const lineNameForm = reactive({
 // 可連絡時間欄位可隱藏設置：若未來需要顯示可連絡時間，可在此調整 columns 配置
 const pendingTableColumns = computed(() => {
   return [
+    {
+      key: 'case_status',
+      title: '案件狀態',
+      sortable: true,
+      width: '120px'
+    },
     {
       key: 'case_number',
       title: '案件編號',
@@ -1148,7 +1179,7 @@ const saveLineNameModal = async () => {
   saving.value = true
   try {
     const { $api } = useNuxtApp()
-    
+
     const { data, error } = await $api.put(`/leads/${lineNameLead.value.id}/line-name`, {
       editable_name: lineNameForm.display_name.trim()
     })
@@ -1158,7 +1189,7 @@ const saveLineNameModal = async () => {
         lineNameLead.value.line_user_info.display_name = lineNameForm.display_name.trim()
         lineNameLead.value.line_user_info.editable_name = lineNameForm.display_name.trim()
       }
-      
+
       lineNameModalOpen.value = false
       await loadLeads()
       success(`LINE用戶名稱已更新：${data.old_name} → ${data.new_name}`)
@@ -1170,6 +1201,77 @@ const saveLineNameModal = async () => {
     console.error('Save LINE name error:', error)
   } finally {
     saving.value = false
+  }
+}
+
+// 更新案件狀態
+const updateCaseStatus = async (item, newStatus) => {
+  try {
+    const { $api } = useNuxtApp()
+
+    // 假設我們需要創建案件才能更新狀態，因為這個頁面處理的是leads
+    // 首先檢查是否有關聯的案件
+    if (!item.customer_id) {
+      showError('此進件尚未綁定客戶，無法設定案件狀態')
+      return
+    }
+
+    // 創建案件（如果還沒有）然後更新狀態
+    // 這裡需要調用 convertToCase 如果還沒有案件
+    if (!item.case_id) {
+      // 自動轉換為案件
+      const convertData = {
+        loan_amount: item.payload?.['資金需求'] || 0,
+        loan_type: item.payload?.['貸款需求'] || '',
+        notes: `自動轉換案件，設定狀態為 ${CASE_STATUS_OPTIONS.find(opt => opt.value === newStatus)?.label}`
+      }
+
+      const { error: convertError } = await convertToCase(item.id, convertData)
+      if (convertError) {
+        showError('轉換案件失敗，無法設定狀態')
+        return
+      }
+
+      // 重新載入數據以獲取新的case_id
+      await loadLeads()
+
+      // 找到更新後的項目
+      const updatedItem = leads.value.find(lead => lead.id === item.id)
+      if (!updatedItem?.case_id) {
+        showError('案件創建失敗')
+        return
+      }
+
+      // 更新案件狀態
+      const { error: statusError } = await $api.patch(`/cases/${updatedItem.case_id}/status`, {
+        case_status: newStatus
+      })
+
+      if (statusError) {
+        showError('更新案件狀態失敗')
+        return
+      }
+    } else {
+      // 直接更新現有案件的狀態
+      const { error } = await $api.patch(`/cases/${item.case_id}/status`, {
+        case_status: newStatus
+      })
+
+      if (error) {
+        showError('更新案件狀態失敗')
+        return
+      }
+    }
+
+    // 更新本地數據
+    item.case_status = newStatus
+
+    const statusLabel = CASE_STATUS_OPTIONS.find(opt => opt.value === newStatus)?.label
+    success(`案件狀態已更新為：${statusLabel}`)
+
+  } catch (error) {
+    showError('更新狀態失敗，請稍後再試')
+    console.error('Update case status error:', error)
   }
 }
 

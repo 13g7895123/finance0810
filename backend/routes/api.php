@@ -772,8 +772,10 @@ Route::middleware(['auth:api'])->group(function () {
 
     // Cases
     Route::get('/cases', [CaseController::class, 'index']);
+    Route::get('/cases/status-options', [CaseController::class, 'getCaseStatusOptions']);
     Route::get('/cases/{case}', [CaseController::class, 'show']);
     Route::put('/cases/{case}', [CaseController::class, 'update']);
+    Route::patch('/cases/{case}/status', [CaseController::class, 'updateCaseStatus']);
     Route::post('/customers/{customer}/cases', [CaseController::class, 'storeForCustomer']);
 
     // Bank Records (for negotiated cases view)

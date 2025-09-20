@@ -139,6 +139,7 @@ class CaseController extends Controller
             'loan_term' => 'sometimes|nullable|integer|min:0',
             'interest_rate' => 'sometimes|nullable|numeric|min:0',
             'status' => 'sometimes|in:submitted,approved,rejected,disbursed',
+            'case_status' => 'sometimes|nullable|in:unassigned,valid_customer,invalid_customer,customer_service,blacklist,approved_disbursed,conditional,declined,follow_up',
             'approved_amount' => 'sometimes|nullable|numeric|min:0',
             'disbursed_amount' => 'sometimes|nullable|numeric|min:0',
             'rejection_reason' => 'sometimes|nullable|string',
@@ -223,5 +224,47 @@ class CaseController extends Controller
         }
 
         return response()->json(['message' => 'updated', 'case' => $case->load('customer')]);
+    }
+
+    // PATCH /api/cases/{case}/status
+    public function updateCaseStatus(Request $request, CustomerCase $case)
+    {
+        $validator = Validator::make($request->all(), [
+            'case_status' => 'required|in:unassigned,valid_customer,invalid_customer,customer_service,blacklist,approved_disbursed,conditional,declined,follow_up',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $oldStatus = $case->case_status;
+        $case->case_status = $request->case_status;
+        $case->save();
+
+        // 活動紀錄
+        CustomerActivity::create([
+            'customer_id' => $case->customer_id,
+            'user_id' => Auth::id(),
+            'activity_type' => CustomerActivity::TYPE_UPDATED,
+            'description' => '案件狀態變更為 ' . $case->case_status_label,
+            'old_data' => ['case_status' => $oldStatus],
+            'new_data' => ['case_status' => $case->case_status],
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        return response()->json([
+            'message' => 'Case status updated successfully',
+            'case_status' => $case->case_status,
+            'case_status_label' => $case->case_status_label
+        ]);
+    }
+
+    // GET /api/cases/status-options
+    public function getCaseStatusOptions()
+    {
+        return response()->json([
+            'options' => CustomerCase::getCaseStatusOptions()
+        ]);
     }
 }
