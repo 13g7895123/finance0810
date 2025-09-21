@@ -625,6 +625,7 @@ const { alert, success, error: showError, confirm } = useNotification()
 const { list: listLeads, updateOne: updateLead, removeOne: removeLead, convertToCase } = useLeads()
 const { getUsers } = useUsers()
 const { list: listCustomFields } = useCustomFields()
+const { refreshBadges } = useSidebarBadges()
 
 // Point 50: Website API integration
 const { get: apiGet } = useApi()
@@ -1279,6 +1280,12 @@ const updateCaseStatus = async (item, newStatus) => {
 
     const statusLabel = CASE_STATUS_OPTIONS.find(opt => opt.value === newStatus)?.label
     success(`案件狀態已更新為：${statusLabel}`)
+
+    // 重新載入資料以反映狀態變更
+    await loadLeads()
+
+    // 立即更新側邊欄badge數字
+    await refreshBadges()
 
   } catch (error) {
     showError('更新狀態失敗，請稍後再試')
