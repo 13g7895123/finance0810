@@ -1207,10 +1207,10 @@ const saveLineNameModal = async () => {
 // 更新案件狀態
 const updateCaseStatus = async (item, newStatus) => {
   try {
-    const { $api } = useNuxtApp()
+    const { patch } = useApi()
 
     // 直接更新lead的case_status，不需要先轉換為案件
-    const { data, error } = await $api.patch(`/leads/${item.id}/case-status`, {
+    const { data, error } = await patch(`/leads/${item.id}/case-status`, {
       case_status: newStatus
     })
 
