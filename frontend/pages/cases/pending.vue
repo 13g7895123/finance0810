@@ -915,7 +915,7 @@ const loadCaseFields = async () => {
   if (success) caseFields.value = items
 }
 
-// Point 50: Load websites for dropdown options
+// Point 50: Load websites for dropdown options from website management system
 const loadWebsites = async () => {
   try {
     const { data, error } = await apiGet('/websites/options')
@@ -923,9 +923,12 @@ const loadWebsites = async () => {
       websites.value = data
       websiteOptions.value = data.map(website => ({
         value: website.domain,
-        label: website.name,
+        label: website.name, // 網站名稱 from management system
         website: website
       }))
+
+    } else {
+      console.warn('Failed to load websites from management system:', error)
     }
   } catch (e) {
     console.warn('Load websites failed:', e)
@@ -1254,23 +1257,41 @@ const generateCaseNumber = (item) => {
   return `CASE${year}${month}${day}${serial}`
 }
 
-// Point 50: Get website info from domain or URL
+// Point 50: Get website info from domain or URL - Enhanced matching against website management
 const getWebsiteInfo = (url) => {
   if (!url) return { name: '-', domain: '', website: null }
-  
+
   const domain = extractDomain(url)
-  const website = websites.value.find(w => 
-    w.domain === domain || w.domain === url || url.includes(w.domain)
-  )
-  
+
+  // Enhanced matching logic to find website from management system
+  const website = websites.value.find(w => {
+    // Exact domain match
+    if (w.domain === domain) return true
+
+    // Domain without www prefix match
+    const cleanDomain = domain.replace(/^www\./, '')
+    const cleanWebsiteDomain = w.domain.replace(/^www\./, '')
+    if (cleanDomain === cleanWebsiteDomain) return true
+
+    // Check if URL contains the website domain
+    if (url.includes(w.domain)) return true
+
+    // Check if domain contains the website domain (for subdomains)
+    if (domain.includes(w.domain) || w.domain.includes(domain)) return true
+
+    return false
+  })
+
   if (website) {
+    // Return website name from management system
     return {
-      name: website.name,
+      name: website.name, // This comes from 網站管理 "網站名稱"
       domain: website.domain,
       website: website
     }
   }
-  
+
+  // Fallback if no match found in website management
   return {
     name: domain || url,
     domain: domain || url,
