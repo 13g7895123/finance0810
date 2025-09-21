@@ -82,7 +82,7 @@ export const useSidebarBadges = () => {
     }
   }
 
-  // Get lead count for a specific type
+  // Get lead count for a specific case_status
   const getLeadCount = async (type) => {
     try {
       const params = {
@@ -92,16 +92,16 @@ export const useSidebarBadges = () => {
 
       switch (type) {
         case 'valid':
-          params.valid_customer = true
+          params.case_status = 'valid_customer'
           break
         case 'invalid':
-          params.invalid_customer = true
+          params.case_status = 'invalid_customer'
           break
         case 'customer_service':
-          params.customer_service = true
+          params.case_status = 'customer_service'
           break
         case 'blacklisted':
-          params.blacklisted = true
+          params.case_status = 'blacklist'
           break
         default:
           return 0
@@ -118,11 +118,11 @@ export const useSidebarBadges = () => {
     }
   }
 
-  // Get submission count for a specific status
+  // Get submission count for a specific case_status
   const getSubmissionCount = async (status) => {
     try {
-      const { data, error } = await get('/submissions', {
-        status: status,
+      const { data, error } = await get('/leads', {
+        case_status: status,
         page: 1,
         per_page: 1
       })
@@ -139,7 +139,8 @@ export const useSidebarBadges = () => {
   // Get tracking records count
   const getTrackingRecordsCount = async () => {
     try {
-      const { data, error } = await get('/tracking-records', {
+      const { data, error } = await get('/leads', {
+        case_status: 'follow_up',
         page: 1,
         per_page: 1
       })

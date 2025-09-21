@@ -46,6 +46,11 @@ class LeadController extends Controller
             $query->where('status', $request->get('status'));
         }
 
+        // 篩選：案件狀態 case_status
+        if ($request->filled('case_status')) {
+            $query->where('case_status', $request->get('case_status'));
+        }
+
         // 角色權限：非 admin/executive/manager 則自動限制為只看自己（staff）
         $isPrivileged = $user && $user->hasAnyRole(['admin', 'executive', 'manager']);
         $query->when(!$isPrivileged, function ($q) use ($user) {
