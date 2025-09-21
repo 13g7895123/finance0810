@@ -162,7 +162,7 @@ const getBadgeCount = (item) => {
 const isClient = ref(false)
 const sidebar = ref(null)
 const resizeHandle = ref(null)
-const sidebarWidth = ref(280) // 預設寬度
+const sidebarWidth = ref(240) // 預設寬度
 const isDragging = ref(false)
 
 
