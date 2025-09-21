@@ -96,9 +96,15 @@
           v-for="child in item.children"
           :key="child.name"
           :to="child.href"
-          class="block px-3 py-2 text-sm text-white opacity-80 hover:text-white hover:opacity-100 hover:bg-gray-700 rounded-lg transition-all duration-200"
+          class="flex items-center justify-between px-3 py-2 text-sm text-white opacity-80 hover:text-white hover:opacity-100 hover:bg-gray-700 rounded-lg transition-all duration-200"
         >
-          {{ child.name }}
+          <span>{{ child.name }}</span>
+          <span
+            v-if="getChildBadgeCount(child) > 0"
+            :class="['inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full ml-2', getChildBadgeClasses(child)]"
+          >
+            {{ getChildBadgeCount(child) > 99 ? '99+' : getChildBadgeCount(child) }}
+          </span>
         </NuxtLink>
       </div>
     </transition>
@@ -135,6 +141,14 @@ const props = defineProps({
     type: String,
     default: 'red',
     validator: (value) => ['red', 'green', 'blue', 'yellow', 'purple'].includes(value)
+  },
+  getBadgeCount: {
+    type: Function,
+    default: () => () => 0
+  },
+  getBadgeColor: {
+    type: Function,
+    default: () => () => 'red'
   }
 })
 
@@ -179,4 +193,21 @@ const badgeClasses = computed(() => {
   }
   return colorClasses[props.badgeColor] || colorClasses.red
 })
+
+// Child badge functions
+const getChildBadgeCount = (child) => {
+  return props.getBadgeCount(child)
+}
+
+const getChildBadgeClasses = (child) => {
+  const childColor = props.getBadgeColor(child)
+  const colorClasses = {
+    red: 'bg-red-500 text-white',
+    green: 'bg-green-500 text-white',
+    blue: 'bg-blue-500 text-white',
+    yellow: 'bg-yellow-500 text-white',
+    purple: 'bg-purple-500 text-white'
+  }
+  return colorClasses[childColor] || colorClasses.red
+}
 </script>

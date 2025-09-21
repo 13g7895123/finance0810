@@ -30,6 +30,8 @@
           :collapsed="sidebarCollapsed"
           :badge="getBadgeCount(item)"
           :badge-color="getBadgeColor(item)"
+          :get-badge-count="getBadgeCount"
+          :get-badge-color="getBadgeColor"
         />
       </nav>
 
@@ -95,6 +97,9 @@
           :item="item"
           :collapsed="false"
           :badge="getBadgeCount(item)"
+          :badge-color="getBadgeColor(item)"
+          :get-badge-count="getBadgeCount"
+          :get-badge-color="getBadgeColor"
           @click="closeMobileSidebar"
         />
       </nav>
