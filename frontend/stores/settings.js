@@ -20,19 +20,24 @@ export const useSettingsStore = defineStore('settings', () => {
       permissions: ['customer_management', 'all_access']
     },
     {
-      name: '案件管理',
-      icon: 'DocumentTextIcon',
+      name: '進件管理',
+      icon: 'UserCheckIcon',
       children: [
-        // { name: '待處理案件', href: '/cases/pending', permissions: ['customer_management', 'all_access'] },
-        // { name: '可送件案件', href: '/cases/submittable', permissions: ['case.view', 'all_access'] },
-        // { name: '進行中案件', href: '/cases/progress', permissions: ['case.view', 'all_access'] },
-        // { name: '已完成案件', href: '/cases/completed', permissions: ['case.view', 'all_access'] },
-        { name: '已進件案件', href: '/cases/intake', permissions: ['case.view', 'all_access'] },
-        { name: '已核准案件', href: '/cases/approved', permissions: ['case.view', 'all_access'] },
-        { name: '已撥款案件', href: '/cases/disbursed', permissions: ['case.view', 'all_access'] },
-        { name: '追蹤中案件', href: '/cases/tracking', permissions: ['case.view', 'all_access'] },
-        { name: '黑名單案件', href: '/cases/blacklist', permissions: ['customer_management', 'all_access'] },
-        { name: '協商客戶', href: '/cases/negotiated', permissions: ['customer_management', 'all_access'] }
+        { name: '有效客', href: '/leads/valid-customer', permissions: ['customer_management', 'all_access'] },
+        { name: '無效客', href: '/leads/invalid-customer', permissions: ['customer_management', 'all_access'] },
+        { name: '客服', href: '/leads/customer-service', permissions: ['customer_management', 'all_access'] },
+        { name: '黑名單', href: '/leads/blacklist', permissions: ['customer_management', 'all_access'] }
+      ],
+      permissions: ['customer_management', 'all_access']
+    },
+    {
+      name: '送件管理',
+      icon: 'PaperAirplaneIcon',
+      children: [
+        { name: '核准撥款', href: '/submissions/approved-disbursed', permissions: ['case.view', 'all_access'] },
+        { name: '核准未撥', href: '/submissions/approved-pending', permissions: ['case.view', 'all_access'] },
+        { name: '附條件', href: '/submissions/conditional', permissions: ['case.view', 'all_access'] },
+        { name: '婉拒', href: '/submissions/declined', permissions: ['case.view', 'all_access'] }
       ],
       permissions: ['case.view', 'all_access']
     },
@@ -40,12 +45,9 @@ export const useSettingsStore = defineStore('settings', () => {
       name: '業務管理',
       icon: 'UserGroupIcon',
       children: [
-        { name: '客戶資料', href: '/sales/customers', permissions: ['customer_management', 'personal_customers', 'all_access'] },
         { name: '追蹤管理', href: '/cases/customer-tracking', permissions: ['customer_management', 'personal_customers', 'all_access'] },
         { name: '追蹤行事曆', href: '/sales/contact-calendar', permissions: ['customer_management', 'personal_customers', 'all_access'] },
-        { name: '進件資料', href: '/sales/applications', permissions: ['customer_management', 'all_access'] },
-        { name: '銷售報表', href: '/sales/reports', permissions: ['reports', 'all_access'] },
-        { name: '業績統計', href: '/sales/statistics', permissions: ['reports', 'all_access'] }
+        { name: '追蹤紀錄', href: '/sales/tracking-records', permissions: ['customer_management', 'personal_customers', 'all_access'] }
       ],
       permissions: ['customer_management', 'personal_customers', 'all_access']
     },
