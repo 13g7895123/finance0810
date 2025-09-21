@@ -79,7 +79,7 @@
               v-for="column in columns" 
               :key="column.key"
               :class="[
-                'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider',
+                'px-3 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider',
                 column.headerClass
               ]"
               :style="column.width ? { width: column.width } : {}"
@@ -110,7 +110,7 @@
               v-for="column in columns" 
               :key="column.key"
               :class="[
-                'px-6 py-4 whitespace-nowrap text-base',
+                'px-3 py-4 whitespace-nowrap text-base',
                 column.cellClass
               ]"
             >
