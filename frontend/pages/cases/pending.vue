@@ -668,7 +668,9 @@ const saving = ref(false)
 
 // Pagination
 const currentPage = ref(1)
-const itemsPerPage = ref(5)
+const itemsPerPage = ref(5) // Default to 5 items per page as requested
+
+const totalPages = computed(() => Math.ceil(filteredLeads.value.length / itemsPerPage.value))
 
 // 自定義欄位
 const caseFields = ref([])
@@ -938,6 +940,7 @@ const loadWebsites = async () => {
 // DataTable event handlers
 const handleSearch = (query) => {
   searchQuery.value = query
+  currentPage.value = 1 // Reset to first page when searching
 }
 
 const handlePageChange = (page) => {
@@ -946,7 +949,62 @@ const handlePageChange = (page) => {
 
 const handlePageSizeChange = (size) => {
   itemsPerPage.value = size
-  currentPage.value = 1
+  currentPage.value = 1 // Reset to first page
+}
+
+// Pagination methods
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++
+  }
+}
+
+const previousPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value--
+  }
+}
+
+const goToPage = (page) => {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+  }
+}
+
+// Generate visible page numbers for pagination
+const getVisiblePages = () => {
+  const pages = []
+  const maxVisible = 7
+
+  if (totalPages.value <= maxVisible) {
+    for (let i = 1; i <= totalPages.value; i++) {
+      pages.push(i)
+    }
+  } else {
+    if (currentPage.value <= 4) {
+      for (let i = 1; i <= 5; i++) {
+        pages.push(i)
+      }
+      pages.push('...')
+      pages.push(totalPages.value)
+    } else if (currentPage.value >= totalPages.value - 3) {
+      pages.push(1)
+      pages.push('...')
+      for (let i = totalPages.value - 4; i <= totalPages.value; i++) {
+        pages.push(i)
+      }
+    } else {
+      pages.push(1)
+      pages.push('...')
+      for (let i = currentPage.value - 1; i <= currentPage.value + 1; i++) {
+        pages.push(i)
+      }
+      pages.push('...')
+      pages.push(totalPages.value)
+    }
+  }
+
+  return pages
 }
 
 // 搜尋防抖
@@ -954,6 +1012,8 @@ let searchTimer
 watch([searchQuery, selectedAssignee], () => {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
+    // Reset to first page when search or filter changes
+    currentPage.value = 1
     // 搜尋過濾已經在 computed 中處理
   }, 300)
 })
