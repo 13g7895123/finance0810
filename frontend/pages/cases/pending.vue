@@ -754,7 +754,7 @@ const pendingTableColumns = computed(() => {
       key: 'case_status',
       title: '案件狀態',
       sortable: true,
-      width: '120px'
+      width: '150px'
     },
     {
       key: 'case_number',
