@@ -108,16 +108,8 @@
 
       <!-- Website Cell -->
       <template #cell-website="{ item }">
-        <div>
-          <div class="text-sm font-medium text-gray-900">
-            {{ getWebsiteInfo(item.payload?.['頁面_URL'] || item.source).name }}
-          </div>
-          <div class="text-xs text-gray-500 truncate max-w-[240px]" v-if="getWebsiteInfo(item.payload?.['頁面_URL'] || item.source).website">
-            {{ getWebsiteInfo(item.payload?.['頁面_URL'] || item.source).domain }}
-          </div>
-          <div class="text-xs text-gray-400 truncate max-w-[240px]" v-else>
-            {{ item.payload?.['頁面_URL'] || item.source }}
-          </div>
+        <div class="text-sm font-medium text-gray-900">
+          {{ getWebsiteInfo(item.payload?.['頁面_URL'] || item.source).name }}
         </div>
       </template>
       
@@ -796,7 +788,7 @@ const pendingTableColumns = computed(() => {
       key: 'website',
       title: '網站',
       sortable: false,
-      width: '180px'
+      width: '140px'
     },
     {
       key: 'contact_info',
