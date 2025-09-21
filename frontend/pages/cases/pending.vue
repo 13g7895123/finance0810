@@ -91,7 +91,7 @@
         <select
           :value="item.case_status || 'unassigned'"
           @change="updateCaseStatus(item, $event.target.value)"
-          class="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+          class="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
         >
           <option v-for="option in CASE_STATUS_OPTIONS" :key="option.value" :value="option.value">
             {{ option.label }}
