@@ -29,6 +29,7 @@
           :item="item"
           :collapsed="sidebarCollapsed"
           :badge="getBadgeCount(item)"
+          :badge-color="getBadgeColor(item)"
         />
       </nav>
 
@@ -141,7 +142,7 @@ const { badges, startPolling, stopPolling } = useSidebarBadges()
 // Get badge count for menu item
 const getBadgeCount = (item) => {
   if (!item.href) return 0
-  
+
   // Map href to badge key
   const badgeMapping = {
     '/cases/pending': 'pending',
@@ -151,11 +152,41 @@ const getBadgeCount = (item) => {
     '/cases/customer-tracking': 'tracking',
     '/cases/blacklist': 'blacklist',
     '/cases/negotiated': 'negotiated',
-    '/sales/contact-calendar': 'contact_reminders'
+    '/sales/contact-calendar': 'contact_reminders',
+    // Lead Management (進件管理) routes
+    '/leads/valid-customer': 'valid_customer',
+    '/leads/invalid-customer': 'invalid_customer',
+    '/leads/customer-service': 'customer_service',
+    '/leads/blacklist': 'lead_blacklist',
+    // Submission Management (送件管理) routes
+    '/submissions/approved-disbursed': 'approved_disbursed',
+    '/submissions/approved-pending': 'approved_pending',
+    '/submissions/conditional': 'conditional',
+    '/submissions/declined': 'declined',
+    // Sales routes
+    '/sales/tracking-records': 'tracking_records'
   }
-  
+
   const badgeKey = badgeMapping[item.href]
   return badgeKey ? badges.value[badgeKey] : 0
+}
+
+// Get badge color for menu item based on route type
+const getBadgeColor = (item) => {
+  if (!item.href) return 'red'
+
+  // Lead Management (進件管理) routes should have red badges
+  if (item.href.startsWith('/leads/')) {
+    return 'red'
+  }
+
+  // Submission Management (送件管理) routes should have green badges
+  if (item.href.startsWith('/submissions/')) {
+    return 'green'
+  }
+
+  // Default to red for other routes
+  return 'red'
 }
 
 // 客戶端狀態標記

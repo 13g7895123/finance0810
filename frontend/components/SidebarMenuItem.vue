@@ -23,7 +23,7 @@
           <!-- Badge -->
           <span 
             v-if="badge > 0" 
-            class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full"
+            :class="['inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full', badgeClasses]"
           >
             {{ badge > 99 ? '99+' : badge }}
           </span>
@@ -53,7 +53,7 @@
           <!-- Badge -->
           <span 
             v-if="badge > 0" 
-            class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full"
+            :class="['inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full', badgeClasses]"
           >
             {{ badge > 99 ? '99+' : badge }}
           </span>
@@ -73,9 +73,9 @@
     >
       <div class="flex items-center space-x-2">
         <span>{{ item.name }}</span>
-        <span 
-          v-if="badge > 0" 
-          class="inline-flex items-center justify-center w-4 h-4 text-xs font-bold text-white bg-red-500 rounded-full"
+        <span
+          v-if="badge > 0"
+          :class="['inline-flex items-center justify-center w-4 h-4 text-xs font-bold rounded-full', badgeClasses]"
         >
           {{ badge > 99 ? '99+' : badge }}
         </span>
@@ -130,6 +130,11 @@ const props = defineProps({
   badge: {
     type: Number,
     default: 0
+  },
+  badgeColor: {
+    type: String,
+    default: 'red',
+    validator: (value) => ['red', 'green', 'blue', 'yellow', 'purple'].includes(value)
   }
 })
 
@@ -162,4 +167,16 @@ const iconComponents = {
 const getIcon = (iconName) => {
   return iconComponents[iconName] || ChartBarIcon
 }
+
+// Computed property for badge colors
+const badgeClasses = computed(() => {
+  const colorClasses = {
+    red: 'bg-red-500 text-white',
+    green: 'bg-green-500 text-white',
+    blue: 'bg-blue-500 text-white',
+    yellow: 'bg-yellow-500 text-white',
+    purple: 'bg-purple-500 text-white'
+  }
+  return colorClasses[props.badgeColor] || colorClasses.red
+})
 </script>

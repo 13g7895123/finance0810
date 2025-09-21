@@ -9,7 +9,19 @@ export const useSidebarBadges = () => {
     tracking: 0,
     blacklist: 0,
     negotiated: 0,
-    contact_reminders: 0
+    contact_reminders: 0,
+    // Lead Management badges
+    valid_customer: 0,
+    invalid_customer: 0,
+    customer_service: 0,
+    lead_blacklist: 0,
+    // Submission Management badges
+    approved_disbursed: 0,
+    approved_pending: 0,
+    conditional: 0,
+    declined: 0,
+    // Sales badges
+    tracking_records: 0
   })
   
   const loading = ref(false)
@@ -69,23 +81,112 @@ export const useSidebarBadges = () => {
       return 0
     }
   }
+
+  // Get lead count for a specific type
+  const getLeadCount = async (type) => {
+    try {
+      const params = {
+        page: 1,
+        per_page: 1
+      }
+
+      switch (type) {
+        case 'valid':
+          params.valid_customer = true
+          break
+        case 'invalid':
+          params.invalid_customer = true
+          break
+        case 'customer_service':
+          params.customer_service = true
+          break
+        case 'blacklisted':
+          params.blacklisted = true
+          break
+        default:
+          return 0
+      }
+
+      const { data, error } = await get('/leads', params)
+      if (!error && data) {
+        return data.total || 0
+      }
+      return 0
+    } catch (err) {
+      console.warn(`Failed to get ${type} lead count:`, err)
+      return 0
+    }
+  }
+
+  // Get submission count for a specific status
+  const getSubmissionCount = async (status) => {
+    try {
+      const { data, error } = await get('/submissions', {
+        status: status,
+        page: 1,
+        per_page: 1
+      })
+      if (!error && data) {
+        return data.total || 0
+      }
+      return 0
+    } catch (err) {
+      console.warn(`Failed to get ${status} submission count:`, err)
+      return 0
+    }
+  }
+
+  // Get tracking records count
+  const getTrackingRecordsCount = async () => {
+    try {
+      const { data, error } = await get('/tracking-records', {
+        page: 1,
+        per_page: 1
+      })
+      if (!error && data) {
+        return data.total || 0
+      }
+      return 0
+    } catch (err) {
+      console.warn('Failed to get tracking records count:', err)
+      return 0
+    }
+  }
   
   // Get all badge counts
   const refreshAllBadges = async () => {
     if (loading.value) return
-    
+
     loading.value = true
     try {
-      const [pending, intake, disbursed, tracking, blacklist, negotiated, contactReminders] = await Promise.all([
+      const [
+        pending, intake, disbursed, tracking, blacklist, negotiated, contactReminders,
+        validCustomer, invalidCustomer, customerService, leadBlacklist,
+        approvedDisbursed, approvedPending, conditional, declined,
+        trackingRecords
+      ] = await Promise.all([
+        // Original badges
         getCount('pending'),
         getCount('intake'),
         getCount('disbursed'),
         getCount('tracking'),
         getCount('blacklist'),
         getCount('negotiated'),
-        getContactRemindersCount()
+        getContactRemindersCount(),
+        // Lead Management badges
+        getLeadCount('valid'),
+        getLeadCount('invalid'),
+        getLeadCount('customer_service'),
+        getLeadCount('blacklisted'),
+        // Submission Management badges
+        getSubmissionCount('approved_disbursed'),
+        getSubmissionCount('approved_pending'),
+        getSubmissionCount('conditional'),
+        getSubmissionCount('declined'),
+        // Sales badges
+        getTrackingRecordsCount()
       ])
-      
+
       badges.value = {
         pending,
         intake,
@@ -93,7 +194,19 @@ export const useSidebarBadges = () => {
         tracking,
         blacklist,
         negotiated,
-        contact_reminders: contactReminders
+        contact_reminders: contactReminders,
+        // Lead Management badges
+        valid_customer: validCustomer,
+        invalid_customer: invalidCustomer,
+        customer_service: customerService,
+        lead_blacklist: leadBlacklist,
+        // Submission Management badges
+        approved_disbursed: approvedDisbursed,
+        approved_pending: approvedPending,
+        conditional,
+        declined,
+        // Sales badges
+        tracking_records: trackingRecords
       }
     } catch (err) {
       console.error('Failed to refresh badges:', err)
