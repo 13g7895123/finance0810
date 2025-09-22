@@ -645,37 +645,36 @@ const loadCaseData = async () => {
 
     caseData.value = data.data
 
-    // Point 2 修復：正確填充表單數據，處理null值和類型轉換
+    // Point 2 修復：簡化表單數據填充邏輯，避免過度處理導致數據丟失
     Object.keys(form).forEach(key => {
       const value = caseData.value[key]
 
-      // 特殊處理不同類型的欄位
+      // 直接賦值，避免複雜的轉換邏輯
       if (value !== undefined && value !== null) {
-        // 日期欄位特殊處理
+        // 特殊處理日期欄位
         if (key === 'birth_date' && value) {
-          // 確保日期格式正確 (YYYY-MM-DD)
-          const date = new Date(value)
-          if (!isNaN(date.getTime())) {
-            form[key] = date.toISOString().split('T')[0]
-          } else {
+          try {
+            const date = new Date(value)
+            form[key] = !isNaN(date.getTime()) ? date.toISOString().split('T')[0] : ''
+          } catch {
             form[key] = ''
           }
         }
-        // 布林值欄位特殊處理
+        // 布林值欄位：確保是真正的布林值
         else if (['mailing_same_as_registered', 'labor_insurance_transfer',
                   'emergency_contact_1_confidential', 'emergency_contact_2_confidential'].includes(key)) {
-          form[key] = Boolean(value)
+          form[key] = value === true || value === 1 || value === '1' || value === 'true'
         }
-        // 數字欄位特殊處理
+        // 數字欄位：保持原始值，由 v-model.number 處理
         else if (key === 'monthly_income') {
-          form[key] = value ? Number(value) : null
+          form[key] = value !== null && value !== '' ? Number(value) || null : null
         }
-        // 一般欄位
+        // 其他欄位：保持原始值
         else {
-          form[key] = value
+          form[key] = value || ''
         }
       } else {
-        // Point 2 修復：為null或undefined的欄位設置適當的預設值
+        // 為空值設置適當的預設值
         if (['mailing_same_as_registered', 'labor_insurance_transfer',
              'emergency_contact_1_confidential', 'emergency_contact_2_confidential'].includes(key)) {
           form[key] = false
@@ -709,29 +708,40 @@ const saveChanges = async () => {
   try {
     saving.value = true
 
-    // Point 2 修復：準備發送的數據，清理和驗證
+    // Point 2 修復：簡化數據提交邏輯，保持用戶輸入的原始意圖
     const submitData = { ...form }
 
-    // 清理空字符串和處理特殊值
+    // 最小化數據處理，只處理真正需要的情況
     Object.keys(submitData).forEach(key => {
       const value = submitData[key]
 
-      // 將空字符串轉為null（除了某些特殊欄位）
-      if (value === '' && !['name', 'phone', 'email'].includes(key)) {
-        submitData[key] = null
+      // 只對空字符串進行選擇性處理
+      if (value === '') {
+        // 對於這些欄位，保留空字符串而不是轉換為null
+        if (['name', 'phone', 'email'].includes(key)) {
+          // 保持空字符串，這些欄位用戶可能就想要留空
+        } else {
+          // 其他欄位轉為null以符合數據庫約束
+          submitData[key] = null
+        }
       }
 
-      // 確保日期格式正確
-      if (key === 'birth_date' && value) {
+      // 驗證日期格式（但不強制轉換）
+      if (key === 'birth_date' && value && value !== '') {
         const date = new Date(value)
         if (isNaN(date.getTime())) {
           submitData[key] = null
         }
       }
 
-      // 確保數字欄位的類型正確
-      if (key === 'monthly_income' && value !== null && value !== '') {
-        submitData[key] = Number(value)
+      // 確保數字欄位正確轉換
+      if (key === 'monthly_income') {
+        if (value === null || value === '' || value === undefined) {
+          submitData[key] = null
+        } else {
+          const numValue = Number(value)
+          submitData[key] = !isNaN(numValue) ? numValue : null
+        }
       }
     })
 

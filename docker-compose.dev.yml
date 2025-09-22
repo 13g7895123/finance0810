@@ -18,6 +18,12 @@ services:
     command: npm run dev
     ports:
       - "3301:3000"
+    depends_on:
+      - backend
+    networks:
+      - crm-network
+      - npm_network
+    restart: unless-stopped
 
   backend:
     build:
@@ -39,6 +45,13 @@ services:
       - CORS_ALLOWED_ORIGINS=http://localhost:3301,http://localhost:3000,http://localhost:9221
     ports:
       - "9221:8000"
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - crm-network
+      - npm_network
+    restart: unless-stopped
     command: |
       sh -c "
         # Ensure permissions are correct
@@ -59,6 +72,7 @@ services:
       "
 
   mysql:
+    image: mysql:8.0
     ports:
       - "${DATABASE_PORT}:3306"
     environment:
@@ -66,15 +80,51 @@ services:
       - MYSQL_DATABASE=${DB_DATABASE}
       - MYSQL_USER=${DB_USERNAME}
       - MYSQL_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - crm-network
+    restart: unless-stopped
 
   redis:
+    image: redis:7-alpine
     ports:
       - "${REDIS_PORT}:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - crm-network
+    restart: unless-stopped
 
   phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
     ports:
       - "${PHPMYADMIN_PORT}:80"
+    environment:
+      - PMA_HOST=mysql
+      - PMA_PORT=3306
+      - PMA_USER=${DB_USERNAME}
+      - PMA_PASSWORD=${DB_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=root_password_2024
+    depends_on:
+      - mysql
+    networks:
+      - crm-network
+      - npm_network
+    restart: unless-stopped
+
+networks:
+  crm-network:
+    driver: bridge
+  npm_network:
+    external: true
 
 volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
   backend_bootstrap_cache:
     driver: local
