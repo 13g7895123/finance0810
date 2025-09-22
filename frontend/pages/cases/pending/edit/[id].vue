@@ -353,6 +353,15 @@
                 <input
                   v-model="form.labor_insurance_transfer"
                   type="radio"
+                  :value="null"
+                  class="text-blue-600 focus:ring-blue-500"
+                />
+                <span class="ml-2 text-sm text-gray-700">未設定</span>
+              </label>
+              <label class="flex items-center">
+                <input
+                  v-model="form.labor_insurance_transfer"
+                  type="radio"
                   :value="true"
                   class="text-blue-600 focus:ring-blue-500"
                 />
@@ -636,12 +645,50 @@ const loadCaseData = async () => {
 
     caseData.value = data.data
 
-    // 填充表單數據
+    // Point 2 修復：正確填充表單數據，處理null值和類型轉換
     Object.keys(form).forEach(key => {
-      if (caseData.value[key] !== undefined) {
-        form[key] = caseData.value[key]
+      const value = caseData.value[key]
+
+      // 特殊處理不同類型的欄位
+      if (value !== undefined && value !== null) {
+        // 日期欄位特殊處理
+        if (key === 'birth_date' && value) {
+          // 確保日期格式正確 (YYYY-MM-DD)
+          const date = new Date(value)
+          if (!isNaN(date.getTime())) {
+            form[key] = date.toISOString().split('T')[0]
+          } else {
+            form[key] = ''
+          }
+        }
+        // 布林值欄位特殊處理
+        else if (['mailing_same_as_registered', 'labor_insurance_transfer',
+                  'emergency_contact_1_confidential', 'emergency_contact_2_confidential'].includes(key)) {
+          form[key] = Boolean(value)
+        }
+        // 數字欄位特殊處理
+        else if (key === 'monthly_income') {
+          form[key] = value ? Number(value) : null
+        }
+        // 一般欄位
+        else {
+          form[key] = value
+        }
+      } else {
+        // Point 2 修復：為null或undefined的欄位設置適當的預設值
+        if (['mailing_same_as_registered', 'labor_insurance_transfer',
+             'emergency_contact_1_confidential', 'emergency_contact_2_confidential'].includes(key)) {
+          form[key] = false
+        } else if (key === 'monthly_income') {
+          form[key] = null
+        } else {
+          form[key] = ''
+        }
       }
     })
+
+    console.log('Loaded case data:', caseData.value)
+    console.log('Form data after loading:', form)
 
   } catch (err) {
     loadError.value = '載入案件時發生錯誤'
@@ -662,10 +709,45 @@ const saveChanges = async () => {
   try {
     saving.value = true
 
-    const { data, error: apiError } = await $api.put(`/leads/${id}`, form)
+    // Point 2 修復：準備發送的數據，清理和驗證
+    const submitData = { ...form }
+
+    // 清理空字符串和處理特殊值
+    Object.keys(submitData).forEach(key => {
+      const value = submitData[key]
+
+      // 將空字符串轉為null（除了某些特殊欄位）
+      if (value === '' && !['name', 'phone', 'email'].includes(key)) {
+        submitData[key] = null
+      }
+
+      // 確保日期格式正確
+      if (key === 'birth_date' && value) {
+        const date = new Date(value)
+        if (isNaN(date.getTime())) {
+          submitData[key] = null
+        }
+      }
+
+      // 確保數字欄位的類型正確
+      if (key === 'monthly_income' && value !== null && value !== '') {
+        submitData[key] = Number(value)
+      }
+    })
+
+    console.log('Submitting data:', submitData)
+
+    const { data, error: apiError } = await $api.put(`/leads/${id}`, submitData)
 
     if (apiError) {
       showError(apiError.message || '儲存失敗')
+      console.error('API Error:', apiError)
+      return
+    }
+
+    if (data && !data.success) {
+      showError(data.message || '儲存失敗')
+      console.error('Save failed:', data)
       return
     }
 
