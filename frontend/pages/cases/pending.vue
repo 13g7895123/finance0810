@@ -254,8 +254,8 @@
           </button>
           
           <!-- 編輯 -->
-          <button 
-            @click="onEdit(item)"
+          <NuxtLink
+            :to="`/cases/pending/edit/${item.id}`"
             class="group relative inline-flex items-center justify-center p-2 text-gray-600 hover:text-white hover:bg-gray-600 rounded-lg transition-all duration-200"
             title="編輯"
           >
@@ -264,7 +264,7 @@
             <div class="absolute bottom-full mb-2 hidden group-hover:block px-2 py-1 text-xs text-white bg-gray-900 rounded whitespace-nowrap z-10">
               編輯
             </div>
-          </button>
+          </NuxtLink>
           
           <!-- 轉送件 -->
           <button 
@@ -296,128 +296,6 @@
       </template>
     </DataTable>
 
-    <!-- Edit Modal -->
-    <div v-if="editOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 mt-0" @click.self="closeEdit">
-      <div class="bg-white rounded-lg p-6 w-full max-w-xl max-h-[80vh] overflow-y-auto">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">編輯進件</h3>
-        <form @submit.prevent="saveEdit" class="space-y-3">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-sm font-semibold text-gray-900 mb-1">網站</label>
-              <select v-model="form.website_domain" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                <option value="">請選擇網站</option>
-                <option v-for="option in websiteOptions" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-                <option value="other">其他（手動輸入）</option>
-              </select>
-              <input 
-                v-if="form.website_domain === 'other'" 
-                v-model="form.page_url" 
-                placeholder="請輸入完整的網址"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mt-2"
-              />
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-900 mb-1">來源管道</label>
-              <select v-model="form.channel" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                <option v-for="opt in CHANNEL_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-900 mb-1">案件狀態</label>
-              <select v-model="form.status" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                <option v-for="opt in STATUS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-900 mb-1">時間</label>
-              <input v-model="form.created_at" type="datetime-local" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-900 mb-1">Email</label>
-              <input v-model="form.email" type="email" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-900 mb-1">LINE ID</label>
-              <input v-model="form.line_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-900 mb-1">地區</label>
-              <input v-model="form.region" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-900 mb-1">地址</label>
-              <input v-model="form.address" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-900 mb-1">需求金額</label>
-              <input v-model.number="form.required_amount" type="number" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-900 mb-1">諮詢項目</label>
-              <input v-model="form.loan_purpose" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div class="md:col-span-2">
-              <label class="block text-sm font-semibold text-gray-900 mb-1">備註</label>
-              <textarea v-model="form.notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
-            </div>
-
-            <!-- 自定義欄位（案件） -->
-            <template v-if="caseFields.length">
-              <div class="md:col-span-2 pt-2">
-                <div class="text-sm font-semibold mb-2">自定義欄位（案件）</div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div v-for="cf in caseFields" :key="cf.id">
-                    <label class="block text-sm font-semibold text-gray-900 mb-1">{{ cf.label }} <span v-if="cf.is_required" class="text-red-500">*</span></label>
-                    <!-- 各種input類型實現 -->
-                    <input
-                      v-if="['text','number','decimal','date'].includes(cf.type)"
-                      :type="cf.type === 'decimal' ? 'number' : (cf.type === 'number' ? 'number' : (cf.type === 'date' ? 'date' : 'text'))"
-                      :step="cf.type === 'decimal' ? 'any' : undefined"
-                      class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      :required="cf.is_required"
-                      v-model="customFieldValues[cf.key]"
-                    />
-                    <textarea
-                      v-else-if="cf.type === 'textarea'"
-                      class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      :required="cf.is_required"
-                      v-model="customFieldValues[cf.key]"
-                    ></textarea>
-                    <select
-                      v-else-if="cf.type === 'select'"
-                      class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      :required="cf.is_required"
-                      v-model="customFieldValues[cf.key]"
-                    >
-                      <option value="">請選擇</option>
-                      <option v-for="opt in (cf.options||[])" :key="opt" :value="opt">{{ opt }}</option>
-                    </select>
-                    <div v-else-if="cf.type === 'multiselect'">
-                      <div class="flex flex-wrap gap-3">
-                        <label v-for="opt in (cf.options||[])" :key="opt" class="inline-flex items-center">
-                          <input type="checkbox" :value="opt" v-model="customFieldValues[cf.key]" class="mr-2" />
-                          <span>{{ opt }}</span>
-                        </label>
-                      </div>
-                    </div>
-                    <label v-else-if="cf.type === 'boolean'" class="inline-flex items-center space-x-2">
-                      <input type="checkbox" v-model="customFieldValues[cf.key]" />
-                      <span>是/否</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </template>
-          </div>
-          <div class="flex justify-end space-x-3 pt-2">
-            <button type="button" class="px-4 py-2 border border-gray-300 rounded-lg" @click="closeEdit">取消</button>
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" :disabled="saving">{{ saving ? '儲存中...' : '儲存' }}</button>
-          </div>
-        </form>
-      </div>
-    </div>
 
     <!-- View Modal -->
     <div v-if="viewOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 mt-0" @click.self="closeView">
@@ -652,12 +530,10 @@ const websites = ref([])
 const websiteOptions = ref([])
 
 // 模態窗口狀態
-const editOpen = ref(false)
 const viewOpen = ref(false)
 const convertOpen = ref(false)
 const assignOpen = ref(false)
 const lineNameModalOpen = ref(false)
-const editingId = ref(null)
 const selectedLead = ref(null)
 const convertLead = ref(null)
 const assignLead = ref(null)
@@ -674,7 +550,6 @@ const totalPages = computed(() => Math.ceil(filteredLeads.value.length / itemsPe
 
 // 自定義欄位
 const caseFields = ref([])
-const customFieldValues = reactive({})
 
 // LINE名稱編輯相關狀態 (已改為modal方式)
 
@@ -707,24 +582,6 @@ const CASE_STATUS_OPTIONS = [
   { value: 'follow_up', label: '追蹤管理' }
 ]
 
-// 表單數據
-const form = reactive({
-  page_url: '',
-  website_domain: '', // Point 50: Add website_domain for dropdown selection
-  channel: 'wp_form',
-  status: 'pending',
-  created_at: '',
-  assigned_to: null,
-  email: null,
-  line_id: '',
-  region: '',
-  address: '',
-  required_amount: null,
-  loan_purpose: '',
-  contact_time: '',
-  ip_address: null,
-  notes: ''
-})
 
 const convertForm = reactive({
   loan_amount: null,
@@ -1033,91 +890,6 @@ const closeView = () => {
   selectedLead.value = null
 }
 
-const onEdit = async (lead) => {
-  editingId.value = lead.id
-  
-  const pageUrl = lead.payload?.['頁面_URL'] || lead.source || ''
-  const websiteInfo = getWebsiteInfo(pageUrl)
-  
-  Object.assign(form, {
-    page_url: pageUrl,
-    website_domain: websiteInfo.website ? websiteInfo.domain : (pageUrl ? 'other' : ''),
-    channel: lead.channel || 'wp_form',
-    status: lead.status || 'pending',
-    created_at: lead.created_at ? new Date(lead.created_at).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
-    assigned_to: lead.assigned_to || null,
-    email: lead.email || null,
-    line_id: lead.line_id || lead.payload?.['LINE_ID'] || '',
-    region: lead.payload?.['房屋區域'] || lead.payload?.['所在地區'] || '',
-    address: lead.payload?.['房屋地址'] || '',
-    required_amount: lead.payload?.['資金需求'] || '',
-    loan_purpose: lead.payload?.['貸款需求'] || '',
-    contact_time: lead.payload?.['方便聯絡時間'] || '',
-    ip_address: lead.ip_address || null,
-    notes: lead.notes || lead.payload?.['備註'] || ''
-  })
-  
-  // 載入自定義欄位
-  await loadCaseFields()
-  preloadCustomFieldsFromLead(lead)
-  editOpen.value = true
-}
-
-const closeEdit = () => {
-  editOpen.value = false
-  editingId.value = null
-}
-
-const saveEdit = async () => {
-  if (!editingId.value) return
-  
-  saving.value = true
-  try {
-    // Point 50: Handle website_domain selection
-    let finalPageUrl = form.page_url
-    if (form.website_domain && form.website_domain !== 'other') {
-      const selectedWebsite = websites.value.find(w => w.domain === form.website_domain)
-      if (selectedWebsite) {
-        finalPageUrl = selectedWebsite.url
-      }
-    }
-    
-    const payload = {
-      channel: form.channel,
-      status: form.status,
-      email: form.email,
-      line_id: form.line_id,
-      ip_address: form.ip_address,
-      assigned_to: form.assigned_to,
-      notes: form.notes,
-      payload: {
-        '頁面_URL': finalPageUrl,
-        'LINE_ID': form.line_id,
-        '房屋區域': form.region,
-        '房屋地址': form.address,
-        '資金需求': form.required_amount,
-        '貸款需求': form.loan_purpose,
-        '方便聯絡時間': form.contact_time,
-        ...customFieldValues
-      }
-    }
-
-    const { error } = await updateLead(editingId.value, payload)
-    
-    if (!error) {
-      editOpen.value = false
-      await loadLeads()
-      success('進件資料更新成功')
-    } else {
-      showError(error?.message || '更新失敗')
-    }
-  } catch (err) {
-    showError('系統錯誤，請稍後再試')
-    console.error('Update lead error:', err)
-  } finally {
-    saving.value = false
-  }
-}
 
 const onDelete = async (lead) => {
   const confirmed = await confirm(`確定刪除編號 ${lead.id} 的進件嗎？`)
@@ -1286,20 +1058,6 @@ const updateCaseStatus = async (item, newStatus) => {
   }
 }
 
-// 自定義欄位處理
-const preloadCustomFieldsFromLead = (lead) => {
-  const payload = lead?.payload || {}
-  caseFields.value.forEach(cf => {
-    const key = cf.key
-    if (payload && Object.prototype.hasOwnProperty.call(payload, key)) {
-      customFieldValues[key] = payload[key]
-    } else if (cf.default_value) {
-      customFieldValues[key] = cf.default_value
-    } else {
-      customFieldValues[key] = cf.type === 'multiselect' ? [] : (cf.type === 'boolean' ? false : '')
-    }
-  })
-}
 
 // 工具函數
 const extractDomain = (url) => {

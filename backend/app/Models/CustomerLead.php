@@ -37,11 +37,57 @@ class CustomerLead extends Model
         'payload',
         'is_suspected_blacklist',
         'suspected_reason',
+
+        // Point 1: 個人資料 (Personal Information)
+        'birth_date',
+        'id_number',
+        'education_level',
+
+        // Point 1: 聯絡資訊 (Contact Information)
+        'contact_time',
+        'registered_address',
+        'home_phone',
+        'mailing_same_as_registered',
+        'mailing_address',
+        'mailing_phone',
+        'residence_duration',
+        'residence_owner',
+        'telecom_provider',
+
+        // Point 1: 公司資料 (Company Information)
+        'company_name',
+        'company_phone',
+        'company_address',
+        'job_title',
+        'monthly_income',
+        'labor_insurance_transfer',
+        'current_job_duration',
+
+        // Point 1: 緊急聯絡人 (Emergency Contacts)
+        'emergency_contact_1_name',
+        'emergency_contact_1_relationship',
+        'emergency_contact_1_phone',
+        'emergency_contact_1_available_time',
+        'emergency_contact_1_confidential',
+        'emergency_contact_2_name',
+        'emergency_contact_2_relationship',
+        'emergency_contact_2_phone',
+        'emergency_contact_2_available_time',
+        'emergency_contact_2_confidential',
+        'referrer',
     ];
 
     protected $casts = [
         'payload' => 'array',
         'is_suspected_blacklist' => 'boolean',
+
+        // Point 1: 類型轉換
+        'birth_date' => 'date',
+        'mailing_same_as_registered' => 'boolean',
+        'monthly_income' => 'decimal:2',
+        'labor_insurance_transfer' => 'boolean',
+        'emergency_contact_1_confidential' => 'boolean',
+        'emergency_contact_2_confidential' => 'boolean',
     ];
 
     public function customer()
