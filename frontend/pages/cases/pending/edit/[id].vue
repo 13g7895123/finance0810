@@ -631,6 +631,20 @@ const loadCaseData = async () => {
 
   try {
     loading.value = true
+    loadError.value = null
+
+    // Point 2 修復：清空表單資料，避免舊資料殘留
+    Object.assign(form, {
+      name: '', birth_date: '', id_number: '', education_level: '', phone: '',
+      contact_time: '', registered_address: '', home_phone: '', mailing_same_as_registered: false,
+      mailing_address: '', mailing_phone: '', residence_duration: '', residence_owner: '', telecom_provider: '',
+      email: '', company_name: '', company_phone: '', company_address: '', job_title: '',
+      monthly_income: null, labor_insurance_transfer: null, current_job_duration: '',
+      emergency_contact_1_name: '', emergency_contact_1_relationship: '', emergency_contact_1_phone: '',
+      emergency_contact_1_available_time: '', emergency_contact_1_confidential: false,
+      emergency_contact_2_name: '', emergency_contact_2_relationship: '', emergency_contact_2_phone: '',
+      emergency_contact_2_available_time: '', emergency_contact_2_confidential: false, referrer: ''
+    })
     const { data, error: apiError } = await $api.get(`/leads/${id}`)
 
     if (apiError) {
@@ -645,45 +659,51 @@ const loadCaseData = async () => {
 
     caseData.value = data.data
 
-    // Point 2 修復：簡化表單數據填充邏輯，避免過度處理導致數據丟失
-    Object.keys(form).forEach(key => {
-      const value = caseData.value[key]
+    // Point 2 修復：簡化表單數據填充邏輯，直接映射避免響應式追蹤中斷
+    const formData = caseData.value
 
-      // 直接賦值，避免複雜的轉換邏輯
-      if (value !== undefined && value !== null) {
-        // 特殊處理日期欄位
-        if (key === 'birth_date' && value) {
-          try {
-            const date = new Date(value)
-            form[key] = !isNaN(date.getTime()) ? date.toISOString().split('T')[0] : ''
-          } catch {
-            form[key] = ''
-          }
-        }
-        // 布林值欄位：確保是真正的布林值
-        else if (['mailing_same_as_registered', 'labor_insurance_transfer',
-                  'emergency_contact_1_confidential', 'emergency_contact_2_confidential'].includes(key)) {
-          form[key] = value === true || value === 1 || value === '1' || value === 'true'
-        }
-        // 數字欄位：保持原始值，由 v-model.number 處理
-        else if (key === 'monthly_income') {
-          form[key] = value !== null && value !== '' ? Number(value) || null : null
-        }
-        // 其他欄位：保持原始值
-        else {
-          form[key] = value || ''
-        }
-      } else {
-        // 為空值設置適當的預設值
-        if (['mailing_same_as_registered', 'labor_insurance_transfer',
-             'emergency_contact_1_confidential', 'emergency_contact_2_confidential'].includes(key)) {
-          form[key] = false
-        } else if (key === 'monthly_income') {
-          form[key] = null
-        } else {
-          form[key] = ''
-        }
-      }
+    // 重置表單以確保響應式追蹤
+    Object.assign(form, {
+      // 個人資料
+      name: formData.name || '',
+      birth_date: formData.birth_date ? new Date(formData.birth_date).toISOString().split('T')[0] : '',
+      id_number: formData.id_number || '',
+      education_level: formData.education_level || '',
+      phone: formData.phone || '',
+
+      // 聯絡資訊
+      contact_time: formData.contact_time || '',
+      registered_address: formData.registered_address || '',
+      home_phone: formData.home_phone || '',
+      mailing_same_as_registered: !!formData.mailing_same_as_registered,
+      mailing_address: formData.mailing_address || '',
+      mailing_phone: formData.mailing_phone || '',
+      residence_duration: formData.residence_duration || '',
+      residence_owner: formData.residence_owner || '',
+      telecom_provider: formData.telecom_provider || '',
+
+      // 公司資料
+      email: formData.email || '',
+      company_name: formData.company_name || '',
+      company_phone: formData.company_phone || '',
+      company_address: formData.company_address || '',
+      job_title: formData.job_title || '',
+      monthly_income: formData.monthly_income ? Number(formData.monthly_income) : null,
+      labor_insurance_transfer: formData.labor_insurance_transfer === true ? true : formData.labor_insurance_transfer === false ? false : null,
+      current_job_duration: formData.current_job_duration || '',
+
+      // 緊急聯絡人
+      emergency_contact_1_name: formData.emergency_contact_1_name || '',
+      emergency_contact_1_relationship: formData.emergency_contact_1_relationship || '',
+      emergency_contact_1_phone: formData.emergency_contact_1_phone || '',
+      emergency_contact_1_available_time: formData.emergency_contact_1_available_time || '',
+      emergency_contact_1_confidential: !!formData.emergency_contact_1_confidential,
+      emergency_contact_2_name: formData.emergency_contact_2_name || '',
+      emergency_contact_2_relationship: formData.emergency_contact_2_relationship || '',
+      emergency_contact_2_phone: formData.emergency_contact_2_phone || '',
+      emergency_contact_2_available_time: formData.emergency_contact_2_available_time || '',
+      emergency_contact_2_confidential: !!formData.emergency_contact_2_confidential,
+      referrer: formData.referrer || ''
     })
 
     console.log('Loaded case data:', caseData.value)
@@ -708,42 +728,49 @@ const saveChanges = async () => {
   try {
     saving.value = true
 
-    // Point 2 修復：簡化數據提交邏輯，保持用戶輸入的原始意圖
-    const submitData = { ...form }
+    // Point 2 修復：直接使用表單數據，避免過度處理
+    const submitData = {
+      // 個人資料
+      name: form.name || '',
+      birth_date: form.birth_date || null,
+      id_number: form.id_number || null,
+      education_level: form.education_level || null,
+      phone: form.phone || '',
 
-    // 最小化數據處理，只處理真正需要的情況
-    Object.keys(submitData).forEach(key => {
-      const value = submitData[key]
+      // 聯絡資訊
+      contact_time: form.contact_time || null,
+      registered_address: form.registered_address || null,
+      home_phone: form.home_phone || null,
+      mailing_same_as_registered: form.mailing_same_as_registered,
+      mailing_address: form.mailing_address || null,
+      mailing_phone: form.mailing_phone || null,
+      residence_duration: form.residence_duration || null,
+      residence_owner: form.residence_owner || null,
+      telecom_provider: form.telecom_provider || null,
 
-      // 只對空字符串進行選擇性處理
-      if (value === '') {
-        // 對於這些欄位，保留空字符串而不是轉換為null
-        if (['name', 'phone', 'email'].includes(key)) {
-          // 保持空字符串，這些欄位用戶可能就想要留空
-        } else {
-          // 其他欄位轉為null以符合數據庫約束
-          submitData[key] = null
-        }
-      }
+      // 公司資料
+      email: form.email || null,
+      company_name: form.company_name || null,
+      company_phone: form.company_phone || null,
+      company_address: form.company_address || null,
+      job_title: form.job_title || null,
+      monthly_income: form.monthly_income,
+      labor_insurance_transfer: form.labor_insurance_transfer,
+      current_job_duration: form.current_job_duration || null,
 
-      // 驗證日期格式（但不強制轉換）
-      if (key === 'birth_date' && value && value !== '') {
-        const date = new Date(value)
-        if (isNaN(date.getTime())) {
-          submitData[key] = null
-        }
-      }
-
-      // 確保數字欄位正確轉換
-      if (key === 'monthly_income') {
-        if (value === null || value === '' || value === undefined) {
-          submitData[key] = null
-        } else {
-          const numValue = Number(value)
-          submitData[key] = !isNaN(numValue) ? numValue : null
-        }
-      }
-    })
+      // 緊急聯絡人
+      emergency_contact_1_name: form.emergency_contact_1_name || null,
+      emergency_contact_1_relationship: form.emergency_contact_1_relationship || null,
+      emergency_contact_1_phone: form.emergency_contact_1_phone || null,
+      emergency_contact_1_available_time: form.emergency_contact_1_available_time || null,
+      emergency_contact_1_confidential: form.emergency_contact_1_confidential,
+      emergency_contact_2_name: form.emergency_contact_2_name || null,
+      emergency_contact_2_relationship: form.emergency_contact_2_relationship || null,
+      emergency_contact_2_phone: form.emergency_contact_2_phone || null,
+      emergency_contact_2_available_time: form.emergency_contact_2_available_time || null,
+      emergency_contact_2_confidential: form.emergency_contact_2_confidential,
+      referrer: form.referrer || null
+    }
 
     console.log('Submitting data:', submitData)
 
@@ -792,6 +819,13 @@ watch(() => form.mailing_same_as_registered, (newVal) => {
     form.mailing_phone = form.home_phone
   }
 })
+
+// 監聽路由參數變化，確保URL變動時重新載入資料
+watch(() => route.params.id, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    loadCaseData()
+  }
+}, { immediate: true })
 
 // 頁面載入時加載數據
 onMounted(() => {
