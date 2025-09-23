@@ -32,7 +32,7 @@ export const useApi = () => {
    * 通用API請求方法
    */
   const apiRequest = async (method, endpoint, data = null, options = {}) => {
-    // 獲取 JWT token
+    // Point 3: Handle skip auth mode with mock token
     let token = null
     if (process.client) {
       const userProfile = sessionStorage.getItem('user-profile')
@@ -40,6 +40,11 @@ export const useApi = () => {
         try {
           const parsedProfile = JSON.parse(userProfile)
           token = parsedProfile.token
+
+          // Check if this is a mock token in skip auth mode
+          if (config.public.skipAuth && token && token.startsWith('mock_jwt_token_for_development')) {
+            console.log('使用模擬 token 進行 API 請求:', endpoint)
+          }
         } catch (error) {
           console.error('Failed to parse user profile:', error)
         }
@@ -103,6 +108,20 @@ export const useApi = () => {
 
       // 處理認證錯誤
       if (error.status === 401) {
+        // Point 3: Skip auth error handling in development convenience mode
+        if (config.public.skipAuth) {
+          console.log('跳過認證模式下忽略 401 錯誤，返回模擬成功回應')
+          // Return a mock success response for skip auth mode
+          return {
+            data: {
+              message: '模擬回應 (跳過認證模式)',
+              user: null,
+              mock_response: true
+            },
+            error: null
+          }
+        }
+
         // Only redirect to login for endpoints that are not expected to fail for unauthenticated users
         if (!shouldSilence) {
           console.warn('Authentication failed - clearing session and redirecting to login')

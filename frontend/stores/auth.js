@@ -177,14 +177,65 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = userData
   }
 
+  // Point 3: Create mock admin user for development convenience mode
+  const createMockAdminUser = () => {
+    return {
+      id: 1,
+      username: 'admin',
+      email: 'admin@finance.local',
+      name: 'System Administrator (開發模式)',
+      role: 'admin',
+      roles: ['admin'],
+      permissions: ['all_access'],
+      is_admin: true,
+      is_manager: true,
+      token: 'mock_jwt_token_for_development_' + Date.now()
+    }
+  }
+
+  // Point 3: Initialize skip auth mode with mock admin user
+  const initializeSkipAuthMode = () => {
+    console.log('初始化跳過認證模式 - 建立模擬 admin 用戶')
+    const mockUser = createMockAdminUser()
+    user.value = mockUser
+
+    // Store mock user data in sessionStorage for consistency
+    if (process.client) {
+      sessionStorage.setItem('user-profile', JSON.stringify({
+        id: mockUser.id,
+        username: mockUser.username,
+        email: mockUser.email,
+        name: mockUser.name,
+        roles: mockUser.roles,
+        permissions: mockUser.permissions,
+        is_admin: mockUser.is_admin,
+        is_manager: mockUser.is_manager,
+        token: mockUser.token
+      }))
+      console.log('模擬 admin 用戶已建立:', mockUser.username)
+    }
+
+    return true
+  }
+
   // 初始化用戶狀態 - 單例模式，防止多次並發初始化
   const initializeAuth = async (force = false) => {
+    // Point 3: Check skip auth mode first
+    const config = useRuntimeConfig()
+    if (config.public.skipAuth && process.client) {
+      console.log('跳過認證模式已啟用')
+      if (!user.value || force) {
+        return initializeSkipAuthMode()
+      }
+      return isLoggedIn.value
+    }
+
     // 如果已經初始化完成且不是強制重新初始化，直接返回結果
     if (_isInitialized.value && !force) {
       console.log('Auth already initialized, skipping')
       return isLoggedIn.value
     }
-    
+
     // 如果正在初始化中，返回現有的 Promise
     if (_isInitializing.value && _initPromise.value && !force) {
       console.log('Auth initialization in progress, waiting for existing promise')
@@ -195,11 +246,11 @@ export const useAuthStore = defineStore('auth', () => {
         return false
       }
     }
-    
+
     if (!process.client) {
       return false
     }
-    
+
     // 開始初始化
     _isInitializing.value = true
     
@@ -328,7 +379,7 @@ export const useAuthStore = defineStore('auth', () => {
     roles,
     _isInitialized,
     _isInitializing,
-    
+
     // 方法
     login,
     register,
@@ -336,6 +387,10 @@ export const useAuthStore = defineStore('auth', () => {
     setUser,
     initializeAuth,
     waitForInitialization,
-    hasPermission
+    hasPermission,
+
+    // Point 3: Development convenience mode methods
+    createMockAdminUser,
+    initializeSkipAuthMode
   }
 })

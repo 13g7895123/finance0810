@@ -18,6 +18,10 @@ export default defineNuxtConfig({
       // Local development (NODE_ENV=development): use proxy '/api'
       // Develop/Production environments: use direct API URL
       apiBaseUrl: process.env.NODE_ENV === 'development' ? '/api' : (process.env.NUXT_PUBLIC_API_BASE_URL || 'https://dev-finance.mercylife.cc/api'),
+      // Point 3: Development convenience mode - skip authentication
+      // When set to 'true', automatically simulate admin login without manual authentication
+      // Recommended for development only, should be 'false' in production
+      skipAuth: process.env.NUXT_SKIP_AUTH === 'true',
       // Firebase configuration
       firebaseApiKey: process.env.NUXT_FIREBASE_API_KEY,
       firebaseDatabaseUrl: process.env.NUXT_FIREBASE_DATABASE_URL || 'https://finance0810new-default-rtdb.asia-southeast1.firebasedatabase.app/',

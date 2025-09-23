@@ -1,9 +1,17 @@
 export default defineNuxtRouteMiddleware(async (to, from) => {
   const authStore = useAuthStore()
-  
+  const config = useRuntimeConfig()
+
   console.log('Auth middleware - 來源頁面:', from?.path, '目標頁面:', to.path)
   console.log('Auth middleware - 當前登入狀態:', authStore.isLoggedIn)
-  
+  console.log('Auth middleware - 跳過認證模式:', config.public.skipAuth)
+
+  // Point 3: Development convenience mode - skip authentication if enabled
+  if (config.public.skipAuth) {
+    console.log('跳過認證模式已啟用，允許直接通過')
+    return
+  }
+
   // 如果是登入頁面，直接允許通過
   if (to.path === '/auth/login') {
     return
