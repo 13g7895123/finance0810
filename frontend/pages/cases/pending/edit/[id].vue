@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div :key="`case-edit-${route.params.id}`" class="space-y-6">
     <!-- 頁面標題與導航 -->
     <div class="flex items-center justify-between">
       <div>
@@ -633,18 +633,43 @@ const loadCaseData = async () => {
     loading.value = true
     loadError.value = null
 
-    // Point 2 修復：清空表單資料，避免舊資料殘留
-    Object.assign(form, {
-      name: '', birth_date: '', id_number: '', education_level: '', phone: '',
-      contact_time: '', registered_address: '', home_phone: '', mailing_same_as_registered: false,
-      mailing_address: '', mailing_phone: '', residence_duration: '', residence_owner: '', telecom_provider: '',
-      email: '', company_name: '', company_phone: '', company_address: '', job_title: '',
-      monthly_income: null, labor_insurance_transfer: null, current_job_duration: '',
-      emergency_contact_1_name: '', emergency_contact_1_relationship: '', emergency_contact_1_phone: '',
-      emergency_contact_1_available_time: '', emergency_contact_1_confidential: false,
-      emergency_contact_2_name: '', emergency_contact_2_relationship: '', emergency_contact_2_phone: '',
-      emergency_contact_2_available_time: '', emergency_contact_2_confidential: false, referrer: ''
-    })
+    // Point 2 修復：強制清空表單資料，確保響應式追蹤正常
+    console.log('Clearing form data for new case...')
+
+    // 先清空每個屬性，確保 Vue 的響應式系統正確追蹤變化
+    form.name = ''
+    form.birth_date = ''
+    form.id_number = ''
+    form.education_level = ''
+    form.phone = ''
+    form.contact_time = ''
+    form.registered_address = ''
+    form.home_phone = ''
+    form.mailing_same_as_registered = false
+    form.mailing_address = ''
+    form.mailing_phone = ''
+    form.residence_duration = ''
+    form.residence_owner = ''
+    form.telecom_provider = ''
+    form.email = ''
+    form.company_name = ''
+    form.company_phone = ''
+    form.company_address = ''
+    form.job_title = ''
+    form.monthly_income = null
+    form.labor_insurance_transfer = null
+    form.current_job_duration = ''
+    form.emergency_contact_1_name = ''
+    form.emergency_contact_1_relationship = ''
+    form.emergency_contact_1_phone = ''
+    form.emergency_contact_1_available_time = ''
+    form.emergency_contact_1_confidential = false
+    form.emergency_contact_2_name = ''
+    form.emergency_contact_2_relationship = ''
+    form.emergency_contact_2_phone = ''
+    form.emergency_contact_2_available_time = ''
+    form.emergency_contact_2_confidential = false
+    form.referrer = ''
     const { data, error: apiError } = await $api.get(`/leads/${id}`)
 
     if (apiError) {
@@ -658,56 +683,58 @@ const loadCaseData = async () => {
     }
 
     caseData.value = data.data
+    console.log('Loaded case data:', caseData.value)
 
-    // Point 2 修復：簡化表單數據填充邏輯，直接映射避免響應式追蹤中斷
+    // Point 2 修復：強化表單數據填充，確保響應式追蹤
     const formData = caseData.value
 
-    // 重置表單以確保響應式追蹤
-    Object.assign(form, {
-      // 個人資料
-      name: formData.name || '',
-      birth_date: formData.birth_date ? new Date(formData.birth_date).toISOString().split('T')[0] : '',
-      id_number: formData.id_number || '',
-      education_level: formData.education_level || '',
-      phone: formData.phone || '',
+    // 使用 nextTick 確保響應式更新完成後再填充資料
+    await nextTick()
+    console.log('Filling form with new data...')
 
-      // 聯絡資訊
-      contact_time: formData.contact_time || '',
-      registered_address: formData.registered_address || '',
-      home_phone: formData.home_phone || '',
-      mailing_same_as_registered: !!formData.mailing_same_as_registered,
-      mailing_address: formData.mailing_address || '',
-      mailing_phone: formData.mailing_phone || '',
-      residence_duration: formData.residence_duration || '',
-      residence_owner: formData.residence_owner || '',
-      telecom_provider: formData.telecom_provider || '',
+    // 逐一填充表單資料，確保響應式追蹤
+    // 個人資料
+    form.name = formData.name || ''
+    form.birth_date = formData.birth_date ? new Date(formData.birth_date).toISOString().split('T')[0] : ''
+    form.id_number = formData.id_number || ''
+    form.education_level = formData.education_level || ''
+    form.phone = formData.phone || ''
 
-      // 公司資料
-      email: formData.email || '',
-      company_name: formData.company_name || '',
-      company_phone: formData.company_phone || '',
-      company_address: formData.company_address || '',
-      job_title: formData.job_title || '',
-      monthly_income: formData.monthly_income ? Number(formData.monthly_income) : null,
-      labor_insurance_transfer: formData.labor_insurance_transfer === true ? true : formData.labor_insurance_transfer === false ? false : null,
-      current_job_duration: formData.current_job_duration || '',
+    // 聯絡資訊
+    form.contact_time = formData.contact_time || ''
+    form.registered_address = formData.registered_address || ''
+    form.home_phone = formData.home_phone || ''
+    form.mailing_same_as_registered = !!formData.mailing_same_as_registered
+    form.mailing_address = formData.mailing_address || ''
+    form.mailing_phone = formData.mailing_phone || ''
+    form.residence_duration = formData.residence_duration || ''
+    form.residence_owner = formData.residence_owner || ''
+    form.telecom_provider = formData.telecom_provider || ''
 
-      // 緊急聯絡人
-      emergency_contact_1_name: formData.emergency_contact_1_name || '',
-      emergency_contact_1_relationship: formData.emergency_contact_1_relationship || '',
-      emergency_contact_1_phone: formData.emergency_contact_1_phone || '',
-      emergency_contact_1_available_time: formData.emergency_contact_1_available_time || '',
-      emergency_contact_1_confidential: !!formData.emergency_contact_1_confidential,
-      emergency_contact_2_name: formData.emergency_contact_2_name || '',
-      emergency_contact_2_relationship: formData.emergency_contact_2_relationship || '',
-      emergency_contact_2_phone: formData.emergency_contact_2_phone || '',
-      emergency_contact_2_available_time: formData.emergency_contact_2_available_time || '',
-      emergency_contact_2_confidential: !!formData.emergency_contact_2_confidential,
-      referrer: formData.referrer || ''
-    })
+    // 公司資料
+    form.email = formData.email || ''
+    form.company_name = formData.company_name || ''
+    form.company_phone = formData.company_phone || ''
+    form.company_address = formData.company_address || ''
+    form.job_title = formData.job_title || ''
+    form.monthly_income = formData.monthly_income ? Number(formData.monthly_income) : null
+    form.labor_insurance_transfer = formData.labor_insurance_transfer === true ? true : formData.labor_insurance_transfer === false ? false : null
+    form.current_job_duration = formData.current_job_duration || ''
 
-    console.log('Loaded case data:', caseData.value)
-    console.log('Form data after loading:', form)
+    // 緊急聯絡人
+    form.emergency_contact_1_name = formData.emergency_contact_1_name || ''
+    form.emergency_contact_1_relationship = formData.emergency_contact_1_relationship || ''
+    form.emergency_contact_1_phone = formData.emergency_contact_1_phone || ''
+    form.emergency_contact_1_available_time = formData.emergency_contact_1_available_time || ''
+    form.emergency_contact_1_confidential = !!formData.emergency_contact_1_confidential
+    form.emergency_contact_2_name = formData.emergency_contact_2_name || ''
+    form.emergency_contact_2_relationship = formData.emergency_contact_2_relationship || ''
+    form.emergency_contact_2_phone = formData.emergency_contact_2_phone || ''
+    form.emergency_contact_2_available_time = formData.emergency_contact_2_available_time || ''
+    form.emergency_contact_2_confidential = !!formData.emergency_contact_2_confidential
+    form.referrer = formData.referrer || ''
+
+    console.log('Form data loaded successfully for case:', caseData.value.id)
 
   } catch (err) {
     loadError.value = '載入案件時發生錯誤'
@@ -822,15 +849,18 @@ watch(() => form.mailing_same_as_registered, (newVal) => {
 
 // 監聽路由參數變化，確保URL變動時重新載入資料
 watch(() => route.params.id, (newId, oldId) => {
+  console.log(`Route change detected: ${oldId} -> ${newId}`)
   if (newId && newId !== oldId) {
+    // 強制重置狀態
+    loading.value = true
+    loadError.value = null
+    caseData.value = null
+    // 重新載入資料
     loadCaseData()
   }
 }, { immediate: true })
 
-// 頁面載入時加載數據
-onMounted(() => {
-  loadCaseData()
-})
+// Point 2 修復：移除 onMounted 重複載入，因為 watch 已經有 immediate: true
 
 // 設定頁面標題
 useHead({
