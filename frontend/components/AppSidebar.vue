@@ -37,7 +37,7 @@
 
       <!-- User Info & Logout -->
       <div class="p-4 border-t border-gray-600">
-        <div v-if="!sidebarCollapsed && isClient && authStore.user" class="mb-3 text-center">
+        <div v-if="!sidebarCollapsed && isClient && authStore?.user" class="mb-3 text-center">
           <div class="text-sm text-white">{{ authStore.user.name }}</div>
           <div class="text-xs text-white opacity-80">{{ getRoleDisplayName(authStore.user.role) }}</div>
         </div>
@@ -106,7 +106,7 @@
 
       <!-- User Info & Logout -->
       <div class="p-4 border-t border-gray-600">
-        <div v-if="isClient && authStore.user" class="mb-3 text-center">
+        <div v-if="isClient && authStore?.user" class="mb-3 text-center">
           <div class="text-sm text-white">{{ authStore.user.name }}</div>
           <div class="text-xs text-white opacity-80">{{ getRoleDisplayName(authStore.user.role) }}</div>
         </div>
@@ -139,7 +139,15 @@ const { toggleSidebar, closeMobileSidebar } = sidebarStore
 const settingsStore = useSettingsStore()
 const { sidebarMenuItems } = storeToRefs(settingsStore)
 
-const authStore = useAuthStore()
+// Safely initialize auth store with error handling
+const authStore = (() => {
+  try {
+    return useAuthStore()
+  } catch (error) {
+    console.warn('Failed to initialize auth store:', error)
+    return null
+  }
+})()
 
 // Badge system for sidebar notifications
 const { badges, startPolling, stopPolling } = useSidebarBadges()
@@ -220,7 +228,7 @@ onUnmounted(() => {
 // 權限過濾選單項目
 const filteredMenuItems = computed(() => {
   // 在 SSR 階段或用戶未登入時，返回空陣列
-  if (!isClient.value || !authStore.isLoggedIn || !authStore.user) {
+  if (!isClient.value || !authStore?.isLoggedIn || !authStore?.user) {
     return []
   }
   
@@ -238,7 +246,7 @@ const filteredMenuItems = computed(() => {
     if (item.children) {
       const filteredChildren = item.children.filter(child => {
         if (child.permissions && child.permissions.length > 0) {
-          return child.permissions.some(permission => authStore.hasPermission(permission))
+          return child.permissions.some(permission => authStore?.hasPermission(permission))
         }
         return true
       })
@@ -270,7 +278,13 @@ const getRoleDisplayName = (role) => {
 
 // 登出處理
 const handleLogout = () => {
-  authStore.logout()
+  if (authStore) {
+    authStore.logout()
+  } else {
+    console.warn('Auth store not available for logout')
+    // Fallback: redirect to login page
+    navigateTo('/auth/login')
+  }
 }
 
 // 拖拽調整寬度功能

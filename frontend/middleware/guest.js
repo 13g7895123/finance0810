@@ -1,6 +1,7 @@
 export default defineNuxtRouteMiddleware(async (to) => {
-  const authStore = useAuthStore()
-  const config = useRuntimeConfig()
+  try {
+    const authStore = useAuthStore()
+    const config = useRuntimeConfig()
 
   console.log('Guest middleware - 檢查認證狀態:', authStore.isLoggedIn)
   console.log('Guest middleware - 目標路徑:', to.path)
@@ -34,5 +35,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
     }
     
     return navigateTo(redirectPath)
+  }
+  } catch (error) {
+    console.error('Guest middleware - useAuthStore failed:', error)
+    // If auth store is not available, allow guest access (stay on current page)
+    return
   }
 })

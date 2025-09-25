@@ -1,6 +1,7 @@
 export default defineNuxtRouteMiddleware(async (to, from) => {
-  const authStore = useAuthStore()
-  const config = useRuntimeConfig()
+  try {
+    const authStore = useAuthStore()
+    const config = useRuntimeConfig()
 
   console.log('Auth middleware - 來源頁面:', from?.path, '目標頁面:', to.path)
   console.log('Auth middleware - 當前登入狀態:', authStore.isLoggedIn)
@@ -61,5 +62,11 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
       const redirectPath = to.path !== '/' ? to.path : undefined
       return navigateTo(redirectPath ? `/auth/login?redirect=${encodeURIComponent(redirectPath)}` : '/auth/login')
     }
+  }
+  } catch (error) {
+    console.error('Auth middleware - useAuthStore failed:', error)
+    // If auth store is not available, redirect to login
+    const redirectPath = to.path !== '/' && to.path !== '/auth/login' ? to.path : undefined
+    return navigateTo(redirectPath ? `/auth/login?redirect=${encodeURIComponent(redirectPath)}` : '/auth/login')
   }
 })
