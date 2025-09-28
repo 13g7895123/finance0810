@@ -57,8 +57,7 @@ RUN echo "memory_limit = 2G" >> /usr/local/etc/php/conf.d/memory.ini && \
 
 # Set composer configuration for better performance and timeout handling
 RUN composer config --global process-timeout 900 && \
-    composer config --global cache-dir /tmp/composer-cache && \
-    composer config --global memory-limit -1
+    composer config --global cache-dir /tmp/composer-cache
 
 # Install dependencies with optimized environment
 RUN rm -f composer.lock && \
