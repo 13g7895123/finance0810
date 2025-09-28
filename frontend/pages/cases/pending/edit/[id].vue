@@ -7,6 +7,13 @@
         <p class="text-gray-600 mt-2">案件編號：{{ generateCaseNumber() }}</p>
       </div>
       <div class="flex space-x-3">
+        <button
+          @click="fillRandomTestData"
+          type="button"
+          class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+        >
+          填入測試資料
+        </button>
         <NuxtLink
           to="/cases/pending"
           class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
@@ -567,7 +574,7 @@ definePageMeta({
 
 const route = useRoute()
 const router = useRouter()
-const { $api } = useNuxtApp()
+const { get, put } = useApi()
 const { success, error: showError } = useNotification()
 
 // 響應式數據
@@ -670,20 +677,37 @@ const loadCaseData = async () => {
     form.emergency_contact_2_available_time = ''
     form.emergency_contact_2_confidential = false
     form.referrer = ''
-    const { data, error: apiError } = await $api.get(`/leads/${id}`)
+    console.log('Loading case data:', {
+      endpoint: `/leads/${id}`,
+      loadId: id,
+      routeId: route.params.id,
+      timestamp: new Date().toISOString()
+    })
+
+    const { data, error: apiError } = await get(`/leads/${id}`)
 
     if (apiError) {
+      console.error('Failed to load case:', { id, error: apiError })
       loadError.value = apiError.message || '載入案件失敗'
       return
     }
 
     if (!data || !data.data) {
+      console.error('Case data missing:', { id, data })
       loadError.value = '案件不存在'
       return
     }
 
     caseData.value = data.data
-    console.log('Loaded case data:', caseData.value)
+    console.log('Loaded case data successfully:', {
+      caseId: caseData.value.id,
+      caseName: caseData.value.name,
+      casePhone: caseData.value.phone,
+      caseEmail: caseData.value.email,
+      hasData: !!caseData.value,
+      requestedId: id,
+      returnedId: caseData.value.id
+    })
 
     // Point 2 修復：強化表單數據填充，確保響應式追蹤
     const formData = caseData.value
@@ -799,24 +823,61 @@ const saveChanges = async () => {
       referrer: form.referrer || null
     }
 
-    console.log('Submitting data:', submitData)
+    console.log('Submitting data to API:', {
+      endpoint: `/leads/${id}`,
+      method: 'PUT',
+      leadId: id,
+      routeId: route.params.id,
+      dataKeys: Object.keys(submitData),
+      dataSize: JSON.stringify(submitData).length,
+      sampleData: {
+        name: submitData.name,
+        phone: submitData.phone,
+        email: submitData.email
+      }
+    })
 
-    const { data, error: apiError } = await $api.put(`/leads/${id}`, submitData)
+    const { data, error: apiError } = await put(`/leads/${id}`, submitData)
 
     if (apiError) {
+      console.error('API Error Details:', {
+        status: apiError.status,
+        message: apiError.message,
+        errors: apiError.errors,
+        debug: apiError.debug
+      })
       showError(apiError.message || '儲存失敗')
-      console.error('API Error:', apiError)
       return
     }
 
     if (data && !data.success) {
+      console.error('Save failed - API returned failure:', data)
       showError(data.message || '儲存失敗')
-      console.error('Save failed:', data)
       return
     }
 
+    console.log('Save successful:', {
+      success: data.success,
+      message: data.message,
+      updatedData: data.data ? 'received' : 'none',
+      savedToId: id,
+      originalRouteId: route.params.id,
+      returnedData: data.data ? {
+        id: data.data.id,
+        name: data.data.name,
+        phone: data.data.phone,
+        email: data.data.email
+      } : null,
+      timestamp: new Date().toISOString()
+    })
+
     success('案件資料已更新')
-    router.push('/cases/pending')
+
+    // Add a small delay to ensure save is fully processed before navigation
+    setTimeout(() => {
+      console.log('Navigating back to pending list after save...')
+      router.push('/cases/pending')
+    }, 100)
 
   } catch (err) {
     showError('儲存時發生錯誤')
@@ -837,6 +898,93 @@ const generateCaseNumber = () => {
   const serial = String(caseData.value.id).padStart(3, '0')
 
   return `CASE${year}${month}${day}${serial}`
+}
+
+// 填入隨機測試資料
+const fillRandomTestData = () => {
+  const randomNames = ['王小明', '李美華', '張志強', '陳淑芬', '林建國', '黃雅婷', '吳文偉', '劉思敏']
+  const randomEducation = ['高中職', '大學', '專科', '碩士', '國中']
+  const randomCompanies = ['台積電', '鴻海科技', '統一企業', '中華電信', '富邦金控', '國泰金控', '台灣銀行']
+  const randomJobTitles = ['工程師', '業務員', '經理', '專員', '主任', '副理', '助理']
+  const randomCities = ['台北市', '新北市', '桃園市', '台中市', '台南市', '高雄市']
+  const randomDistricts = ['中正區', '大安區', '信義區', '松山區', '中山區', '萬華區']
+  const randomRelationships = ['父親', '母親', '配偶', '兄弟姐妹', '朋友', '同事']
+  const randomProviders = ['中華電信', '台灣大哥大', '遠傳電信', '亞太電信', '台灣之星']
+
+  // 生成隨機手機號碼
+  const generatePhone = () => '09' + Math.floor(Math.random() * 90000000).toString().padStart(8, '0')
+
+  // 生成隨機身份證字號 (格式正確但非真實)
+  const generateIdNumber = () => {
+    const firstLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+    const first = firstLetters[Math.floor(Math.random() * firstLetters.length)]
+    const second = Math.floor(Math.random() * 2) + 1 // 1 or 2
+    const remaining = Math.floor(Math.random() * 100000000).toString().padStart(8, '0')
+    return first + second + remaining
+  }
+
+  // 生成隨機生日 (25-65歲)
+  const generateBirthDate = () => {
+    const today = new Date()
+    const minAge = 25
+    const maxAge = 65
+    const randomAge = Math.floor(Math.random() * (maxAge - minAge + 1)) + minAge
+    const birthYear = today.getFullYear() - randomAge
+    const birthMonth = Math.floor(Math.random() * 12) + 1
+    const birthDay = Math.floor(Math.random() * 28) + 1
+    return `${birthYear}-${birthMonth.toString().padStart(2, '0')}-${birthDay.toString().padStart(2, '0')}`
+  }
+
+  // 隨機選擇
+  const randomChoice = (arr) => arr[Math.floor(Math.random() * arr.length)]
+
+  // 填入個人資料
+  form.name = randomChoice(randomNames)
+  form.birth_date = generateBirthDate()
+  form.id_number = generateIdNumber()
+  form.education_level = randomChoice(randomEducation)
+  form.phone = generatePhone()
+
+  // 填入聯絡資訊
+  form.contact_time = '平日 9:00-18:00'
+  form.registered_address = `${randomChoice(randomCities)}${randomChoice(randomDistricts)}忠孝東路${Math.floor(Math.random() * 500) + 1}號${Math.floor(Math.random() * 20) + 1}樓`
+  form.home_phone = '02-' + Math.floor(Math.random() * 90000000).toString().padStart(8, '0')
+  form.mailing_same_as_registered = Math.random() > 0.5
+  if (!form.mailing_same_as_registered) {
+    form.mailing_address = `${randomChoice(randomCities)}${randomChoice(randomDistricts)}民生東路${Math.floor(Math.random() * 300) + 1}號`
+    form.mailing_phone = '02-' + Math.floor(Math.random() * 90000000).toString().padStart(8, '0')
+  }
+  form.residence_duration = `${Math.floor(Math.random() * 10) + 1}年${Math.floor(Math.random() * 12)}個月`
+  form.residence_owner = randomChoice(['本人', '父母', '租屋', '配偶'])
+  form.telecom_provider = randomChoice(randomProviders)
+
+  // 填入公司資料
+  form.email = `${form.name.toLowerCase().replace(/[^\w]/g, '')}${Math.floor(Math.random() * 1000)}@email.com`
+  form.company_name = randomChoice(randomCompanies)
+  form.company_phone = '02-' + Math.floor(Math.random() * 90000000).toString().padStart(8, '0')
+  form.company_address = `${randomChoice(randomCities)}${randomChoice(randomDistricts)}復興南路${Math.floor(Math.random() * 200) + 1}號${Math.floor(Math.random() * 50) + 1}樓`
+  form.job_title = randomChoice(randomJobTitles)
+  form.monthly_income = (Math.floor(Math.random() * 8) + 3) * 10000 // 30000-100000
+  form.labor_insurance_transfer = Math.random() > 0.7 ? true : false
+  form.current_job_duration = `${Math.floor(Math.random() * 5) + 1}年${Math.floor(Math.random() * 12)}個月`
+
+  // 填入緊急聯絡人
+  form.emergency_contact_1_name = randomChoice(randomNames)
+  form.emergency_contact_1_relationship = randomChoice(randomRelationships)
+  form.emergency_contact_1_phone = generatePhone()
+  form.emergency_contact_1_available_time = '平日晚上'
+  form.emergency_contact_1_confidential = Math.random() > 0.8
+
+  form.emergency_contact_2_name = randomChoice(randomNames)
+  form.emergency_contact_2_relationship = randomChoice(randomRelationships)
+  form.emergency_contact_2_phone = generatePhone()
+  form.emergency_contact_2_available_time = '假日全天'
+  form.emergency_contact_2_confidential = Math.random() > 0.8
+
+  form.referrer = Math.random() > 0.7 ? randomChoice(randomNames) : ''
+
+  console.log('Random test data filled successfully')
+  success('測試資料已填入')
 }
 
 // 監聽通訊地址選項變化

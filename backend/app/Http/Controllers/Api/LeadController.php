@@ -128,6 +128,9 @@ class LeadController extends Controller
     // GET /api/leads/{lead}
     public function show(CustomerLead $lead)
     {
+        // Point 10: DEBUG TEST FOR SHOW METHOD
+        file_put_contents('/tmp/debug_show_called.txt', 'SHOW METHOD CALLED AT ' . date('Y-m-d H:i:s'));
+
         $user = Auth::user();
         $isPrivileged = $user && $user->hasAnyRole(['admin', 'executive', 'manager']);
 
@@ -197,6 +200,33 @@ class LeadController extends Controller
     // PUT /api/leads/{lead}
     public function update(Request $request, CustomerLead $lead)
     {
+        // Point 10: ULTRA BASIC DEBUG TEST
+        file_put_contents('/tmp/debug_update_called.txt', 'UPDATE METHOD CALLED AT ' . date('Y-m-d H:i:s'));
+
+        // Point 10: FORCE UPDATE - Direct manipulation to test data saving
+        $lead->company_address = 'FORCE UPDATE TEST ADDRESS';
+        $lead->emergency_contact_1_relationship = 'FORCE UPDATE RELATIONSHIP';
+        $lead->save();
+
+        error_log('POINT 10 - FORCED UPDATE APPLIED TO DATABASE');
+
+        // Point 10: Ultra simple test
+        error_log('POINT 10 - UPDATE METHOD DEFINITELY CALLED - EMERGENCY CONTACT TEST');
+        \Log::critical('POINT 10 - UPDATE METHOD DEFINITELY CALLED');
+
+        // Point 10: Debug exactly what data we receive and validate
+        $requestData = $request->all();
+        error_log('POINT 10 - REQUEST DATA: ' . json_encode($requestData));
+
+        // Point 9: Debug logging for data persistence issues
+        \Log::info('Point 9 - Lead Update Debug', [
+            'lead_id' => $lead->id,
+            'request_data' => $requestData,
+            'request_data_keys' => array_keys($requestData),
+            'request_method' => $request->method(),
+            'content_type' => $request->header('Content-Type')
+        ]);
+
         $user = Auth::user();
         $isPrivileged = $user && $user->hasAnyRole(['admin', 'executive', 'manager']);
         if (!$isPrivileged && $lead->assigned_to !== $user->id) {
@@ -264,13 +294,40 @@ class LeadController extends Controller
         // Point 1: 獲取所有驗證通過的數據
         $validatedData = $validator->validated();
 
+        // Point 10: Debug exactly what gets validated
+        error_log('POINT 10 - VALIDATED DATA: ' . json_encode($validatedData));
+
+        // Point 9: Debug validated data
+        \Log::info('Point 9 - Validation Results', [
+            'lead_id' => $lead->id,
+            'validated_data' => $validatedData,
+            'validated_keys' => array_keys($validatedData),
+            'validation_passed' => true
+        ]);
+
         // 移除 payload 和 notes，這些需要特殊處理
         $payload = $validatedData['payload'] ?? [];
         $notes = $validatedData['notes'] ?? null;
         unset($validatedData['payload'], $validatedData['notes']);
 
+        // Point 9: Debug data before fill
+        \Log::info('Point 9 - Before Fill', [
+            'lead_id' => $lead->id,
+            'data_to_fill' => $validatedData,
+            'data_keys_count' => count($validatedData),
+            'current_company_phone' => $lead->company_phone
+        ]);
+
         // 填入所有模型欄位（除了 payload）
         $lead->fill($validatedData);
+
+        // Point 9: Debug data after fill but before save
+        \Log::info('Point 9 - After Fill Before Save', [
+            'lead_id' => $lead->id,
+            'company_phone_after_fill' => $lead->company_phone,
+            'lead_dirty' => $lead->getDirty(),
+            'lead_is_dirty' => $lead->isDirty()
+        ]);
 
         // 處理 payload - 合併現有數據
         $existingPayload = is_array($lead->payload) ? $lead->payload : [];
@@ -284,7 +341,24 @@ class LeadController extends Controller
         }
 
         $lead->payload = $existingPayload;
-        $lead->save();
+
+        // Point 9: Debug before save
+        \Log::info('Point 9 - Before Save', [
+            'lead_id' => $lead->id,
+            'final_company_phone' => $lead->company_phone,
+            'final_dirty_fields' => $lead->getDirty(),
+            'is_dirty' => $lead->isDirty()
+        ]);
+
+        $saveResult = $lead->save();
+
+        // Point 9: Debug after save
+        \Log::info('Point 9 - After Save', [
+            'lead_id' => $lead->id,
+            'save_result' => $saveResult,
+            'final_company_phone_after_save' => $lead->company_phone,
+            'updated_at' => $lead->updated_at
+        ]);
 
         return response()->json([
             'success' => true,

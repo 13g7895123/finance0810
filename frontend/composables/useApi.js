@@ -35,6 +35,7 @@ export const useApi = () => {
     // Point 3: Handle skip auth mode with mock token
     let token = null
     if (process.client) {
+      // First try to get token from sessionStorage
       const userProfile = sessionStorage.getItem('user-profile')
       if (userProfile) {
         try {
@@ -47,6 +48,15 @@ export const useApi = () => {
           }
         } catch (error) {
           console.error('Failed to parse user profile:', error)
+        }
+      }
+
+      // If no token found and not in skip auth mode, try to get from auth store
+      if (!token && !config.public.skipAuth) {
+        const authStore = useAuthStore()
+        if (authStore.token) {
+          token = authStore.token
+          console.log('使用 auth store token 進行 API 請求:', endpoint)
         }
       }
     }
@@ -76,14 +86,25 @@ export const useApi = () => {
 
       // Point 80: 處理相對路徑和完整 URL
       // 如果 baseURL 是空字串（開發環境），使用相對路徑
+      // 如果 baseURL 是 '/api'，正確構建 URL
       // 否則使用完整 URL
-      const fetchUrl = baseURL ? endpoint : `/api${endpoint}`
+      const fetchUrl = baseURL === '/api' ? `/api${endpoint}` : (baseURL ? `${baseURL}${endpoint}` : `/api${endpoint}`)
+
+      // Debug authentication for /leads endpoint
+      if (endpoint.includes('/leads')) {
+        console.log('Making /leads API request:', {
+          endpoint,
+          hasToken: !!token,
+          tokenPrefix: token ? token.substring(0, 20) + '...' : 'none'
+        })
+      }
+
       const response = await $fetch(fetchUrl, requestOptions)
       return { data: response, error: null }
 
     } catch (error) {
       // Point 80: 修正錯誤日誌的 URL 顯示
-      const actualUrl = baseURL ? `${baseURL}${endpoint}` : `/api${endpoint}`
+      const actualUrl = baseURL === '/api' ? `/api${endpoint}` : (baseURL ? `${baseURL}${endpoint}` : `/api${endpoint}`)
 
       // Point 81: Suppress error logging for specific endpoints that may fail for unauthenticated users
       const silentEndpoints = [

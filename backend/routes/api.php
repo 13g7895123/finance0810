@@ -760,6 +760,12 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/field-mappings/system-fields', [WebsiteFieldMappingController::class, 'addSystemField']);
     });
     
+    // Point 10: DEBUG ROUTE - Test if routes work at all
+    Route::get('/debug-test-route', function() {
+        file_put_contents('/tmp/debug_route_test.txt', 'DEBUG ROUTE CALLED AT ' . date('Y-m-d H:i:s'));
+        return response()->json(['message' => 'Debug route works', 'time' => date('Y-m-d H:i:s')]);
+    });
+
     // Leads (pending cases)
     Route::get('/leads', [LeadController::class, 'index']);
     Route::get('/leads/submittable', [LeadController::class, 'submittable']);
