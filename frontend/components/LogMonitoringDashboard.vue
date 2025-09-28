@@ -186,8 +186,6 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { formatDistanceToNow, parseISO } from 'date-fns'
-import { zhTW } from 'date-fns/locale'
 
 // Props and emits
 defineEmits(['view-all-logs', 'view-critical-only'])
@@ -225,10 +223,22 @@ const getStatusText = () => {
 
 const formatTimestamp = (timestamp) => {
   try {
-    return formatDistanceToNow(parseISO(timestamp), {
-      addSuffix: true,
-      locale: zhTW
-    })
+    const date = new Date(timestamp)
+    const now = new Date()
+    const diffInSeconds = Math.floor((now - date) / 1000)
+
+    if (diffInSeconds < 60) {
+      return `${diffInSeconds} 秒前`
+    } else if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60)
+      return `${minutes} 分鐘前`
+    } else if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600)
+      return `${hours} 小時前`
+    } else {
+      const days = Math.floor(diffInSeconds / 86400)
+      return `${days} 天前`
+    }
   } catch (e) {
     return timestamp
   }
