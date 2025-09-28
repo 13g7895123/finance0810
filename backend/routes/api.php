@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\LineUserTestController;
 use App\Http\Controllers\Api\WebsiteController;
 use App\Http\Controllers\Api\WebsiteFieldMappingController;
 use App\Http\Controllers\Api\CustomerContactScheduleController;
+use App\Http\Controllers\Api\LogController;
 
 /*
 |--------------------------------------------------------------------------
@@ -682,6 +683,17 @@ Route::middleware(['auth:api'])->group(function () {
         
         // Extended Firebase Health Checks
         Route::get('/firebase/health-extended', [ChatController::class, 'checkFirebaseHealth']);
+
+        // Application Log Management (Point 16 - 錯誤日誌查看)
+        Route::prefix('logs')->group(function () {
+            Route::get('/errors', [LogController::class, 'getErrorLogs']);
+            Route::get('/stats', [LogController::class, 'getErrorStats']);
+            Route::get('/critical', [LogController::class, 'getCriticalErrors']);
+            Route::get('/patterns', [LogController::class, 'getPatternAnalysis']);
+            Route::get('/health', [LogController::class, 'getSystemHealth']);
+            Route::post('/alerts/check', [LogController::class, 'checkCriticalAlerts']);
+            Route::post('/cleanup', [LogController::class, 'cleanOldLogs'])->middleware('role:admin');
+        });
     });
     
     // Version Management - Available to all authenticated users
