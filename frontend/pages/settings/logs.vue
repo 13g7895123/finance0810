@@ -23,13 +23,18 @@
         監控和分析應用程式錯誤日誌，追蹤 "An unexpected error occurred" 錯誤原因
       </p>
 
-      <!-- 權限檢查 -->
-      <div v-if="!canAccessLogs" class="mt-4 p-4 bg-yellow-100 border border-yellow-300 rounded-lg">
+      <!-- Point 19: 移除權限檢查錯誤提示，改為登入檢查 -->
+      <div v-if="!canAccessLogs" class="mt-4 p-4 bg-blue-100 border border-blue-300 rounded-lg">
         <div class="flex items-center">
-          <svg class="w-5 h-5 text-yellow-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+          <svg class="w-5 h-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
           </svg>
-          <span class="text-yellow-800 font-medium">您需要管理員權限才能查看錯誤日誌</span>
+          <div class="text-blue-800">
+            <div class="font-medium">請先登入以查看錯誤日誌</div>
+            <div class="text-sm mt-1">
+              您需要登入才能存取此功能
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -383,7 +388,14 @@ const filters = ref({
 // 計算屬性
 const user = computed(() => authStore.user)
 const canAccessLogs = computed(() => {
-  return user.value && (user.value.isAdmin || user.value.isManager || user.value.isExecutive)
+  // Point 19: 移除管理員權限限制，所有登入用戶都可以查看日誌
+  return authStore.isLoggedIn && !!user.value
+})
+
+// 檢查是否為管理員（用於某些敏感操作）
+const isAdmin = computed(() => {
+  return authStore.isAdmin || authStore.isManager || authStore.isExecutive ||
+         authStore.hasPermission('all_access') || user.value?.role === 'admin'
 })
 
 // 方法
@@ -598,11 +610,41 @@ const handleViewCriticalOnly = () => {
 
 // 生命週期
 onMounted(async () => {
+  // 確保認證已初始化
+  await authStore.waitForInitialization()
+
+  console.log('Settings/logs page - Auth debug info:', {
+    isLoggedIn: authStore.isLoggedIn,
+    isAdmin: authStore.isAdmin,
+    isManager: authStore.isManager,
+    isExecutive: authStore.isExecutive,
+    user: authStore.user,
+    userRole: authStore.user?.role,
+    userIsAdmin: authStore.user?.is_admin,
+    userRoles: authStore.user?.roles,
+    hasAllAccess: authStore.hasPermission('all_access'),
+    hasViewLogs: authStore.hasPermission('view_logs'),
+    canAccessLogs: canAccessLogs.value
+  })
+
   if (canAccessLogs.value) {
     await loadErrorStats()
     // 預設載入最近的錯誤日誌
     filters.value.level = 'error'
     await loadErrorLogs()
+  } else {
+    console.warn('User does not have access to logs page:', {
+      isLoggedIn: authStore.isLoggedIn,
+      userRole: authStore.user?.role,
+      userRoles: authStore.user?.roles,
+      userIsAdmin: authStore.user?.is_admin,
+      authStoreIsAdmin: authStore.isAdmin,
+      authStoreIsManager: authStore.isManager,
+      authStoreIsExecutive: authStore.isExecutive,
+      hasAllAccess: authStore.hasPermission('all_access'),
+      hasViewLogs: authStore.hasPermission('view_logs'),
+      fullUser: authStore.user
+    })
   }
 })
 
