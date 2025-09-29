@@ -191,7 +191,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 defineEmits(['view-all-logs', 'view-critical-only'])
 
 // Composables
-const { $api } = useNuxtApp()
+const { get } = useApi()
+const { error: showError } = useNotification()
 
 // Reactive data
 const errorStats = ref(null)
@@ -246,31 +247,39 @@ const formatTimestamp = (timestamp) => {
 
 const loadErrorStats = async () => {
   try {
-    const response = await $api('/debug/logs/stats', {
-      method: 'GET',
-      params: { days: 1 } // 只查看過去24小時
-    })
+    const { data: response, error: apiError } = await get('/debug/logs/stats', { days: 1 }) // 只查看過去24小時
 
-    if (response.success) {
+    if (apiError) {
+      console.error('載入錯誤統計失敗:', apiError)
+      showError(`載入錯誤統計失敗: ${apiError.message || '未知錯誤'}`)
+      return
+    }
+
+    if (response && response.success) {
       errorStats.value = response.data
     }
   } catch (error) {
     console.error('載入錯誤統計失敗:', error)
+    showError(`載入錯誤統計失敗: ${error.message}`)
   }
 }
 
 const loadRecentErrors = async () => {
   try {
-    const response = await $api('/debug/logs/critical', {
-      method: 'GET',
-      params: { limit: 10 }
-    })
+    const { data: response, error: apiError } = await get('/debug/logs/critical', { limit: 10 })
 
-    if (response.success) {
+    if (apiError) {
+      console.error('載入最近錯誤失敗:', apiError)
+      showError(`載入最近錯誤失敗: ${apiError.message || '未知錯誤'}`)
+      return
+    }
+
+    if (response && response.success) {
       recentErrors.value = response.data.errors || []
     }
   } catch (error) {
     console.error('載入最近錯誤失敗:', error)
+    showError(`載入最近錯誤失敗: ${error.message}`)
   }
 }
 

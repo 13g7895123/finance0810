@@ -358,7 +358,8 @@ definePageMeta({
 
 // 使用stores
 const authStore = useAuthStore()
-const { $api } = useNuxtApp()
+const { get, post } = useApi()
+const { success: showSuccess, error: showError } = useNotification()
 
 // 響應式資料
 const logs = ref([])
@@ -451,23 +452,26 @@ const loadErrorLogs = async () => {
       Object.entries(filters.value).filter(([_, value]) => value !== '' && value !== null)
     )
 
-    const response = await $api('/debug/logs/errors', {
-      method: 'GET',
-      params
-    })
+    const { data: response, error: apiError } = await get('/debug/logs/errors', params)
 
-    if (response.success) {
+    if (apiError) {
+      console.error('載入錯誤日誌失敗:', apiError)
+      logs.value = []
+      showError(`載入錯誤日誌失敗: ${apiError.message || '未知錯誤'}`)
+      return
+    }
+
+    if (response && response.success) {
       logs.value = response.data.logs || []
       logsSummary.value = response.data.summary
     } else {
-      throw new Error(response.message || '載入錯誤日誌失敗')
+      logs.value = []
+      showError(response?.message || '載入錯誤日誌失敗')
     }
   } catch (error) {
     console.error('載入錯誤日誌失敗:', error)
     logs.value = []
-
-    // 使用 Nuxt 的通知系統
-    $toast?.error(`載入錯誤日誌失敗: ${error.message}`)
+    showError(`載入錯誤日誌失敗: ${error.message}`)
   } finally {
     loading.value = false
   }
@@ -477,16 +481,22 @@ const loadErrorStats = async () => {
   if (!canAccessLogs.value) return
 
   try {
-    const response = await $api('/debug/logs/stats', {
-      method: 'GET',
-      params: { days: 7 }
-    })
+    const { data: response, error: apiError } = await get('/debug/logs/stats', { days: 7 })
 
-    if (response.success) {
+    if (apiError) {
+      console.error('載入錯誤統計失敗:', apiError)
+      showError(`載入錯誤統計失敗: ${apiError.message || '未知錯誤'}`)
+      return
+    }
+
+    if (response && response.success) {
       errorStats.value = response.data
+    } else {
+      showError(response?.message || '載入錯誤統計失敗')
     }
   } catch (error) {
     console.error('載入錯誤統計失敗:', error)
+    showError(`載入錯誤統計失敗: ${error.message}`)
   }
 }
 
@@ -495,12 +505,16 @@ const loadCriticalErrors = async () => {
 
   loading.value = true
   try {
-    const response = await $api('/debug/logs/critical', {
-      method: 'GET',
-      params: { limit: 50 }
-    })
+    const { data: response, error: apiError } = await get('/debug/logs/critical', { limit: 50 })
 
-    if (response.success) {
+    if (apiError) {
+      console.error('載入嚴重錯誤失敗:', apiError)
+      logs.value = []
+      showError(`載入嚴重錯誤失敗: ${apiError.message || '未知錯誤'}`)
+      return
+    }
+
+    if (response && response.success) {
       logs.value = response.data.errors || []
       criticalPatterns.value = response.data.analyzed_patterns
       logsSummary.value = {
@@ -509,13 +523,13 @@ const loadCriticalErrors = async () => {
         common_errors: {}
       }
     } else {
-      throw new Error(response.message || '載入嚴重錯誤失敗')
+      logs.value = []
+      showError(response?.message || '載入嚴重錯誤失敗')
     }
   } catch (error) {
     console.error('載入嚴重錯誤失敗:', error)
     logs.value = []
-
-    $toast?.error(`載入嚴重錯誤失敗: ${error.message}`)
+    showError(`載入嚴重錯誤失敗: ${error.message}`)
   } finally {
     loading.value = false
   }
@@ -524,31 +538,34 @@ const loadCriticalErrors = async () => {
 const cleanupOldLogs = async () => {
   if (!canAccessLogs.value || !cleanupDays.value) return
 
-  if (!confirm(`確定要清理 ${cleanupDays.value} 天前的日誌嗎？此操作無法復原。`)) {
-    return
-  }
+  const { confirm } = useNotification()
+  const confirmed = await confirm(`確定要清理 ${cleanupDays.value} 天前的日誌嗎？此操作無法復原。`)
+  if (!confirmed) return
 
   loading.value = true
   try {
-    const response = await $api('/debug/logs/cleanup', {
-      method: 'POST',
-      body: {
-        days_to_keep: cleanupDays.value
-      }
+    const { data: response, error: apiError } = await post('/debug/logs/cleanup', {
+      days_to_keep: cleanupDays.value
     })
 
-    if (response.success) {
-      $toast?.success(`成功清理 ${response.data.removed_entries} 筆舊日誌記錄`)
+    if (apiError) {
+      console.error('清理日誌失敗:', apiError)
+      showError(`清理日誌失敗: ${apiError.message || '未知錯誤'}`)
+      return
+    }
+
+    if (response && response.success) {
+      showSuccess(`成功清理 ${response.data.removed_entries} 筆舊日誌記錄`)
 
       // 重新載入統計和日誌
       await loadErrorStats()
       await loadErrorLogs()
     } else {
-      throw new Error(response.message || '清理日誌失敗')
+      showError(response?.message || '清理日誌失敗')
     }
   } catch (error) {
     console.error('清理日誌失敗:', error)
-    $toast?.error(`清理日誌失敗: ${error.message}`)
+    showError(`清理日誌失敗: ${error.message}`)
   } finally {
     loading.value = false
   }

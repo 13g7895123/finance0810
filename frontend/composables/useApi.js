@@ -127,6 +127,27 @@ export const useApi = () => {
         })
       }
 
+      // Point 18: 增強錯誤監控和處理
+      const { handleError } = useErrorMonitoring()
+      const errorHandled = await handleError(error, {
+        endpoint,
+        method,
+        actualUrl,
+        shouldSilence
+      })
+
+      // 如果錯誤已被處理（例如重定向到登入頁），提前返回
+      if (errorHandled) {
+        return {
+          data: null,
+          error: {
+            status: error.status,
+            message: '認證問題已處理',
+            handled: true
+          }
+        }
+      }
+
       // 處理認證錯誤
       if (error.status === 401) {
         // Point 3: Skip auth error handling in development convenience mode
@@ -140,6 +161,22 @@ export const useApi = () => {
               mock_response: true
             },
             error: null
+          }
+        }
+
+        // 嘗試 token 刷新（如果不是刷新請求本身）
+        if (!endpoint.includes('/auth/refresh') && !shouldSilence) {
+          try {
+            const { handleAuthError } = useTokenRefresh()
+            const shouldRetry = await handleAuthError({ ...error, isRefreshRequest: false })
+
+            if (shouldRetry) {
+              // Token 刷新成功，重試原請求
+              console.log('Token refreshed, retrying request:', endpoint)
+              return await apiRequest(method, endpoint, data, options)
+            }
+          } catch (refreshError) {
+            console.error('Token refresh failed:', refreshError)
           }
         }
 

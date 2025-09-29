@@ -640,6 +640,16 @@ const loadCaseData = async () => {
     loading.value = true
     loadError.value = null
 
+    // Point 18: 檢查並刷新 token（如果需要）
+    const { checkAndRefreshToken } = useTokenRefresh()
+    const tokenValid = await checkAndRefreshToken()
+
+    if (!tokenValid) {
+      console.warn('Token validation failed in edit page, redirecting to login')
+      await navigateTo('/auth/login')
+      return
+    }
+
     // Point 2 修復：強制清空表單資料，確保響應式追蹤正常
     console.log('Clearing form data for new case...')
 

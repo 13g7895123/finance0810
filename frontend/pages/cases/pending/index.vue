@@ -1144,8 +1144,22 @@ onMounted(async () => {
   try {
     await authStore.waitForInitialization()
     console.log('Auth initialized, making API calls with token:', !!authStore.token)
+
+    // Point 18: 檢查並刷新 token（如果需要）
+    const { checkAndRefreshToken } = useTokenRefresh()
+    const tokenValid = await checkAndRefreshToken()
+
+    if (!tokenValid) {
+      console.warn('Token validation failed, redirecting to login')
+      await navigateTo('/auth/login')
+      return
+    }
+
+    console.log('Token validation passed, proceeding with API calls')
   } catch (error) {
-    console.error('Failed to initialize auth:', error)
+    console.error('Failed to initialize auth or refresh token:', error)
+    await navigateTo('/auth/login')
+    return
   }
 
   // Now make the API calls with proper authentication
