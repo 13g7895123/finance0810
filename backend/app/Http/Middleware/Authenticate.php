@@ -66,12 +66,12 @@ class Authenticate extends Middleware
                 // Try to parse the token
                 if ($token) {
                     $payload = JWTAuth::parseToken()->getPayload();
-                    Log::info('Point 85 - JWT Token Valid', [
-                        'user_id' => $payload->get('sub'),
-                        'roles' => $payload->get('roles', []),
-                        'exp' => date('Y-m-d H:i:s', $payload->get('exp')),
-                        'url' => $request->fullUrl()
-                    ]);
+                    // Log::info('Point 85 - JWT Token Valid', [
+                    //     'user_id' => $payload->get('sub'),
+                    //     'roles' => $payload->get('roles', []),
+                    //     'exp' => date('Y-m-d H:i:s', $payload->get('exp')),
+                    //     'url' => $request->fullUrl()
+                    // ]);
                 }
             } catch (JWTException $e) {
                 Log::warning('Point 85 - JWT Auth Failed', [

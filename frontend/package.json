@@ -22,6 +22,7 @@
     "@heroicons/vue": "^2.1.5",
     "@nuxt/ui": "^2.18.7",
     "@pinia/nuxt": "^0.5.5",
+    "@playwright/test": "^1.55.1",
     "firebase": "^10.14.1",
     "nuxt": "^3.13.0",
     "pinia": "^2.2.4",

@@ -54,8 +54,6 @@ services:
     volumes:
       # Mount entire backend code for live updates
       - ./backend:/var/www/html
-      # Exclude vendor directory to use container's dependencies
-      - /var/www/html/vendor
       # Persistent storage
       - ./backend/storage:/var/www/html/storage
       - backend_bootstrap_cache:/var/www/html/bootstrap/cache
@@ -72,7 +70,7 @@ services:
         php artisan view:clear || true
 
         # Start the application
-        /startup.sh
+        php artisan serve --host=0.0.0.0 --port=8000
       "
     depends_on:
       - mysql

@@ -73,5 +73,6 @@ class Kernel extends HttpKernel
         'custom.role' => \App\Http\Middleware\RolePermissionMiddleware::class,
         'custom.permission' => \App\Http\Middleware\PermissionMiddleware::class,
         'customer.ownership' => \App\Http\Middleware\CustomerOwnershipMiddleware::class,
+        'validate.identity' => \App\Http\Middleware\ValidateUserIdentity::class,
     ];
 }
