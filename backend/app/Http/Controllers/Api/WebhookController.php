@@ -664,6 +664,43 @@ class WebhookController extends Controller
                 'is_suspected_blacklist' => $lead->is_suspected_blacklist
             ]);
 
+            // Point 1: Create notification for WP lead (broadcast to all users)
+            try {
+                \App\Models\Notification::create([
+                    'type' => 'wp_lead',
+                    'title' => '網路進線通知',
+                    'message' => "網路進線有新客戶，請業務儘快聯絡！客戶：{$name}，電話：{$phone}",
+                    'user_id' => null, // Broadcast to all users
+                    'lead_id' => $lead->id,
+                    'is_read' => false,
+                    'priority' => 'high',
+                    'data' => [
+                        'customer_name' => $name,
+                        'customer_phone' => $phone,
+                        'customer_email' => $email,
+                        'website_domain' => $websiteDomain,
+                        'lead_id' => $lead->id,
+                        'customer_id' => $existingCustomer->id,
+                    ],
+                ]);
+
+                $executionLog->addExecutionStep('wp_notification_created', [
+                    'lead_id' => $lead->id,
+                    'notification_type' => 'wp_lead',
+                    'broadcast' => true
+                ]);
+            } catch (\Throwable $notificationException) {
+                // Log error but don't fail the webhook
+                Log::error('Point 1 - Failed to create WP notification', [
+                    'lead_id' => $lead->id,
+                    'error' => $notificationException->getMessage(),
+                ]);
+
+                $executionLog->addExecutionStep('wp_notification_failed', [
+                    'error' => $notificationException->getMessage()
+                ], 'failed');
+            }
+
             // 寫入對應的自訂欄位（lead）- 使用unmapped fields作為custom fields
             try {
                 $executionLog->addExecutionStep('custom_fields_processing_start', [

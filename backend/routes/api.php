@@ -562,6 +562,9 @@ Route::get('/diagnostic/basic-health', [\App\Http\Controllers\Api\DiagnosticCont
 Route::get('/diagnostic/database-check', [\App\Http\Controllers\Api\DiagnosticController::class, 'databaseCheck']);
 Route::get('/diagnostic/test-data-creation', [\App\Http\Controllers\Api\DiagnosticController::class, 'testDataCreation']);
 
+// Point 4: Random WP Lead Data Generator (public - for testing notifications)
+Route::get('/test/generate-wp-lead', [\App\Http\Controllers\Api\TestDataController::class, 'generateRandomWpLead']);
+
 // Public routes
 Route::post('/auth/login', [AuthController::class, 'login'])->name('login');
 Route::post('/auth/register', [AuthController::class, 'register']);
@@ -591,6 +594,17 @@ Route::middleware(['auth:api'])->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
+
+    // Point 1: Notifications
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\NotificationController::class, 'index']);
+        Route::get('/unread-count', [\App\Http\Controllers\Api\NotificationController::class, 'unreadCount']);
+        Route::get('/wp-unread-count', [\App\Http\Controllers\Api\NotificationController::class, 'wpUnreadCount']);
+        Route::post('/{id}/read', [\App\Http\Controllers\Api\NotificationController::class, 'markAsRead']);
+        Route::post('/mark-all-read', [\App\Http\Controllers\Api\NotificationController::class, 'markAllAsRead']);
+        Route::post('/clear-read', [\App\Http\Controllers\Api\NotificationController::class, 'clearRead']);
+        Route::delete('/{id}', [\App\Http\Controllers\Api\NotificationController::class, 'destroy']);
+    });
     
     // Dashboard - Available to all authenticated users
     Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);

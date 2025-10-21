@@ -1,123 +1,253 @@
+// Point 3: Real-time notification store with API integration
 export const useNotificationsStore = defineStore('notifications', () => {
-  // Initialize with static times to prevent hydration mismatch
-  const baseTime = new Date('2024-08-08T12:00:00Z')
-  
-  const notifications = ref([
-    {
-      id: 1,
-      type: 'system',
-      title: 'notifications.system_update',
-      message: 'A new system update is available. Please update to get the latest features.',
-      time: new Date(baseTime.getTime() - 5 * 60 * 1000),
-      read: false,
-      priority: 'high',
-      icon: 'ExclamationCircleIcon'
-    },
-    {
-      id: 2,
-      type: 'user',
-      title: 'notifications.user_registration',
-      message: 'New user "john.doe@example.com" has registered.',
-      time: new Date(baseTime.getTime() - 10 * 60 * 1000),
-      read: false,
-      priority: 'medium',
-      icon: 'UserPlusIcon'
-    },
-    {
-      id: 3,
-      type: 'report',
-      title: 'notifications.daily_report',
-      message: 'Your daily analytics report is ready for review.',
-      time: new Date(baseTime.getTime() - 60 * 60 * 1000),
-      read: true,
-      priority: 'low',
-      icon: 'DocumentTextIcon'
-    },
-    {
-      id: 4,
-      type: 'security',
-      title: 'Security Alert',
-      message: 'Unusual login activity detected from a new device.',
-      time: new Date(baseTime.getTime() - 2 * 60 * 60 * 1000),
-      read: false,
-      priority: 'high',
-      icon: 'ShieldExclamationIcon'
-    }
-  ])
+  const notifications = ref([])
+  const loading = ref(false)
+  const pollingInterval = ref(null)
+  const lastNotificationId = ref(null)
 
-  const unreadCount = computed(() => 
-    notifications.value.filter(n => !n.read).length
+  const unreadCount = computed(() =>
+    notifications.value.filter(n => !n.is_read).length
   )
 
   const priorityNotifications = computed(() =>
     notifications.value
-      .filter(n => n.priority === 'high' && !n.read)
+      .filter(n => n.priority === 'high' && !n.is_read)
       .slice(0, 3)
   )
 
   const recentNotifications = computed(() =>
     notifications.value
-      .sort((a, b) => b.time - a.time)
-      .slice(0, 5)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 10)
   )
 
-  const addNotification = (notification) => {
-    const newNotification = {
-      id: Date.now(),
-      type: notification.type || 'info',
-      title: notification.title,
-      message: notification.message,
-      time: new Date(),
-      read: false,
-      priority: notification.priority || 'medium',
-      icon: notification.icon || 'InformationCircleIcon'
+  /**
+   * Point 3: Fetch notifications from API
+   */
+  const fetchNotifications = async () => {
+    try {
+      const api = useApi()
+      const response = await api.get('/notifications', {
+        params: {
+          per_page: 20
+        }
+      })
+
+      if (response.data) {
+        const newNotifications = response.data.data || response.data
+
+        // Check for new notifications to show toast
+        if (lastNotificationId.value && newNotifications.length > 0) {
+          const newestId = newNotifications[0].id
+          if (newestId !== lastNotificationId.value) {
+            // Find new notifications
+            const newOnes = newNotifications.filter(n =>
+              !notifications.value.find(existing => existing.id === n.id)
+            )
+            // Show toast for new WP lead notifications
+            newOnes.forEach(notification => {
+              if (notification.type === 'wp_lead' && !notification.is_read) {
+                showToast(notification)
+              }
+            })
+          }
+        }
+
+        if (newNotifications.length > 0) {
+          lastNotificationId.value = newNotifications[0].id
+        }
+
+        notifications.value = newNotifications
+      }
+    } catch (error) {
+      console.error('Point 3 - Failed to fetch notifications:', error)
     }
-    notifications.value.unshift(newNotification)
-    
-    // Auto-remove after 30 seconds if it's a toast notification
-    if (notification.autoRemove !== false) {
-      setTimeout(() => {
-        removeNotification(newNotification.id)
-      }, 30000)
+  }
+
+  /**
+   * Point 3: Fetch unread count only (lightweight)
+   */
+  const fetchUnreadCount = async () => {
+    try {
+      const api = useApi()
+      const response = await api.get('/notifications/unread-count')
+      return response.data?.count || 0
+    } catch (error) {
+      console.error('Point 3 - Failed to fetch unread count:', error)
+      return 0
     }
   }
 
-  const markAsRead = (id) => {
-    const notification = notifications.value.find(n => n.id === id)
-    if (notification) {
-      notification.read = true
+  /**
+   * Point 3: Mark notification as read via API
+   */
+  const markAsRead = async (id) => {
+    try {
+      const api = useApi()
+      await api.post(`/notifications/${id}/read`)
+
+      // Update local state
+      const notification = notifications.value.find(n => n.id === id)
+      if (notification) {
+        notification.is_read = true
+        notification.read_at = new Date().toISOString()
+      }
+
+      return true
+    } catch (error) {
+      console.error('Point 3 - Failed to mark notification as read:', error)
+      return false
     }
   }
 
-  const markAllAsRead = () => {
-    notifications.value.forEach(n => {
-      n.read = true
-    })
-  }
+  /**
+   * Point 3: Mark all notifications as read via API
+   */
+  const markAllAsRead = async () => {
+    try {
+      const api = useApi()
+      await api.post('/notifications/mark-all-read')
 
-  const removeNotification = (id) => {
-    const index = notifications.value.findIndex(n => n.id === id)
-    if (index > -1) {
-      notifications.value.splice(index, 1)
+      // Update local state
+      notifications.value.forEach(n => {
+        n.is_read = true
+        n.read_at = new Date().toISOString()
+      })
+
+      return true
+    } catch (error) {
+      console.error('Point 3 - Failed to mark all as read:', error)
+      return false
     }
   }
 
-  const clearAllNotifications = () => {
-    notifications.value = []
+  /**
+   * Point 3: Clear read notifications via API
+   */
+  const clearReadNotifications = async () => {
+    try {
+      const api = useApi()
+      await api.post('/notifications/clear-read')
+
+      // Update local state
+      notifications.value = notifications.value.filter(n => !n.is_read)
+
+      return true
+    } catch (error) {
+      console.error('Point 3 - Failed to clear read notifications:', error)
+      return false
+    }
   }
 
-  const clearReadNotifications = () => {
-    notifications.value = notifications.value.filter(n => !n.read)
+  /**
+   * Point 3: Delete notification via API
+   */
+  const removeNotification = async (id) => {
+    try {
+      const api = useApi()
+      await api.delete(`/notifications/${id}`)
+
+      // Update local state
+      const index = notifications.value.findIndex(n => n.id === id)
+      if (index > -1) {
+        notifications.value.splice(index, 1)
+      }
+
+      return true
+    } catch (error) {
+      console.error('Point 3 - Failed to remove notification:', error)
+      return false
+    }
   }
 
-  const getTimeAgo = (time) => {
+  const currentToast = ref(null)
+
+  /**
+   * Point 3: Show toast notification
+   */
+  const showToast = (notification) => {
+    // Only run on client
+    if (process.server) return
+
+    // Set current toast for the component to display
+    currentToast.value = notification
+
+    // Use native browser notification if permitted
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(notification.title || '新通知', {
+        body: notification.message,
+        icon: '/favicon.ico',
+        tag: `notification-${notification.id}`,
+        requireInteraction: false
+      })
+    }
+
+    console.log('Point 3 - New notification toast:', notification.title, notification.message)
+  }
+
+  /**
+   * Point 3: Close current toast
+   */
+  const closeToast = () => {
+    currentToast.value = null
+  }
+
+  /**
+   * Point 3: Request browser notification permission
+   */
+  const requestNotificationPermission = async () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      await Notification.requestPermission()
+    }
+  }
+
+  /**
+   * Point 3: Start real-time polling for notifications
+   */
+  const startPolling = (intervalMs = 30000) => {
+    // Only run on client
+    if (process.server) return
+
+    // Request notification permission
+    requestNotificationPermission()
+
+    // Initial fetch
+    fetchNotifications()
+
+    // Clear any existing interval
+    if (pollingInterval.value) {
+      clearInterval(pollingInterval.value)
+    }
+
+    // Poll every intervalMs (default 30 seconds)
+    pollingInterval.value = setInterval(() => {
+      fetchNotifications()
+    }, intervalMs)
+
+    console.log('Point 3 - Notification polling started')
+  }
+
+  /**
+   * Point 3: Stop polling
+   */
+  const stopPolling = () => {
+    if (pollingInterval.value) {
+      clearInterval(pollingInterval.value)
+      pollingInterval.value = null
+      console.log('Point 3 - Notification polling stopped')
+    }
+  }
+
+  /**
+   * Get time ago for display
+   */
+  const getTimeAgo = (dateString) => {
     // Use a static reference time to prevent hydration mismatch
     if (process.server) {
-      // On server, return static relative time
       return '幾分鐘前'
     }
-    
-    // On client, calculate relative time
+
+    const time = new Date(dateString)
     const now = new Date()
     const diff = now - time
     const minutes = Math.floor(diff / (1000 * 60))
@@ -130,58 +260,38 @@ export const useNotificationsStore = defineStore('notifications', () => {
     return `${days} 天前`
   }
 
-  // Simulate real-time notifications - client-only
+  /**
+   * Legacy method for backward compatibility - now triggers real polling
+   */
   const simulateRealTimeNotifications = () => {
-    // Only run on client to prevent hydration issues
-    if (process.server) return
-    
-    const notificationTypes = [
-      {
-        type: 'user',
-        title: 'New user registration',
-        message: 'A new user has joined the platform.',
-        priority: 'medium',
-        icon: 'UserPlusIcon'
-      },
-      {
-        type: 'system',
-        title: 'System maintenance',
-        message: 'Scheduled maintenance will begin in 1 hour.',
-        priority: 'high',
-        icon: 'WrenchScrewdriverIcon'
-      },
-      {
-        type: 'report',
-        title: 'Weekly report ready',
-        message: 'Your weekly analytics report is ready.',
-        priority: 'low',
-        icon: 'DocumentTextIcon'
-      }
-    ]
+    startPolling()
+  }
 
-    // Simulate notifications every 30 seconds to 2 minutes
-    setInterval(() => {
-      if (Math.random() > 0.7) { // 30% chance
-        const randomNotification = notificationTypes[
-          Math.floor(Math.random() * notificationTypes.length)
-        ]
-        addNotification(randomNotification)
-      }
-    }, 30000 + Math.random() * 90000) // 30s to 2min random interval
+  // Cleanup on store disposal
+  if (import.meta.client) {
+    onUnmounted(() => {
+      stopPolling()
+    })
   }
 
   return {
     notifications: readonly(notifications),
+    loading: readonly(loading),
     unreadCount,
     priorityNotifications,
     recentNotifications,
-    addNotification,
+    currentToast: readonly(currentToast),
+    fetchNotifications,
+    fetchUnreadCount,
     markAsRead,
     markAllAsRead,
     removeNotification,
-    clearAllNotifications,
     clearReadNotifications,
+    closeToast,
     getTimeAgo,
-    simulateRealTimeNotifications
+    startPolling,
+    stopPolling,
+    simulateRealTimeNotifications, // Legacy support
+    requestNotificationPermission
   }
 })

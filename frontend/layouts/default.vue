@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-white">
     <AppSidebar />
-    <div 
+    <div
       class="min-h-screen flex flex-col main-content-area light-gradient-bg"
       :class="{
         'sidebar-collapsed': sidebarCollapsed
@@ -13,8 +13,12 @@
       </main>
       <!-- Footer已隱藏 -->
     </div>
-    
-    <!-- 調試組件已移除 -->
+
+    <!-- Point 3: Notification toast component -->
+    <NotificationToast
+      :notification="notificationsStore.currentToast"
+      @close="notificationsStore.closeToast"
+    />
   </div>
 </template>
 
@@ -25,4 +29,7 @@ const { sidebarCollapsed } = storeToRefs(sidebarStore)
 // Add footbar state from settings
 const settingsStore = useSettingsStore()
 const { showFootbar } = storeToRefs(settingsStore)
+
+// Point 3: Notification store for toast
+const notificationsStore = useNotificationsStore()
 </script>

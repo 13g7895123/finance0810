@@ -143,38 +143,38 @@
                 :key="notification.id"
                 class="p-4 transition-colors duration-200 cursor-pointer"
                 :class="{
-                  'bg-blue-50 hover:bg-blue-100': !notification.read,
-                  'bg-white hover:bg-gray-50': notification.read
+                  'bg-blue-50 hover:bg-blue-100': !notification.is_read,
+                  'bg-white hover:bg-gray-50': notification.is_read
                 }"
                 @click="markAsRead(notification.id)"
               >
                 <div class="flex items-start space-x-3">
-                  <div 
+                  <div
                     class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
                     :class="{
                       'bg-red-100 text-red-600': notification.priority === 'high',
                       'bg-yellow-100 text-yellow-600': notification.priority === 'medium',
-                      'bg-blue-100 text-blue-600': notification.priority === 'low'
+                      'bg-blue-100 text-blue-600': notification.priority === 'low' || !notification.priority
                     }"
                   >
-                    <component :is="getNotificationIcon(notification.icon)" class="w-4 h-4" />
+                    <BellIcon class="w-4 h-4" />
                   </div>
                   <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium" :class="{
-                      'text-gray-900': !notification.read,
-                      'text-gray-600': notification.read
+                      'text-gray-900': !notification.is_read,
+                      'text-gray-600': notification.is_read
                     }">
                       {{ notification.title }}
                     </p>
                     <p class="text-sm mt-1" :class="{
-                      'text-gray-700': !notification.read,
-                      'text-gray-500': notification.read
+                      'text-gray-700': !notification.is_read,
+                      'text-gray-500': notification.is_read
                     }">{{ notification.message }}</p>
-                    <p class="text-xs text-gray-400 mt-1">{{ notificationsStore.getTimeAgo(notification.time) }}</p>
+                    <p class="text-xs text-gray-400 mt-1">{{ notificationsStore.getTimeAgo(notification.created_at) }}</p>
                   </div>
                   <div class="flex-shrink-0">
                     <div
-                      v-if="!notification.read"
+                      v-if="!notification.is_read"
                       class="w-3 h-3 bg-blue-500 rounded-full"
                     ></div>
                   </div>
