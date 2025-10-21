@@ -7,6 +7,7 @@
       </div>
       
       <!-- Center - Copyright -->
+      <!-- Test -->
       <div class="flex items-center">
         <span>© 2024 金融管理系統. 版權所有.</span>
       </div>
