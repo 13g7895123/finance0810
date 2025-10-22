@@ -22,14 +22,14 @@
     "@heroicons/vue": "^2.1.5",
     "@nuxt/ui": "^2.18.7",
     "@pinia/nuxt": "^0.5.5",
-    "@playwright/test": "^1.55.1",
     "firebase": "^10.14.1",
     "nuxt": "^3.13.0",
     "pinia": "^2.2.4",
     "sweetalert2": "^11.22.3",
-    "vue": "latest"
+    "vue": "^3.4.21"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.1",
     "@nuxt/devtools": "^1.5.2",
     "@nuxt/kit": "^3.13.0",
     "@vitejs/plugin-vue": "^6.0.1",

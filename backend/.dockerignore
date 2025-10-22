@@ -1,0 +1,49 @@
+# 依賴目錄
+vendor/
+node_modules/
+
+# Laravel 快取與日誌
+storage/logs/*
+!storage/logs/.gitkeep
+storage/framework/cache/*
+!storage/framework/cache/.gitkeep
+storage/framework/sessions/*
+!storage/framework/sessions/.gitkeep
+storage/framework/views/*
+!storage/framework/views/.gitkeep
+bootstrap/cache/*
+!bootstrap/cache/.gitkeep
+
+# Git 相關
+.git
+.github
+.gitignore
+.gitattributes
+
+# 環境設定
+.env*
+!.env.example
+
+# 測試相關
+tests/
+phpunit.xml
+.phpunit.result.cache
+coverage/
+
+# 文檔
+*.md
+docs/
+
+# IDE 設定
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# 建置產物
+.php_cs.cache
+.php-cs-fixer.cache
+
+# 日誌
+*.log

@@ -106,21 +106,72 @@ jobs:
               rm .env.backup
               echo "已恢復 .env 檔案"
             fi
-                        
-            # 僅重新建構並啟動前端服務
-            docker compose up -d --build frontend
-            
-            # 如果後端未運行，則啟動後端（不重新建構）
-            if [ "\$BACKEND_RUNNING" = "false" ]; then
-              docker compose up -d backend mysql redis phpmyadmin
+
+            # 檢測是否需要重新建置 Docker image
+            echo "========================================="
+            echo "🔍 檢測檔案變更..."
+            echo "========================================="
+            FRONTEND_REBUILD=false
+            BACKEND_REBUILD=false
+
+            # 檢查前端相關文件是否變更
+            if git diff --name-only HEAD@{1} HEAD 2>/dev/null | grep -E "(frontend/Dockerfile|frontend/package.*\.json|frontend/.*\.(vue|ts|js))"; then
+              echo "✅ 偵測到前端變更"
+              FRONTEND_REBUILD=true
+            else
+              echo "⏭️  前端無變更"
+            fi
+
+            # 檢查後端相關文件是否變更
+            if git diff --name-only HEAD@{1} HEAD 2>/dev/null | grep -E "(backend/Dockerfile|backend/composer\.(json|lock)|backend/.*\.php)"; then
+              echo "✅ 偵測到後端變更"
+              BACKEND_REBUILD=true
+            else
+              echo "⏭️  後端無變更"
+            fi
+
+            # 如果是首次部署或無法獲取差異，則強制重建
+            if ! git rev-parse HEAD@{1} >/dev/null 2>&1; then
+              echo "⚠️  首次部署或無法比較變更，將執行完整重建"
+              FRONTEND_REBUILD=true
+              BACKEND_REBUILD=true
+            fi
+
+            # 根據變更情況決定是否重建
+            echo "========================================="
+            echo "📦 Docker 建置策略:"
+            echo "前端重建: \$FRONTEND_REBUILD"
+            echo "後端重建: \$BACKEND_REBUILD"
+            echo "========================================="
+
+            # 重建前端（如果需要）
+            if [ "\$FRONTEND_REBUILD" = "true" ]; then
+              echo "🔨 重新建置前端 Docker image..."
+              docker compose up -d --build frontend
+            else
+              echo "♻️  重啟前端服務 (無需重建)..."
+              docker compose up -d frontend
+            fi
+
+            # 檢查後端是否運行
+            BACKEND_RUNNING=\$(docker compose ps -q backend)
+            if [ -z "\$BACKEND_RUNNING" ] || [ "\$BACKEND_REBUILD" = "true" ]; then
+              if [ "\$BACKEND_REBUILD" = "true" ]; then
+                echo "🔨 重新建置後端 Docker image..."
+              else
+                echo "🚀 首次啟動後端服務..."
+              fi
+              docker compose up -d --build backend mysql redis phpmyadmin
               echo "等待後端服務啟動完成..."
               sleep 30
-              
+
               # 執行資料庫遷移（僅在後端重新啟動時）
               docker compose exec -T backend php artisan migrate --force
-              
+
               # 執行資料庫填充（如果需要）
               docker compose exec -T backend php artisan db:seed --force --class=RolesAndPermissionsSeeder
+            else
+              echo "♻️  後端服務正常運行，無需重建"
             fi
 
             # 每次都執行migrate
