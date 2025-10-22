@@ -107,6 +107,16 @@ jobs:
               echo "已恢復 .env 檔案"
             fi
 
+            # 確保必要的 storage 目錄結構存在
+            echo "========================================="
+            echo "📁 確保 Laravel storage 目錄結構..."
+            echo "========================================="
+            mkdir -p backend/storage/framework/{views,sessions,cache,data,testing}
+            mkdir -p backend/storage/logs
+            mkdir -p backend/bootstrap/cache
+            chmod -R 775 backend/storage backend/bootstrap/cache 2>/dev/null || true
+            echo "✅ Storage 目錄結構已就緒"
+
             # 檢測是否需要重新建置 Docker image
             echo "========================================="
             echo "🔍 檢測檔案變更..."
