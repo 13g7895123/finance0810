@@ -54,6 +54,8 @@ services:
     volumes:
       # Mount entire backend code for live updates
       - ./backend:/var/www/html
+      # Exclude vendor directory to use container's installed dependencies
+      - /var/www/html/vendor
       # Persistent storage
       - ./backend/storage:/var/www/html/storage
       - backend_bootstrap_cache:/var/www/html/bootstrap/cache
