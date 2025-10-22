@@ -107,15 +107,34 @@ jobs:
               echo "已恢復 .env 檔案"
             fi
 
-            # 確保必要的 storage 目錄結構存在
+            # 確保必要的 storage 目錄結構存在（如果有權限的話）
             echo "========================================="
             echo "📁 確保 Laravel storage 目錄結構..."
             echo "========================================="
-            mkdir -p backend/storage/framework/{views,sessions,cache,data,testing}
-            mkdir -p backend/storage/logs
-            mkdir -p backend/bootstrap/cache
-            chmod -R 775 backend/storage backend/bootstrap/cache 2>/dev/null || true
-            echo "✅ Storage 目錄結構已就緒"
+
+            # 嘗試創建目錄，如果失敗（權限問題）則跳過，Docker 容器會處理
+            if mkdir -p backend/storage/framework/{views,sessions,cache,data,testing} 2>/dev/null; then
+              echo "✅ 成功創建 storage/framework 子目錄"
+            else
+              echo "⚠️  無法創建 storage/framework 子目錄（可能已存在或權限限制），Docker 容器將處理"
+            fi
+
+            if mkdir -p backend/storage/logs 2>/dev/null; then
+              echo "✅ 成功創建 storage/logs"
+            else
+              echo "⚠️  無法創建 storage/logs（可能已存在）"
+            fi
+
+            if mkdir -p backend/bootstrap/cache 2>/dev/null; then
+              echo "✅ 成功創建 bootstrap/cache"
+            else
+              echo "⚠️  無法創建 bootstrap/cache（可能已存在）"
+            fi
+
+            # 嘗試設置權限，如果失敗則跳過
+            chmod -R 775 backend/storage backend/bootstrap/cache 2>/dev/null || echo "⚠️  無法修改權限（將由 Docker 容器處理）"
+
+            echo "✅ Storage 目錄結構檢查完成"
 
             # 檢測是否需要重新建置 Docker image
             echo "========================================="

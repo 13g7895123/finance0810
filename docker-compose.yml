@@ -59,8 +59,8 @@ services:
       - backend_bootstrap_cache:/var/www/html/bootstrap/cache
     command: |
       sh -c "
-        # Ensure all required directories exist FIRST
-        mkdir -p storage/framework/views storage/framework/cache storage/framework/sessions storage/logs bootstrap/cache
+        # Ensure all required directories exist FIRST (including data and testing subdirectories)
+        mkdir -p storage/framework/views storage/framework/cache storage/framework/sessions storage/framework/data storage/framework/testing storage/logs bootstrap/cache
 
         # Ensure permissions are correct
         chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
