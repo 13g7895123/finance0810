@@ -6,23 +6,7 @@ echo "Starting Laravel application initialization..."
 echo "Waiting for database connection..."
 sleep 5
 
-# Clear Laravel caches to ensure environment variables are read correctly
-echo "Clearing Laravel caches..."
-php artisan config:clear
-php artisan route:clear  
-php artisan view:clear
-php artisan cache:clear
-
-# Run database migrations
-echo "Running database migrations..."
-php artisan migrate --force
-
-# Cache configuration for better performance (with updated env vars)
-echo "Caching configuration..."
-php artisan config:cache
-php artisan route:cache
-
-# Ensure all required directories exist
+# Ensure all required directories exist FIRST (before any artisan commands)
 echo "Creating required directories..."
 mkdir -p storage/framework/views
 mkdir -p storage/framework/cache
@@ -34,6 +18,22 @@ mkdir -p bootstrap/cache
 echo "Setting permissions..."
 chown -R www-data:www-data storage bootstrap/cache
 chmod -R 775 storage bootstrap/cache
+
+# Clear Laravel caches to ensure environment variables are read correctly
+echo "Clearing Laravel caches..."
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+php artisan cache:clear
+
+# Run database migrations
+echo "Running database migrations..."
+php artisan migrate --force
+
+# Cache configuration for better performance (with updated env vars)
+echo "Caching configuration..."
+php artisan config:cache
+php artisan route:cache
 
 # Test Firebase configuration
 echo "Testing Firebase configuration..."

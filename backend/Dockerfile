@@ -77,10 +77,9 @@ RUN set -eux; \
     chown -R www-data:www-data bootstrap storage; \
     chmod -R 775 bootstrap storage
 
-# Clear any existing Laravel cache
-RUN php artisan config:clear || true && \
-    php artisan route:clear || true && \
-    php artisan view:clear || true
+# Note: Cache clearing is handled by startup.sh at runtime
+# Removing build-time cache clearing to avoid "View path not found" errors
+# when storage/framework/views doesn't exist on the host machine
 
 # Copy Nginx configuration and startup script
 COPY docker/nginx.conf /etc/nginx/nginx.conf
