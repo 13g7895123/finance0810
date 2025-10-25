@@ -314,6 +314,11 @@ const { recentNotifications, unreadCount } = storeToRefs(notificationsStore)
 // Methods can be destructured directly (they don't need reactivity)
 const { markAsRead, markAllAsRead, clearReadNotifications } = notificationsStore
 
+onMounted(() => {
+  // Fetch notifications when component mounts
+  console.log('Point 3 Debug - AppNavbar recentNotifications:', recentNotifications.value)
+})
+
 // Point 3 Debug: Monitor notification changes
 watchEffect(() => {
   console.log('Point 3 Debug - AppNavbar recentNotifications:', recentNotifications.value)
