@@ -300,6 +300,7 @@ import {
   InformationCircleIcon,
   WrenchScrewdriverIcon
 } from '@heroicons/vue/24/outline'
+import { storeToRefs } from 'pinia'
 
 // Removed i18n usage to prevent warnings
 // const { t, locale, locales } = useI18n()
@@ -308,7 +309,17 @@ const sidebarStore = useSidebarStore()
 const { toggleMobileSidebar } = sidebarStore
 
 const notificationsStore = useNotificationsStore()
-const { recentNotifications, unreadCount, markAsRead, markAllAsRead, clearReadNotifications } = notificationsStore
+// Point 3 Fix: Use storeToRefs to maintain reactivity for computed values
+const { recentNotifications, unreadCount } = storeToRefs(notificationsStore)
+// Methods can be destructured directly (they don't need reactivity)
+const { markAsRead, markAllAsRead, clearReadNotifications } = notificationsStore
+
+// Point 3 Debug: Monitor notification changes
+watchEffect(() => {
+  console.log('Point 3 Debug - AppNavbar recentNotifications:', recentNotifications.value)
+  console.log('Point 3 Debug - AppNavbar unreadCount:', unreadCount.value)
+  console.log('Point 3 Debug - AppNavbar notifications length:', recentNotifications.value?.length || 0)
+})
 
 // Breadcrumb logic
 const pageTitle = computed(() => {

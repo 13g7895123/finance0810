@@ -32,4 +32,14 @@ const { showFootbar } = storeToRefs(settingsStore)
 
 // Point 3: Notification store for toast
 const notificationsStore = useNotificationsStore()
+
+// Point 3 Fix: Start polling for notifications when layout mounts
+onMounted(() => {
+  console.log('Point 3 - Starting notifications polling from default layout')
+  notificationsStore.startPolling()
+})
+
+onUnmounted(() => {
+  notificationsStore.stopPolling()
+})
 </script>

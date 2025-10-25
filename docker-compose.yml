@@ -74,6 +74,9 @@ services:
         php artisan cache:clear || true
         php artisan view:clear || true
 
+        # Cache configuration to properly load environment variables from docker-compose
+        php artisan config:cache
+
         # Start the application
         php artisan serve --host=0.0.0.0 --port=8000
       "

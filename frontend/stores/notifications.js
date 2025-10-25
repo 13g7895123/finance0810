@@ -33,8 +33,18 @@ export const useNotificationsStore = defineStore('notifications', () => {
         }
       })
 
+      // Point 3 Debug: Log raw response
+      console.log('Point 3 Debug - Raw API response:', response)
+
       if (response.data) {
+        // Point 3 Debug: Log what we're trying to parse
+        console.log('Point 3 Debug - response.data:', response.data)
+        console.log('Point 3 Debug - response.data.data:', response.data?.data)
+
         const newNotifications = response.data.data || response.data
+        console.log('Point 3 Debug - Parsed notifications array:', newNotifications)
+        console.log('Point 3 Debug - Is array?:', Array.isArray(newNotifications))
+        console.log('Point 3 Debug - Array length:', newNotifications?.length || 0)
 
         // Check for new notifications to show toast
         if (lastNotificationId.value && newNotifications.length > 0) {
@@ -58,6 +68,10 @@ export const useNotificationsStore = defineStore('notifications', () => {
         }
 
         notifications.value = newNotifications
+        console.log('Point 3 Debug - Set notifications.value to:', notifications.value)
+        console.log('Point 3 Debug - notifications.value length:', notifications.value.length)
+      } else {
+        console.log('Point 3 Debug - No response.data!')
       }
     } catch (error) {
       console.error('Point 3 - Failed to fetch notifications:', error)
