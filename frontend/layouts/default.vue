@@ -23,6 +23,8 @@
 </template>
 
 <script setup>
+import { watch } from 'vue'
+
 const sidebarStore = useSidebarStore()
 const { sidebarCollapsed } = storeToRefs(sidebarStore)
 
@@ -32,11 +34,28 @@ const { showFootbar } = storeToRefs(settingsStore)
 
 // Point 3: Notification store for toast
 const notificationsStore = useNotificationsStore()
+const authStore = useAuthStore()
 
-// Point 3 Fix: Start polling for notifications when layout mounts
+// Point 3 Fix: Start polling for notifications only after authentication
 onMounted(() => {
-  console.log('Point 3 - Starting notifications polling from default layout')
-  notificationsStore.startPolling()
+  // Only start polling if user is authenticated
+  if (authStore.isLoggedIn) {
+    console.log('Point 3 - Starting notifications polling from default layout (user authenticated)')
+    notificationsStore.startPolling()
+  } else {
+    console.log('Point 3 - Skipping notifications polling (user not authenticated)')
+  }
+})
+
+// Watch for authentication changes
+watch(() => authStore.isLoggedIn, (isLoggedIn) => {
+  if (isLoggedIn) {
+    console.log('Point 3 - User authenticated, starting notifications polling')
+    notificationsStore.startPolling()
+  } else {
+    console.log('Point 3 - User logged out, stopping notifications polling')
+    notificationsStore.stopPolling()
+  }
 })
 
 onUnmounted(() => {

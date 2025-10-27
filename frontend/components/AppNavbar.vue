@@ -506,9 +506,9 @@ onMounted(() => {
         showUserMenu.value = false
       }
     })
-    
-    // Start real-time notifications simulation only on client
-    notificationsStore.simulateRealTimeNotifications()
+
+    // Notification polling is now handled in default.vue layout
+    // to ensure it only starts after authentication
   }
 })
 </script>

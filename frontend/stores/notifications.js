@@ -26,6 +26,14 @@ export const useNotificationsStore = defineStore('notifications', () => {
    */
   const fetchNotifications = async () => {
     try {
+      // Check if user is authenticated before fetching
+      const authStore = useAuthStore()
+      if (!authStore.isLoggedIn) {
+        console.log('Point 3 Debug - Skipping notification fetch: user not authenticated')
+        notifications.value = []
+        return
+      }
+
       const api = useApi()
       const response = await api.get('/notifications', {
         params: {
@@ -222,19 +230,33 @@ export const useNotificationsStore = defineStore('notifications', () => {
     // Only run on client
     if (process.server) return
 
+    // Check if user is authenticated before starting polling
+    const authStore = useAuthStore()
+    if (!authStore.isLoggedIn) {
+      console.log('Point 3 - Cannot start polling: user not authenticated')
+      return
+    }
+
+    // Clear any existing interval to prevent duplicates
+    if (pollingInterval.value) {
+      clearInterval(pollingInterval.value)
+      pollingInterval.value = null
+    }
+
     // Request notification permission
     requestNotificationPermission()
 
     // Initial fetch
     fetchNotifications()
 
-    // Clear any existing interval
-    if (pollingInterval.value) {
-      clearInterval(pollingInterval.value)
-    }
-
     // Poll every intervalMs (default 30 seconds)
     pollingInterval.value = setInterval(() => {
+      // Check auth status on each poll
+      if (!authStore.isLoggedIn) {
+        console.log('Point 3 - User no longer authenticated, stopping polling')
+        stopPolling()
+        return
+      }
       fetchNotifications()
     }, intervalMs)
 
